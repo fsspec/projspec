@@ -1,0 +1,127 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "projspec"
+dynamic = ["version"]
+description = "Project specification"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+maintainers = [{ name = "Martin Durant", email = "mdurant@anaconda.com" }]
+keywords = ["project"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.urls]
+Homepage = "https://github.com/fsspec/projspec"
+
+[tool.hatch.version]
+source = "vcs"
+raw-options = {'version_scheme'='post-release'}
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/projspec/_version.py"
+
+[tool.ruff]
+target-version = "py38"
+exclude = [".tox", "build", "docs/source/conf.py", "projspec/_version"]
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    # fix noqas in projspec/implementations/http.py
+    "ASYNC",
+    "B",
+    "B904",
+    "C4",
+    "G",
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "FURB",
+    "I",
+    "LOG",
+    "PERF",
+    "PLC",
+    "PLE",
+    "PLR1722",
+    "PLR1736",
+    "PLW1501",
+    "PLW1510",
+    "PLW3301",
+    "PIE800",
+    "PIE804",
+    "PIE807",
+    "PIE810",
+    # "PT", enable in later PR
+    "PYI",
+    "RUF006",
+    "RUF015",
+    "RUF024",
+    "SIM",
+    "SLOT",
+    "SIM101",
+    "TCH",
+    "UP",
+]
+ignore = [
+	# Loop control variable `loop` not used within loop body
+	"B007",
+	# Use of `functools.lru_cache` or `functools.cache` on methods can lead to memory leaks
+	"B019",
+	# Star-arg unpacking after a keyword argument is strongly discouraged
+	"B026",
+	# No explicit `stacklevel` keyword argument found
+	"B028",
+    # Assigning lambda expression
+    "E731",
+    # Ambiguous variable names
+    "E741",
+    # line break before binary operator
+    # uncomment when implemented in ruff
+    # "W503",
+    # whitespace before :
+    "E203",
+    # redefs
+    "F811",
+    # Fix these codes later
+    "G004",
+    "PERF203",
+    "UP007",
+    "UP011",
+    "UP015",
+    "UP018",
+    "SIM102",
+    "SIM105",
+    "SIM108",
+    "SIM114",
+    "SIM115",
+    "SIM117",
+    # https://github.com/astral-sh/ruff/issues/7871
+    "UP038",
+    # https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
+    "W191",
+    "E111",
+    "E114",
+    "E117",
+    "D206",
+    "D300",
+    "Q000",
+    "Q001",
+    "Q002",
+    "Q003",
+    "COM812",
+    "COM819",
+]
