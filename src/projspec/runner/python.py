@@ -16,8 +16,7 @@ class SystemPython(BaseRunner):
         # no setup to run
         pass
 
-    def run(self, path: str, *args: tuple[str, ...], background: bool = True, **kwargs
-            ) -> subprocess.CompletedProcess | subprocess.Popen:
+    def run(self, path: str, *args: tuple[str, ...], background: bool = True, **kwargs):
         """
 
         :param path: module to run
@@ -27,12 +26,13 @@ class SystemPython(BaseRunner):
         :param kwargs: passed to subprocess
         :return: process object (background) or result
         """
+        # TODO: is this a context?
         cmd = ["python", path, *args]
         if background:
             self.proc = subprocess.Popen(cmd, **kwargs)
-            return self.proc
         else:
-            return subprocess.run(cmd, **kwargs)
+            self.proc = subprocess.run(cmd, **kwargs)
+        return self
 
     def clean(self):
         if self.proc is not None:

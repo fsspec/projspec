@@ -49,5 +49,5 @@ class PythonCode(ProjectSpec):
             filelist = self.fs.ls(self.url)
             exe = [_ for _ in filelist if _.rsplit("/", 1)[-1] == "__main__.py"]
             if exe:
-                arg.append(Command(SystemPython(), exe[0]))
+                arg.append(AttrDict(command=AttrDict(main=Command(SystemPython(), exe[0]))))
         return AttrDict(*arg)

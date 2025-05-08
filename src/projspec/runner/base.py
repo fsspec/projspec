@@ -10,7 +10,7 @@ class BaseRunner(ABC):
         """
         raise NotImplementedError
 
-    def setup(self, **kwargs):
+    def setup(self, **kwargs) -> None:
         """Many any environment and temporaries needed for execution"""
         raise NotImplementedError
 
@@ -18,7 +18,9 @@ class BaseRunner(ABC):
         """Execute a given runnable"""
         raise NotImplementedError
 
-    def clean(self):
+    def clean(self) -> None:
         """Remove any temporary runtime or state"""
         raise NotImplementedError
 
+    def __repr__(self):
+        return f"{type(self).__name__}()"
