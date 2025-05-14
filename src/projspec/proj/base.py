@@ -1,22 +1,64 @@
 from abc import ABC
 from functools import cached_property
+import toml
 
-from projspec.utils import AttrDict
+from projspec.utils import AttrDict, camel_to_snake
 
 import fsspec
 
 registry = set()
 
 
+class Project:
+
+    def __init__(self, path, storage_options=None):
+        fs, url = fsspec.url_to_fs(path, storage_options=storage_options)
+        self.fs = fs
+        self.url = url
+        self.specs = {}
+        self.resolve()
+
+    def resolve(self):
+        # TODO: walk directory tree with reasonable stops
+        for cls in registry:
+            try:
+                self.specs[camel_to_snake(cls.__name__)] = cls(self)
+            except:
+                pass
+
+    @cached_property
+    def filelist(self):
+        return self.fs.ls(self.url)
+
+    @cached_property
+    def pyproject(self):
+        """Contents of top-level pyproject.toml, if found"""
+        basenames = {_.rsplit("/", 1)[-1]: _ for _ in self.filelist}
+        if "uv.lock" in basenames:
+            return True
+        if "pyrpoject.toml" in basenames:
+            try:
+                with self.fs.open(basenames["pyproject.toml"], "rt") as f:
+                    return toml.load(f)
+            except (IOError, ValueError, TypeError):
+                # debug/warn
+                pass
+        return {}
+
+
 class ProjectSpec(ABC):
 
-    def __init__(self, path: str, storage_options: dict | None = None):
-        fs, url = fsspec.url_to_fs(path, **(storage_options or {}))
-        self.url: str = url
-        self.fs: fsspec.AbstractFileSystem = fs
+    def __init__(self, root: Project, subpath: str = ""):
+        self.root = root
+        self.subpath = subpath  # not used yet
+        if not self.match():
+            raise ValueError(f"Not a {type(self).__name__}")
 
-    @staticmethod
-    def match(path: str,  storage_options: dict | None = None) -> bool:
+    @property
+    def path(self) -> str:
+        return self.root.url + "/" + self.subpath if self.subpath else self.root.url
+
+    def match(self) -> bool:
         """Whether the given path can be interpreted as this type of project"""
         raise NotImplementedError
 
@@ -38,5 +80,5 @@ class ProjectSpec(ABC):
         raise NotImplementedError
 
     @classmethod
-    def __subclasshook__(cls, __subclass):
-        registry.add(__subclass)
+    def __init_subclass__(cls, **kwargs):
+        registry.add(cls)

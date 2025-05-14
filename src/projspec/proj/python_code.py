@@ -20,34 +20,28 @@ class PythonCode(ProjectSpec):
     could introspect for a ``__main__`` annotation. A package is executable if
     it contains a ``__main__.py`` file - but of course
     """
-    # note: python can actually import any directory, but let's ignore cases without
-    # python code
-
-    @staticmethod
-    def match(path: str, storge_options: dict | None = None) -> bool:
-        if path.endswith(".py"):
-            return True
-        fs, url = fsspec.url_to_fs(path)
-        try:
-            contents = fs.ls(url)
-        except FileNotFoundError:
-            return False
-        basenames = set(_.rsplit("/", 1)[-1] for _ in contents)
+    def match(self) -> bool:
+        basenames = set(_.rsplit("/", 1)[-1] for _ in self.root.filelist)
         return "__init__.py" in basenames
 
     @cached_property
     def contents(self):
         from projspec.content.package import PythonPackage
-        return AttrDict(PythonPackage(package_name=self.url.rsplit("/", 1)[-1]))
+        from projspec.content.executable import Command
+
+        out = AttrDict(PythonPackage(artifact=None, package_name=self.path.rsplit("/", 1)[-1]))
+        arts = self.artifacts
+        if arts:
+            art = arts["process"]["main"]
+            out["command"] = AttrDict(main=Command(artifact=art, args=art.args))
+        return out
 
     @cached_property
     def artifacts(self):
-        from projspec.content.executable import Command
-        from projspec.runner.python import SystemPython
-        arg = []
-        if not self.url.endswith(".py"):
-            filelist = self.fs.ls(self.url)
-            exe = [_ for _ in filelist if _.rsplit("/", 1)[-1] == "__main__.py"]
-            if exe:
-                arg.append(AttrDict(command=AttrDict(main=Command(SystemPython(), exe[0]))))
-        return AttrDict(*arg)
+        from projspec.artifact.process import Process
+        out = AttrDict()
+        exe = [_ for _ in self.root.filelist if _.rsplit("/", 1)[-1] == "__main__.py"]
+        if exe:
+            out["process"] = AttrDict(main=Process("python", exe[0]))
+
+        return out

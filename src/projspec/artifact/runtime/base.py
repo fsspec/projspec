@@ -4,7 +4,7 @@ from abc import ABC
 class BaseRunner(ABC):
 
     def ready(self) -> bool:
-        """Is this runner available for execution
+        """Is this runtime available for execution
 
         If False, running ``setup()`` should solve the situation, if it completes
         """

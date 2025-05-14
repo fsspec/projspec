@@ -1,8 +1,16 @@
+"""Run python code"""
+
+from functools import cache
+import json
 import subprocess
-from projspec.runner import BaseRunner
+from projspec.artifact.runtime import BaseRunner
 
 
-class SystemPython(BaseRunner):
+class PythonRunner(BaseRunner):
+    """Provides a python executable"""
+
+
+class SystemPython(PythonRunner):
     """Simplest way to execute python, using executable on the PATH"""
     proc = None
 
@@ -39,3 +47,25 @@ class SystemPython(BaseRunner):
             self.proc.terminate()
             self.proc.wait()
             self.proc = None
+
+
+class Conda(PythonRunner):
+
+    @staticmethod
+    @cache
+    def envs():
+        out = subprocess.check_output(["conda", "env", "list", "--json"])
+        return json.loads(out.decode())["envs"]  # only a list of paths, no names
+
+
+class Venv(PythonRunner):
+    ...
+
+
+class VirtualEnv(PythonRunner):
+    ...
+
+
+class UVRunner(PythonRunner):
+    """Run project/script using uv to make the virtualenv"""
+    ...

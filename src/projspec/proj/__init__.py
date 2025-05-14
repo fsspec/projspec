@@ -1,1 +1,1 @@
-from .base import ProjectSpec
+from .base import Project, ProjectSpec

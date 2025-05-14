@@ -1,8 +1,4 @@
-from typing import TypeVar
-
 import re
-
-T = TypeVar('T', bound='Parent')
 
 
 class AttrDict(dict):
