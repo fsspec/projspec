@@ -9,3 +9,5 @@ from projspec.content import BaseContent
 class Command(BaseContent):
     """The simplest runnable thing - we don't know what it does"""
     args: list[str]
+    background: bool = False
+    interactive: bool = False

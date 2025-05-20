@@ -1,0 +1,54 @@
+"""Python runtimes
+
+Note that for actually running python processes. There is also an implicit
+runtime from either the env that the process is running in (i.e., the PATH),
+or sys.executable.
+"""
+
+from functools import cache
+import json
+import subprocess
+from projspec.artifact import BaseArtifact
+
+
+class CondaEnv(BaseArtifact):
+    """Path to a project conda-built env
+
+    Contains both python itself and any other binaries, as well as linked
+    libraries.
+
+    In the case of a project having an environment.yaml with a named output,
+    the path may be outside the project tree.
+    """
+    # includes conda-project and pixi _in_project_ conda environments
+    # as well as environment.y[a]ml and lock-files
+
+    @staticmethod
+    @cache
+    def envs() -> list[str] :
+        """Global conda env root paths"""
+        # pixi also has global envs
+        out = subprocess.check_output(["conda", "env", "list", "--json"])
+        return json.loads(out.decode())["envs"]
+
+
+class VirtualEnv(BaseArtifact):
+    """Path to a project virtual environment
+
+    Some tools like pipenv put these environments in a global location
+    """
+    # includes venv, virtualenv, uv, poetry and pipenv
+    # can also be made from deps (in pyproject or requirements.txt) or lock-files
+
+    def __init__(self, *args, path="", **kw):
+        super().__init__(*args, **kw)
+        self.path = path
+
+
+class EnvPack(BaseArtifact):
+    """Archival form of a python environment
+
+    - conda-pack: https://conda.github.io/conda-pack/
+    - pixi-pack: https://pixi.sh/latest/deployment/pixi_pack/
+    """
+

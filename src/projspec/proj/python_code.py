@@ -45,3 +45,31 @@ class PythonCode(ProjectSpec):
             out["process"] = AttrDict(main=Process("python", exe[0]))
 
         return out
+
+
+class PythonLbrary(ProjectSpec):
+    """Complete python buildable project
+
+    Defined by existence of pyproject.toml or setup.py.
+    """
+    def match(self) -> bool:
+        basenames = set(_.rsplit("/", 1)[-1] for _ in self.root.filelist)
+        return "pyproject.toml" in basenames or "setup.py" in basenames
+
+    @cached_property
+    def artifacts(self):
+        from projspec.artifact.installable import Wheel
+        proj = self.root.pyproject.get("project", None)
+        if proj.get("build-system"):
+            # should imply that "python -m build" can run
+            return AttrDict(Wheel())
+        return AttrDict()
+
+    @cached_property
+    def contents(self):
+        from projspec.content.package import PythonPackage
+        proj = self.root.pyproject.get("project", None)
+        if proj is None:
+            # will be empty for old setup.py projects.
+            return AttrDict()
+        return AttrDict(PythonPackage(artifact=None, package_name=proj["name"]))

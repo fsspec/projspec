@@ -1,4 +1,5 @@
 from projspec.proj.base import ProjectSpec
+from projspec.utils import AttrDict
 
 
 class UVProject(ProjectSpec):
@@ -18,3 +19,17 @@ class UVProject(ProjectSpec):
         if self.root.pyproject.get("build-system", {}).get("build-backend", "") == "uv_build":
             return True
         return False
+
+    @property
+    def contents(self) -> AttrDict:
+        # environment spec
+        # commands
+        # python package (unless tools.uv.package == False)
+        return AttrDict()
+
+    @property
+    def artifacts(self) -> AttrDict:
+        # lockfile
+        # runtime environment
+        # process from defined commands
+        return AttrDict()

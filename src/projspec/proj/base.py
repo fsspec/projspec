@@ -1,4 +1,3 @@
-from abc import ABC
 from functools import cached_property
 import toml
 
@@ -20,23 +19,27 @@ class Project:
 
     def resolve(self):
         # TODO: walk directory tree with reasonable stops
+        #  maybe as subprojects of each Spec.
         for cls in registry:
             try:
                 self.specs[camel_to_snake(cls.__name__)] = cls(self)
-            except:
+            except ValueError as e:
+                print(cls, e)
                 pass
 
     @cached_property
     def filelist(self):
         return self.fs.ls(self.url)
 
+    def __repr__(self):
+        return (f"<Project '{self.url}'>\n"
+                f"\n{'\n'.join(str(_) for _ in self.specs.values())}")
+
     @cached_property
     def pyproject(self):
         """Contents of top-level pyproject.toml, if found"""
         basenames = {_.rsplit("/", 1)[-1]: _ for _ in self.filelist}
-        if "uv.lock" in basenames:
-            return True
-        if "pyrpoject.toml" in basenames:
+        if "pyproject.toml" in basenames:
             try:
                 with self.fs.open(basenames["pyproject.toml"], "rt") as f:
                     return toml.load(f)
@@ -46,7 +49,12 @@ class Project:
         return {}
 
 
-class ProjectSpec(ABC):
+class ProjectSpec:
+    """A project specification
+
+    Also provides fallback from pyproject.toml standard layout without additional
+    runtime specification (uv, pixi, maturin, etc.).
+    """
 
     def __init__(self, root: Project, subpath: str = ""):
         self.root = root
@@ -79,6 +87,16 @@ class ProjectSpec(ABC):
         """
         raise NotImplementedError
 
+    def clean(self):
+        """Remove any artifacts and runtimes produced by this project"""
+        for artgroup in self.artifacts.values():
+            for art in artgroup.values():
+                art.clean(True)
+
     @classmethod
     def __init_subclass__(cls, **kwargs):
         registry.add(cls)
+
+    def __repr__(self):
+        return (f"<{type(self).__name__}>\nContents: {self.contents}\n"
+                f"Artifacts: {self.artifacts}")
