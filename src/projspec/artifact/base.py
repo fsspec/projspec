@@ -1,9 +1,17 @@
+import logging
+import subprocess
 from typing import Literal
+from projspec.proj import ProjectSpec
+
+logger = logging.getLogger("projspec")
+
 
 class BaseArtifact:
 
-    def __init__(self, requires: list | None = None, **kw):
+    def __init__(self, proj: ProjectSpec, requires: list | None = None, cmd: list[str]|None=None, **kw):
+        self.proj = proj
         self.requires = requires or []
+        self.cmd = cmd
         self.kw = kw
         self.proc = None
 
@@ -24,10 +32,17 @@ class BaseArtifact:
 
     def make(self, *args, **kwargs):
         """Create the artifact and any runtime it depends on"""
-        raise NotImplementedError
+        # this implementation covers many uses but maybe
+        # we should provide different ones for "call", "background" etc
+        logger.debug(" ".join(self.cmd))
+        # TODO: set CWD if fs is local
+        subprocess.check_call(self.cmd, **self.kw)
 
-    def remake(self):
+    def remake(self, reqs=False):
         """Recreate artifact and any runtime it depends on"""
+        if reqs:
+            for req in self.requires:
+                req.remake(reqs=reqs)
         self.clean()
         self.make()
 

@@ -4,15 +4,13 @@ from projspec.artifact import BaseArtifact
 
 
 class Process(BaseArtifact):
-    """A process where we know nothing about what it does"""
+    """A simple process where we know nothing about what it does
 
-    def __init__(self, *args, **kw):
-        super().__init__([], **kw)
-        self.args: list[str] = list(args)
-
+    Can include batch jobs and long-running services.
+    """
     def make(self):
         if self.proc is None:
-            self.proc = subprocess.Popen(self.args, **self.kw)
+            self.proc = subprocess.Popen(self.cmd, **self.kw)
 
     def _is_done(self) -> bool:
         return self.proc is not None and self.proc.poll() is None

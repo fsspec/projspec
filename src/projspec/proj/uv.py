@@ -1,3 +1,4 @@
+from hatch.utils import toml
 from projspec.proj.base import ProjectSpec
 from projspec.utils import AttrDict
 
@@ -18,18 +19,35 @@ class UVProject(ProjectSpec):
             return True
         if self.root.pyproject.get("build-system", {}).get("build-backend", "") == "uv_build":
             return True
+        if ".venv" in basenames:
+            try:
+                with self.root.fs.open(f"{self.root.url}/.venv/pyvenv.cfg", "rb") as f:
+                    txt = f.read()
+                return b"uv =" in txt
+            except (FileNotFoundError, IOError):
+                pass
         return False
 
-    @property
-    def contents(self) -> AttrDict:
+    def parse(self) -> AttrDict:
+        conf = self.root.pyproject.get("tools", {}).get("uv", {})
+        try:
+            with self.root.fs.open(f"{self.root.url}/uv.toml", "rb") as f:
+                conf2 = toml.load(f)
+        except (FileNotFoundError, IOError):
+            conf2 = {}
+        conf.update(conf2)
+        try:
+            with self.root.fs.open(f"{self.root.url}/uv.lock", "rb") as f:
+                lock = toml.load(f)
+        except (FileNotFoundError, IOError):
+            lock = {}
+
         # environment spec
         # commands
         # python package (unless tools.uv.package == False)
-        return AttrDict()
+        self._contents = AttrDict()
 
-    @property
-    def artifacts(self) -> AttrDict:
         # lockfile
         # runtime environment
         # process from defined commands
-        return AttrDict()
+        self._artifacts = AttrDict()

@@ -22,6 +22,9 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
+dependencies = [
+    "fsspec>=2025.5.1",
+]
 
 [project.urls]
 Homepage = "https://github.com/fsspec/projspec"
@@ -124,4 +127,9 @@ ignore = [
     "Q003",
     "COM812",
     "COM819",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
 ]
