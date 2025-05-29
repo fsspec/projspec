@@ -11,14 +11,13 @@ from projspec.proj.base import ProjectSpec
 class PythonCode(ProjectSpec):
     """Code directly importable by python
 
-    This applies to isolated .py files and directories with __init__.py.
+    This applies to directories with __init__.py (i.e., not isolated .py files,
+    or eggs). Could include .zip in theory.
 
     Such a structure does not declare any envs, deps, etc. It contains
     nothing interesting _except_ code.
 
-    We assume a free-floating py file is executable if it has x permissions or "#!";
-    could introspect for a ``__main__`` annotation. A package is executable if
-    it contains a ``__main__.py`` file - but of course
+     A package is executable if it contains a ``__main__.py`` file.
     """
     def match(self) -> bool:
         basenames = set(_.rsplit("/", 1)[-1] for _ in self.root.filelist)
@@ -53,11 +52,18 @@ class PythonLibrary(ProjectSpec):
     def parse(self):
         from projspec.artifact.installable import Wheel
         from projspec.content.package import PythonPackage
+        basenames = set(_.rsplit("/", 1)[-1] for _ in self.root.filelist)
+
         if "build-system" in self.root.pyproject:
             # should imply that "python -m build" can run
+            # With --wheel ?
             self._artifacts = AttrDict(Wheel(proj=self.root, cmd=["python", "-m", "build"]))
+        elif "setup.py" in basenames:
+            self._artifacts = AttrDict(Wheel(proj=self.root, cmd=["python", "setup.py", "bdist_wheel"]))
         else:
             self._artifacts = AttrDict()
+        # not attempting to parse setup.py, although most commonly a subdirectory with
+        # the same name as the repo is the python package
         proj = self.root.pyproject.get("project", None)
         if proj is None:
             # will be empty for old setup.py projects.
