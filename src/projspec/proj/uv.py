@@ -1,4 +1,4 @@
-from hatch.utils import toml
+import toml
 from projspec.proj.base import ProjectSpec
 from projspec.utils import AttrDict
 
@@ -21,23 +21,23 @@ class UVProject(ProjectSpec):
             return True
         if ".venv" in basenames:
             try:
-                with self.root.fs.open(f"{self.root.url}/.venv/pyvenv.cfg", "rb") as f:
+                with self.root.fs.open(f"{self.root.url}/.venv/pyvenv.cfg", "rt") as f:
                     txt = f.read()
                 return b"uv =" in txt
             except (FileNotFoundError, IOError):
                 pass
         return False
 
-    def parse(self) -> AttrDict:
+    def parse(self):
         conf = self.root.pyproject.get("tools", {}).get("uv", {})
         try:
-            with self.root.fs.open(f"{self.root.url}/uv.toml", "rb") as f:
+            with self.root.fs.open(f"{self.root.url}/uv.toml", "rt") as f:
                 conf2 = toml.load(f)
         except (FileNotFoundError, IOError):
             conf2 = {}
         conf.update(conf2)
         try:
-            with self.root.fs.open(f"{self.root.url}/uv.lock", "rb") as f:
+            with self.root.fs.open(f"{self.root.url}/uv.lock", "rt") as f:
                 lock = toml.load(f)
         except (FileNotFoundError, IOError):
             lock = {}

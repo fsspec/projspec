@@ -1,17 +1,19 @@
 from dataclasses import dataclass
-import enum
+from enum import auto
+
+from projspec.utils import Enum
 from projspec.content import BaseContent
 
 
-class Stack(enum.Enum):
+class Stack(Enum):
     """The type of environment"""
-    PIP = "pip"
-    CONDA = "conda"
+    PIP = auto()
+    CONDA = auto()
 
 
-class Precision(enum.Enum):
-    SPEC = "spec"
-    LOCK = "lock"
+class Precision(Enum):
+    SPEC = auto()
+    LOCK = auto()
 
 
 @dataclass

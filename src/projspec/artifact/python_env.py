@@ -20,8 +20,6 @@ class CondaEnv(BaseArtifact):
     In the case of a project having an environment.yaml with a named output,
     the path may be outside the project tree.
     """
-    # includes conda-project and pixi _in_project_ conda environments
-    # as well as environment.y[a]ml and lock-files
 
     @staticmethod
     @cache

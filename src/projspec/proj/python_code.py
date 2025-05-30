@@ -52,22 +52,60 @@ class PythonLibrary(ProjectSpec):
     def parse(self):
         from projspec.artifact.installable import Wheel
         from projspec.content.package import PythonPackage
+        from projspec.content.environment import Environment, Precision, Stack
         basenames = set(_.rsplit("/", 1)[-1] for _ in self.root.filelist)
 
+        arts = AttrDict()
         if "build-system" in self.root.pyproject:
             # should imply that "python -m build" can run
-            # With --wheel ?
-            self._artifacts = AttrDict(Wheel(proj=self.root, cmd=["python", "-m", "build"]))
+            # With `--wheel` ?
+            arts["whee"] = Wheel(proj=self.root, cmd=["python", "-m", "build"])
         elif "setup.py" in basenames:
-            self._artifacts = AttrDict(Wheel(proj=self.root, cmd=["python", "setup.py", "bdist_wheel"]))
-        else:
-            self._artifacts = AttrDict()
+            arts["wheel"] = Wheel(proj=self.root, cmd=["python", "setup.py", "bdist_wheel"])
+        self._artifacts = arts
+
+        conts = AttrDict()
         # not attempting to parse setup.py, although most commonly a subdirectory with
         # the same name as the repo is the python package
         proj = self.root.pyproject.get("project", None)
-        if proj is None:
-            # will be empty for old setup.py projects.
-            self._contents = AttrDict()
-        else:
-            self._contents = AttrDict(PythonPackage(
-                proj=self.root, artifacts=set(), package_name=proj["name"]))
+        env = AttrDict()
+        if proj is not None:
+            conts["python_package"] = PythonPackage(
+                proj=self.root, artifacts=set(), package_name=proj["name"])
+            if "dependencies" in proj:
+                env["default"] = Environment(proj=self.root, artifacts=set(), precision=Precision.SPEC, stack=Stack.PIP,
+                                             packages=proj["dependencies"])
+            if "optional-dependencies" in proj:
+                for name, deps in proj["optional-dependencies"].items():
+                    env[name] = Environment(proj=self.root, artifacts=set(), precision=Precision.SPEC, stack=Stack.PIP,
+                                            packages=deps)
+        if "dependency-groups" in self.root.pyproject:
+            env.update({k: Environment(proj=self.root, artifacts=set(), precision=Precision.SPEC, stack=Stack.PIP,
+                        packages=v) for k, v in
+                _resolve_groups(self.root.pyproject["dependency-groups"]).items()})
+        if "default" not in env and "requirements.txt" in basenames:
+            fn = f"{self.root.url}/requirements.txt"
+            with self.root.fs.open(fn, "rt") as f:
+                lines = f.readlines()
+            env["default"] = Environment(proj=self.root, artifacts=set(), precision=Precision.SPEC, stack=Stack.PIP,
+                                         packages=[l.rstrip() for l in lines if l and "#" not in l])
+
+        if env:
+            conts["environment"] = env
+        self._contents = conts
+
+
+def _resolve_groups(dep) -> dict[str, list[str]]:
+    # simplified version of
+    # https://packaging.python.org/en/latest/specifications/dependency-groups/
+    #   #reference-implementation
+    # only resolves groups in order
+    out = {}
+    for name, deps in dep.items():
+        out[name] = []
+        for d in deps:
+            if isinstance(d, str):
+                out[name].append(d)
+            elif isinstance(d, dict) and list(d) == ["include-group"]:
+                out[name].extend(out[d["include-group"]])
+    return out

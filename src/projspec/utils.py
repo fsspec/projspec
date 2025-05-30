@@ -1,7 +1,13 @@
+import enum
 import pathlib
 import re
 import subprocess
 import sys
+
+
+class Enum(enum.Enum):
+    def __repr__(self):
+        return self.name
 
 
 class AttrDict(dict):
