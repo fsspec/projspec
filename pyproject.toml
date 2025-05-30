@@ -26,6 +26,9 @@ dependencies = [
     "fsspec>=2025.5.1",
 ]
 
+[project.scripts]
+projspec = "projspec.__main__:main"
+
 [project.urls]
 Homepage = "https://github.com/fsspec/projspec"
 

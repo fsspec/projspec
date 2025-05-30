@@ -6,6 +6,11 @@ import fsspec
 
 from projspec.utils import AttrDict
 from projspec.proj.base import ProjectSpec
+from projspec.artifact.installable import Wheel
+from projspec.content.environment import Environment, Precision, Stack
+from projspec.content.package import PythonPackage
+from projspec.content.executable import Command
+from projspec.artifact.process import Process
 
 
 class PythonCode(ProjectSpec):
@@ -24,9 +29,6 @@ class PythonCode(ProjectSpec):
         return "__init__.py" in basenames
 
     def parse(self):
-        from projspec.content.package import PythonPackage
-        from projspec.content.executable import Command
-        from projspec.artifact.process import Process
 
         arts = AttrDict()
         exe = [_ for _ in self.root.filelist if _.rsplit("/", 1)[-1] == "__main__.py"]
@@ -36,7 +38,7 @@ class PythonCode(ProjectSpec):
         out = AttrDict(PythonPackage(proj=self.root, artifacts=set(), package_name=self.path.rsplit("/", 1)[-1]))
         if arts:
             art = arts["process"]["main"]
-            out["command"] = AttrDict(main=Command(proj=self.root, artifacts={art}, args=art.cmd))
+            out["command"] = AttrDict(main=Command(proj=self.root, artifacts={art}, cmd=art.cmd))
         self._contents = out
 
 
@@ -50,16 +52,13 @@ class PythonLibrary(ProjectSpec):
         return "pyproject.toml" in basenames or "setup.py" in basenames
 
     def parse(self):
-        from projspec.artifact.installable import Wheel
-        from projspec.content.package import PythonPackage
-        from projspec.content.environment import Environment, Precision, Stack
         basenames = set(_.rsplit("/", 1)[-1] for _ in self.root.filelist)
 
         arts = AttrDict()
         if "build-system" in self.root.pyproject:
             # should imply that "python -m build" can run
             # With `--wheel` ?
-            arts["whee"] = Wheel(proj=self.root, cmd=["python", "-m", "build"])
+            arts["wheel"] = Wheel(proj=self.root, cmd=["python", "-m", "build"])
         elif "setup.py" in basenames:
             arts["wheel"] = Wheel(proj=self.root, cmd=["python", "setup.py", "bdist_wheel"])
         self._artifacts = arts
@@ -79,6 +78,14 @@ class PythonLibrary(ProjectSpec):
                 for name, deps in proj["optional-dependencies"].items():
                     env[name] = Environment(proj=self.root, artifacts=set(), precision=Precision.SPEC, stack=Stack.PIP,
                                             packages=deps)
+            for x in ("scripts", "gui-scripts"):
+                if x in proj:
+                    cmd =AttrDict()
+                    for name, script in proj["scripts"].items():
+                        mod, func = script.rsplit(":", 1)
+                        c = f"import sys; from {mod} import {func}; sys.exit(main_cli())"
+                        cmd[name] = Command(proj=self.root, artifacts=set(), cmd=["python", "-c", c])
+                    conts["command"] = cmd
         if "dependency-groups" in self.root.pyproject:
             env.update({k: Environment(proj=self.root, artifacts=set(), precision=Precision.SPEC, stack=Stack.PIP,
                         packages=v) for k, v in
@@ -92,6 +99,7 @@ class PythonLibrary(ProjectSpec):
 
         if env:
             conts["environment"] = env
+            # + venv artifact
         self._contents = conts
 
 

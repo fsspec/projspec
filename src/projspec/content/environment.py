@@ -12,6 +12,7 @@ class Stack(Enum):
 
 
 class Precision(Enum):
+    # TODO: categories may be refined
     SPEC = auto()
     LOCK = auto()
 

@@ -52,7 +52,7 @@ class Project:
     def __repr__(self):
         # TODO: show children, adding indents
         return (f"<Project '{self.url}'>\n"
-                f"\n{'\n\n'.join(f"{p}: {_}" for p, _ in self.specs.items())}")
+                f"\n{'\n\n'.join(f"{_}" for _ in self.specs.values())}")
 
     @cached_property
     def pyproject(self):

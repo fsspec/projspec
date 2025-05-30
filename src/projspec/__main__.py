@@ -8,13 +8,14 @@ import sys
 import projspec.proj
 
 
-def main(path=None):
-    proj = projspec.Project(path or os.getcwd())
+def main():
+    if len(sys.argv) > 1:
+        path = sys.argv[1]
+    else:
+        path = os.getcwd()
+    proj = projspec.Project(path)
     print(proj)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        main(sys.argv[1])
-    else:
-        main()
+    main()
