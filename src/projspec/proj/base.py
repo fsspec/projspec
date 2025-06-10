@@ -37,8 +37,7 @@ class Project:
             for fileinfo in self.fs.ls(fullpath, detail=True):
                 if fileinfo["type"] == "directory":
                     sub = f"{subpath}/{fileinfo["name"].rsplit("/", 1)[-1]}"
-                    proj2 = Project(fileinfo["name"], fs=self.fs,
-                                                 walk=walk or False)
+                    proj2 = Project(fileinfo["name"], fs=self.fs, walk=walk or False)
                     if proj2.specs:
                         self.children[sub] = proj2
                     elif proj2.children:
@@ -50,9 +49,15 @@ class Project:
         return self.fs.ls(self.url)
 
     def __repr__(self):
-        # TODO: show children, adding indents
-        return (f"<Project '{self.url}'>\n"
-                f"\n{'\n\n'.join(f"{_}" for _ in self.specs.values())}")
+        txt = (f"<Project '{self.url}'>\n"
+               f"\n{'\n\n'.join(f"{_}" for _ in self.specs.values())}")
+        if self.children:
+            ch = "\n".join(
+                [f" {k}: {' '.join(type(_).__name__ for _ in v.specs.values())}"
+                for k, v in self.children.items()]
+            )
+            txt += f"\n\nChildren:\n{ch}"
+        return txt
 
     @cached_property
     def pyproject(self):
@@ -89,8 +94,9 @@ class ProjectSpec:
         return self.root.url + "/" + self.subpath if self.subpath else self.root.url
 
     def match(self) -> bool:
-        """Whether the given path can be interpreted as this type of project"""
-        raise NotImplementedError
+        """Whether the given path might be interpreted as this type of project"""
+        # should be fast, not require a full parse, which we will probably do right after
+        return False
 
     @property
     def contents(self) -> AttrDict:
@@ -114,8 +120,8 @@ class ProjectSpec:
         return self._artifacts
 
     def parse(self) -> None:
-        # TODO: returns known children
-        raise NotImplementedError
+        # should raise ValueError if the project cannot be interpreted as this type
+        raise ValueError
 
     def clean(self) -> None:
         """Remove any artifacts and runtimes produced by this project"""
@@ -128,5 +134,9 @@ class ProjectSpec:
         registry.add(cls)
 
     def __repr__(self):
-        return (f"<{type(self).__name__}>\nContents:\n {self.contents}\n"
-                f"Artifacts:\n {self.artifacts}")
+        base = f"<{type(self).__name__}>"
+        if self.contents:
+            base += f"\nContents:\n {self.contents}\n"
+        if self.artifacts:
+            base += f"\nArtifacts:\n {self.artifacts}\n"
+        return base

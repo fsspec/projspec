@@ -1,7 +1,9 @@
 import logging
 import subprocess
 from typing import Literal
+
 from projspec.proj import Project
+from projspec.utils import is_installed
 
 logger = logging.getLogger("projspec")
 
@@ -20,6 +22,9 @@ class BaseArtifact:
 
     def _is_done(self) -> bool:
         return self.proc is not None  # in general more complex
+
+    def _check_runner(self):
+        return self.cmd[0] in is_installed
 
     @property
     def state(self) -> Literal["clean", "done", "pending"]:
