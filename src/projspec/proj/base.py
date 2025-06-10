@@ -1,15 +1,16 @@
+import logging
 from functools import cached_property
+
+import fsspec
 import toml
 
 from projspec.utils import AttrDict, camel_to_snake
 
-import fsspec
-
+logger = logging.getLogger("projspec")
 registry = set()
 
 
 class Project:
-
     def __init__(self, path, storage_options=None, fs=None, walk=None):
         if fs is None:
             fs, path = fsspec.url_to_fs(path, storage_options=storage_options)
@@ -31,30 +32,44 @@ class Project:
         for cls in registry:
             try:
                 self.specs[camel_to_snake(cls.__name__)] = cls(self)
-            except ValueError as e:
+            except ValueError:
                 pass
+            except Exception as e:
+                # we don't want to fail the parse completely
+                logger.exception("Failed to resolve spec %r", e)
+                continue
         if walk or (walk is None and not self.specs):
             for fileinfo in self.fs.ls(fullpath, detail=True):
                 if fileinfo["type"] == "directory":
-                    sub = f"{subpath}/{fileinfo["name"].rsplit("/", 1)[-1]}"
-                    proj2 = Project(fileinfo["name"], fs=self.fs, walk=walk or False)
+                    sub = f"{subpath}/{fileinfo['name'].rsplit('/', 1)[-1]}"
+                    proj2 = Project(
+                        fileinfo["name"], fs=self.fs, walk=walk or False
+                    )
                     if proj2.specs:
                         self.children[sub] = proj2
                     elif proj2.children:
-                        self.children.update({f"{sub}/{s2}": p for s2, p in proj2.children.items()})
-
+                        self.children.update(
+                            {
+                                f"{sub}/{s2}": p
+                                for s2, p in proj2.children.items()
+                            }
+                        )
 
     @cached_property
     def filelist(self):
         return self.fs.ls(self.url)
 
     def __repr__(self):
-        txt = (f"<Project '{self.url}'>\n"
-               f"\n{'\n\n'.join(f"{_}" for _ in self.specs.values())}")
+        txt = (
+            f"<Project '{self.url}'>\n"
+            f"\n{'\n\n'.join(f'{_}' for _ in self.specs.values())}"
+        )
         if self.children:
             ch = "\n".join(
-                [f" {k}: {' '.join(type(_).__name__ for _ in v.specs.values())}"
-                for k, v in self.children.items()]
+                [
+                    f" {k}: {' '.join(type(_).__name__ for _ in v.specs.values())}"
+                    for k, v in self.children.items()
+                ]
             )
             txt += f"\n\nChildren:\n{ch}"
         return txt
@@ -67,7 +82,7 @@ class Project:
             try:
                 with self.fs.open(basenames["pyproject.toml"], "rt") as f:
                     return toml.load(f)
-            except (IOError, ValueError, TypeError):
+            except (OSError, ValueError, TypeError):
                 # debug/warn?
                 pass
         return {}
@@ -91,7 +106,11 @@ class ProjectSpec:
     @property
     def path(self) -> str:
         """Location of this project spec"""
-        return self.root.url + "/" + self.subpath if self.subpath else self.root.url
+        return (
+            self.root.url + "/" + self.subpath
+            if self.subpath
+            else self.root.url
+        )
 
     def match(self) -> bool:
         """Whether the given path might be interpreted as this type of project"""

@@ -1,4 +1,5 @@
 import logging
+import os.path
 import subprocess
 
 from projspec.artifact import BaseArtifact
@@ -41,6 +42,7 @@ class CondaPackage(BaseArtifact):
     This output is intended to be _local_ - pushing to a remote location (e.g., pypi)
     is call publishing.
     """
+
     def __init__(self, path=None, **kwargs):
         super().__init__(**kwargs)
         self.path: str | None = path
@@ -48,6 +50,7 @@ class CondaPackage(BaseArtifact):
     def make(self, *args, **kwargs):
         """Create the artifact and any runtime it depends on"""
         import re
+
         logger.debug(" ".join(self.cmd))
         out = subprocess.check_output(self.cmd, **self.kw).decode("utf-8")
         fn = re.search(".conda\n", out).group(0)

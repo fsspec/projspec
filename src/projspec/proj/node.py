@@ -3,8 +3,7 @@ from projspec.utils import AttrDict
 
 
 class NodeProject(ProjectSpec):
-    """Node.js project
-    """
+    """Node.js project"""
 
     def match(self):
         contents = self.root.filelist

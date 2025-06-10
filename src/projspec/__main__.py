@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-"""Simple example executable for this library
-"""
+"""Simple example executable for this library"""
 
 import os
 import sys

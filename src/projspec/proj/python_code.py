@@ -1,16 +1,10 @@
-from typing import Type
-from functools import cached_property
-
-
-import fsspec
-
-from projspec.utils import AttrDict
-from projspec.proj.base import ProjectSpec
 from projspec.artifact.installable import Wheel
-from projspec.content.environment import Environment, Precision, Stack
-from projspec.content.package import PythonPackage
-from projspec.content.executable import Command
 from projspec.artifact.process import Process
+from projspec.content.environment import Environment, Precision, Stack
+from projspec.content.executable import Command
+from projspec.content.package import PythonPackage
+from projspec.proj.base import ProjectSpec
+from projspec.utils import AttrDict
 
 
 class PythonCode(ProjectSpec):
@@ -24,21 +18,35 @@ class PythonCode(ProjectSpec):
 
      A package is executable if it contains a ``__main__.py`` file.
     """
+
     def match(self) -> bool:
-        basenames = set(_.rsplit("/", 1)[-1] for _ in self.root.filelist)
+        basenames = {_.rsplit("/", 1)[-1] for _ in self.root.filelist}
         return "__init__.py" in basenames
 
     def parse(self):
-
         arts = AttrDict()
-        exe = [_ for _ in self.root.filelist if _.rsplit("/", 1)[-1] == "__main__.py"]
+        exe = [
+            _
+            for _ in self.root.filelist
+            if _.rsplit("/", 1)[-1] == "__main__.py"
+        ]
         if exe:
-            arts["process"] = AttrDict(main=Process(proj=self.root, cmd=["python", exe[0]]))
+            arts["process"] = AttrDict(
+                main=Process(proj=self.root, cmd=["python", exe[0]])
+            )
         self._artifacts = arts
-        out = AttrDict(PythonPackage(proj=self.root, artifacts=set(), package_name=self.path.rsplit("/", 1)[-1]))
+        out = AttrDict(
+            PythonPackage(
+                proj=self.root,
+                artifacts=set(),
+                package_name=self.path.rsplit("/", 1)[-1],
+            )
+        )
         if arts:
             art = arts["process"]["main"]
-            out["command"] = AttrDict(main=Command(proj=self.root, artifacts={art}, cmd=art.cmd))
+            out["command"] = AttrDict(
+                main=Command(proj=self.root, artifacts={art}, cmd=art.cmd)
+            )
         self._contents = out
 
 
@@ -47,12 +55,13 @@ class PythonLibrary(ProjectSpec):
 
     Defined by existence of pyproject.toml or setup.py.
     """
+
     def match(self) -> bool:
-        basenames = set(_.rsplit("/", 1)[-1] for _ in self.root.filelist)
+        basenames = {_.rsplit("/", 1)[-1] for _ in self.root.filelist}
         return "pyproject.toml" in basenames or "setup.py" in basenames
 
     def parse(self):
-        basenames = set(_.rsplit("/", 1)[-1] for _ in self.root.filelist)
+        basenames = {_.rsplit("/", 1)[-1] for _ in self.root.filelist}
 
         arts = AttrDict()
         if "build-system" in self.root.pyproject:
@@ -60,7 +69,9 @@ class PythonLibrary(ProjectSpec):
             # With `--wheel` ?
             arts["wheel"] = Wheel(proj=self.root, cmd=["python", "-m", "build"])
         elif "setup.py" in basenames:
-            arts["wheel"] = Wheel(proj=self.root, cmd=["python", "setup.py", "bdist_wheel"])
+            arts["wheel"] = Wheel(
+                proj=self.root, cmd=["python", "setup.py", "bdist_wheel"]
+            )
         self._artifacts = arts
 
         conts = AttrDict()
@@ -70,32 +81,63 @@ class PythonLibrary(ProjectSpec):
         env = AttrDict()
         if proj is not None:
             conts["python_package"] = PythonPackage(
-                proj=self.root, artifacts=set(), package_name=proj["name"])
+                proj=self.root, artifacts=set(), package_name=proj["name"]
+            )
             if "dependencies" in proj:
-                env["default"] = Environment(proj=self.root, artifacts=set(), precision=Precision.SPEC, stack=Stack.PIP,
-                                             packages=proj["dependencies"])
+                env["default"] = Environment(
+                    proj=self.root,
+                    artifacts=set(),
+                    precision=Precision.SPEC,
+                    stack=Stack.PIP,
+                    packages=proj["dependencies"],
+                )
             if "optional-dependencies" in proj:
                 for name, deps in proj["optional-dependencies"].items():
-                    env[name] = Environment(proj=self.root, artifacts=set(), precision=Precision.SPEC, stack=Stack.PIP,
-                                            packages=deps)
+                    env[name] = Environment(
+                        proj=self.root,
+                        artifacts=set(),
+                        precision=Precision.SPEC,
+                        stack=Stack.PIP,
+                        packages=deps,
+                    )
             for x in ("scripts", "gui-scripts"):
                 if x in proj:
-                    cmd =AttrDict()
+                    cmd = AttrDict()
                     for name, script in proj["scripts"].items():
                         mod, func = script.rsplit(":", 1)
                         c = f"import sys; from {mod} import {func}; sys.exit(main_cli())"
-                        cmd[name] = Command(proj=self.root, artifacts=set(), cmd=["python", "-c", c])
+                        cmd[name] = Command(
+                            proj=self.root,
+                            artifacts=set(),
+                            cmd=["python", "-c", c],
+                        )
                     conts["command"] = cmd
         if "dependency-groups" in self.root.pyproject:
-            env.update({k: Environment(proj=self.root, artifacts=set(), precision=Precision.SPEC, stack=Stack.PIP,
-                        packages=v) for k, v in
-                _resolve_groups(self.root.pyproject["dependency-groups"]).items()})
+            env.update(
+                {
+                    k: Environment(
+                        proj=self.root,
+                        artifacts=set(),
+                        precision=Precision.SPEC,
+                        stack=Stack.PIP,
+                        packages=v,
+                    )
+                    for k, v in _resolve_groups(
+                        self.root.pyproject["dependency-groups"]
+                    ).items()
+                }
+            )
         if "default" not in env and "requirements.txt" in basenames:
             fn = f"{self.root.url}/requirements.txt"
             with self.root.fs.open(fn, "rt") as f:
                 lines = f.readlines()
-            env["default"] = Environment(proj=self.root, artifacts=set(), precision=Precision.SPEC, stack=Stack.PIP,
-                                         packages=[l.rstrip() for l in lines if l and "#" not in l])
+            env["default"] = Environment(
+                proj=self.root,
+                artifacts=set(),
+                precision=Precision.SPEC,
+                stack=Stack.PIP,
+                packages=[l.rstrip() for l in lines if l and "#" not in l],
+            )
 
         if env:
             conts["environment"] = env

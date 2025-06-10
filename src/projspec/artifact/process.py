@@ -8,6 +8,7 @@ class Process(BaseArtifact):
 
     Can include batch jobs and long-running services.
     """
+
     def make(self):
         if self.proc is None:
             self.proc = subprocess.Popen(self.cmd, **self.kw)
@@ -15,7 +16,9 @@ class Process(BaseArtifact):
     def _is_done(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
-    def clean(self, ):
+    def clean(
+        self,
+    ):
         if self.proc is not None:
             self.proc.terminate()
             self.proc.wait()

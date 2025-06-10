@@ -5,9 +5,10 @@ runtime from either the env that the process is running in (i.e., the PATH),
 or sys.executable.
 """
 
-from functools import cache
 import json
 import subprocess
+from functools import cache
+
 from projspec.artifact import BaseArtifact
 
 
@@ -23,7 +24,7 @@ class CondaEnv(BaseArtifact):
 
     @staticmethod
     @cache
-    def envs() -> list[str] :
+    def envs() -> list[str]:
         """Global conda env root paths"""
         # pixi also has global envs
         out = subprocess.check_output(["conda", "env", "list", "--json"])
@@ -35,6 +36,7 @@ class VirtualEnv(BaseArtifact):
 
     Some tools like pipenv put these environments in a global location
     """
+
     # includes venv, virtualenv, uv, poetry and pipenv
     # can also be made from deps (in pyproject or requirements.txt) or lock-files
 
@@ -49,4 +51,3 @@ class EnvPack(BaseArtifact):
     - conda-pack: https://conda.github.io/conda-pack/
     - pixi-pack: https://pixi.sh/latest/deployment/pixi_pack/
     """
-

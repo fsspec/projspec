@@ -5,8 +5,8 @@ A common interface to code projects.
 ### What is a project?
 
 From the point of view of this library, any directory of stuff with metadata
-describing what that stuff is (contents), what to do with it (artifacts) is 
-a project. This includes things that might be called in other contexts 
+describing what that stuff is (contents), what to do with it (artifacts) is
+a project. This includes things that might be called in other contexts
 an "application" or "work-space."
 
 This is implemented first in the context of the python-data ecosystem, so we
@@ -15,7 +15,7 @@ principle a wide range of things.
 
 ### Niche
 
-There are a large number of project-oriented tools already in existence, 
+There are a large number of project-oriented tools already in existence,
 describing a similarly large number of things about those projects. The
 tools have a lot of overlap with one-another but also unique use cases.
 
@@ -51,8 +51,8 @@ more to trawl through README files to figure out how to execute a project.
 
 Unlike most, or maybe all, of the tools references by this library, we will
 provide not just a CLI, but a python API. You can find all the information
-about a project, make logical decisions and call the third-party tools 
-automatically. 
+about a project, make logical decisions and call the third-party tools
+automatically.
 
 Also, where a project is principally executed using a particular tool, it
 might still wish to describe contents/artifacts that are not dealt with by

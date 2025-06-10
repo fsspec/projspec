@@ -11,16 +11,19 @@ class PythonPackage(BaseContent):
 @dataclass
 class Pyproject(PythonPackage):
     """Usually a pyproject.toml file"""
+
     meta: str
 
 
 @dataclass
 class Cargo(PythonPackage):
     """Usually a Cargo.toml file"""
+
     meta: str
 
 
 @dataclass
 class Conda(PythonPackage):
     """usually from a meta.yaml file"""
+
     meta: str

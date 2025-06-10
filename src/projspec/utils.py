@@ -16,17 +16,21 @@ class AttrDict(dict):
     def __init__(self, *data, **kw):
         dic = False
         if len(data) == 1 and isinstance(data[0], (tuple, list)):
-            types = set(type(_) for _ in data[0])
+            types = {type(_) for _ in data[0]}
             if isinstance(data[0], dict):
                 super().__init__(data[0])
             elif isinstance(data[0], list):
-                super().__init__({camel_to_snake(list(types)[0].__name__): data[0]})
+                super().__init__(
+                    {camel_to_snake(next(iter(types)).__name__): data[0]}
+                )
             else:
                 dic = True
         else:
             dic = True
         if dic:
-            super().__init__({camel_to_snake(type(v).__name__): v for v in data})
+            super().__init__(
+                {camel_to_snake(type(v).__name__): v for v in data}
+            )
         self.update(kw)
 
     def __getattr__(self, item):
@@ -35,12 +39,12 @@ class AttrDict(dict):
         raise AttributeError(item)
 
 
-cam_patt = re.compile(r'(?<!^)(?=[A-Z])')
+cam_patt = re.compile(r"(?<!^)(?=[A-Z])")
 
 
 def camel_to_snake(camel: str) -> str:
     # https://stackoverflow.com/a/1176023/3821154
-    return re.sub(cam_patt, '_', camel).lower()
+    return re.sub(cam_patt, "_", camel).lower()
 
 
 def to_camel_case(snake_str: str) -> str:
@@ -54,6 +58,7 @@ def _linked_local_path(path):
 
 class IsInstalled:
     """Checks if we can call commands, as a function of current environment"""
+
     cache = {}
 
     def __init__(self):
@@ -63,8 +68,12 @@ class IsInstalled:
     def exists(self, cmd: str, refresh=False):
         if refresh or (self.env, cmd) not in self.cache:
             try:
-                p = subprocess.Popen([cmd], stderr=subprocess.DEVNULL,
-                                      stdout=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+                p = subprocess.Popen(
+                    [cmd],
+                    stderr=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL,
+                )
                 p.terminate()
                 p.wait()
                 out = True
@@ -77,7 +86,7 @@ class IsInstalled:
         return self.cache[(self.env, cmd)]
 
     def __contains__(self, item):
-        # canoncial use: `"python" in is_installed`
+        # canonical use: `"python" in is_installed`
         # shutil.which?
         return self.exists(item)
 

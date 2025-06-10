@@ -4,14 +4,14 @@ from projspec.proj import ProjectSpec
 
 
 class HuggingFaceRepo(ProjectSpec):
-
     def match(self) -> bool:
         import yaml
+
         readme = f"{self.root.url}/README.md"
         try:
             with self.root.fs.open(readme) as f:
                 txt = f.read()
-        except (FileNotFoundError, IOError, UnicodeDecodeError):
+        except (OSError, FileNotFoundError, UnicodeDecodeError):
             return False
         if txt.count("---\n") < 2:
             return False

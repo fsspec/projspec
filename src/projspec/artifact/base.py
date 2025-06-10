@@ -9,8 +9,13 @@ logger = logging.getLogger("projspec")
 
 
 class BaseArtifact:
-
-    def __init__(self, proj: Project, requires: list | None = None, cmd: list[str]|None=None, **kw):
+    def __init__(
+        self,
+        proj: Project,
+        requires: list | None = None,
+        cmd: list[str] | None = None,
+        **kw,
+    ):
         self.proj = proj
         self.requires = requires or []
         self.cmd = cmd
