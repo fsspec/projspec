@@ -43,9 +43,10 @@ class CondaPackage(BaseArtifact):
     is call publishing.
     """
 
-    def __init__(self, path=None, **kwargs):
+    def __init__(self, path=None, name=None, **kwargs):
         super().__init__(**kwargs)
         self.path: str | None = path
+        self.name = name
 
     def make(self, *args, **kwargs):
         """Create the artifact and any runtime it depends on"""

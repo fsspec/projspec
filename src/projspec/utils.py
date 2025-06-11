@@ -90,7 +90,7 @@ class IsInstalled:
         # shutil.which?
         return self.exists(item)
 
-    # todo: persist cache
+    # TODO: persist cache
 
 
 is_installed = IsInstalled()

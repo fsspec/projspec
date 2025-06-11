@@ -45,12 +45,19 @@ class CondaRecipe(ProjectSpec):
                     # TODO: multiple output recipe
                     if "package" in meta0:
                         meta = meta0
+                        break
+                    if "outputs" in meta0 and any(
+                        "name" in _ for _ in meta0["outputs"]
+                    ):
+                        meta = meta0
+                        break
                 except (OSError, ValueError, UnicodeDecodeError):
                     pass
         if meta is None:
             raise ValueError
         art = CondaPackage(proj=self.root, cmd=["conda-build", self.root.url])
         self._artifacts = AttrDict(**{meta["package"]["name"]: art})
+        # TODO: read envs from "outputs" like for Rattler, below?
         self._contents = AttrDict(
             environment=AttrDict(
                 {
@@ -61,7 +68,7 @@ class CondaRecipe(ProjectSpec):
                         stack=Stack.CONDA,
                         precision=Precision.SPEC,
                     )
-                    for k, v in meta["requirements"].items()
+                    for k, v in meta.get("requirements", {}).items()
                 }
             )
         )
@@ -81,15 +88,15 @@ class RattlerRecipe(CondaRecipe):
 
         allfiles = self.root.filelist
         basenames = {_.rsplit("/", 1)[-1]: _ for _ in allfiles}
-        meta = None
         if "recipe.yaml" in basenames:
-            try:
-                with self.root.fs.open(basenames["recipe.yaml"], "rb") as f:
-                    meta = _yaml_no_jinja(f)
+            with self.root.fs.open(basenames["recipe.yaml"], "rb") as f:
+                meta = _yaml_no_jinja(f)
+        elif "meta.yaml" in basenames:
+            with self.root.fs.open(basenames["meta.yaml"], "rb") as f:
+                meta = _yaml_no_jinja(f)
+        else:
+            raise ValueError
 
-            except (OSError, ValueError, UnicodeDecodeError):
-                pass
-        bits = [_ for _ in [meta] + meta.get("outputs", []) if "package" in _]
         cmd = [
             "rattler-build",
             "build",
@@ -98,26 +105,50 @@ class RattlerRecipe(CondaRecipe):
             "--output-dir",
             f"{self.root.url}/output",
         ]
-        for package in bits:
-            art = CondaPackage(
-                proj=self.root,
-                cmd=cmd,
-                path=f"{self.root.url}/output/noarch/repodata.json",
-            )
-
-        art = CondaPackage(proj=self.root, cmd=["conda-build", self.root.url])
-        self._artifacts = AttrDict(conda_package=art)
-        self._contents = AttrDict(
-            environment=AttrDict(
-                {
-                    k: Environment(
-                        proj=self.root,
-                        artifacts={art},
-                        packages=v,
-                        stack=Stack.CONDA,
-                        precision=Precision.SPEC,
-                    )
-                    for k, v in meta["requirements"].items()
-                }
+        name = next(
+            filter(
+                bool,
+                (
+                    meta.get("context", {}).get("name")
+                    for _ in ("context", "recipe", "package")
+                ),
             )
         )
+
+        path = (
+            f"{self.root.url}/output/{name}" if self.root.is_local() else None
+        )
+        art = CondaPackage(
+            proj=self.root,
+            cmd=cmd,
+            path=path,
+            name=name,
+        )
+
+        self._artifacts = AttrDict(conda_package=art)
+        try:
+            req = next(
+                filter(
+                    bool,
+                    (
+                        _.get("requirements")
+                        for _ in [meta] + meta.get("outputs", [])
+                    ),
+                )
+            )
+            self._contents = AttrDict(
+                environment=AttrDict(
+                    {
+                        k: Environment(
+                            proj=self.root,
+                            artifacts={art},
+                            packages=v,
+                            stack=Stack.CONDA,
+                            precision=Precision.SPEC,
+                        )
+                        for k, v in req.items()
+                    }
+                )
+            )
+        except StopIteration:
+            pass

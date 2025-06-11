@@ -2,6 +2,8 @@ import logging
 import subprocess
 from typing import Literal
 
+import fsspec.implementations.local
+
 from projspec.proj import Project
 from projspec.utils import is_installed
 
@@ -42,18 +44,20 @@ class BaseArtifact:
 
     def make(self, *args, **kwargs):
         """Create the artifact and any runtime it depends on"""
-        # this implementation covers many uses, but maybe
-        # we should provide different ones for "call", "background" etc
+        if not isinstance(
+            self.proj.fs, fsspec.implementations.local.LocalFileSystem
+        ):
+            # Later, will implement download-and-make, although some tools
+            # can already do this themselves.
+            raise RuntimeError("Can't run local command on remote project")
         logger.debug(" ".join(self.cmd))
-        # TODO: set CWD if fs is local
-        # TODO: prepend to env["PATH"] if using specific (python) runtime
-        subprocess.check_call(self.cmd, **self.kw)
+        # this default implementation does not store any state
+        subprocess.check_call(self.cmd, cwd=self.proj.url, **self.kw)
 
     def remake(self, reqs=False):
         """Recreate artifact and any runtime it depends on"""
         if reqs:
-            for req in self.requires:
-                req.remake(reqs=reqs)
+            self.clean_req()
         self.clean()
         self.make()
 
@@ -63,7 +67,8 @@ class BaseArtifact:
 
     def clean(self):
         """Remove artifact"""
-        raise NotImplementedError
+        # this default implementation leaves nothing to clean
+        pass
 
     def __repr__(self):
         return f"{type(self).__name__}, {self.state}"

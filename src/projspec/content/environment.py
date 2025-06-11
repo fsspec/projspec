@@ -13,6 +13,8 @@ class Stack(Enum):
 
 
 class Precision(Enum):
+    """Type of environment definition"""
+
     # TODO: categories may be refined
     SPEC = auto()
     LOCK = auto()

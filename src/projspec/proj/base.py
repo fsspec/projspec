@@ -2,6 +2,7 @@ import logging
 from functools import cached_property
 
 import fsspec
+import fsspec.implementations.local
 import toml
 
 from projspec.utils import AttrDict, camel_to_snake
@@ -20,6 +21,11 @@ class Project:
         self.children = {}
         self.resolve(walk=walk)
 
+    def is_local(self) -> bool:
+        """Did we read this from the local filesystem"""
+        # see also fsspec.utils.can_be_local for more flexibility with caching.
+        return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
+
     def resolve(self, subpath: str = "", walk: bool | None = None) -> None:
         """Fill out project specs in this directory
 
@@ -31,7 +37,9 @@ class Project:
         fullpath = "/".join([self.url, subpath]) if subpath else self.url
         for cls in registry:
             try:
-                self.specs[camel_to_snake(cls.__name__)] = cls(self)
+                inst = cls(self)
+                inst.parse()
+                self.specs[camel_to_snake(cls.__name__)] = inst
             except ValueError:
                 pass
             except Exception as e:
@@ -57,7 +65,7 @@ class Project:
 
     @cached_property
     def filelist(self):
-        return self.fs.ls(self.url)
+        return self.fs.ls(self.url, detail=False)
 
     def __repr__(self):
         txt = "<Project '{}'>\n\n{}".format(
