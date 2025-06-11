@@ -16,3 +16,20 @@ jobs:
         with:
           python-version: "3.11"
       - uses: pre-commit/action@main
+
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@main
+      - uses: actions/setup-python@main
+        with:
+          python-version: "3.11"
+      - name: Install
+        shell: bash -l {0}
+        run: |
+          pip install -e .[test]
+          pip list
+      - name: Test
+        shell: bash -l {0}
+        run: |
+          pytest -v --cov projspec

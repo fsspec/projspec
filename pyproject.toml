@@ -24,7 +24,12 @@ classifiers = [
 ]
 dependencies = [
     "fsspec>=2025.5.1",
+    "pyyaml",
+    "toml"
 ]
+
+[project.optional-dependencies]
+test = ["pytest"]
 
 [project.scripts]
 projspec = "projspec.__main__:main"
