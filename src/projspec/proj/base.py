@@ -60,9 +60,8 @@ class Project:
         return self.fs.ls(self.url)
 
     def __repr__(self):
-        txt = (
-            f"<Project '{self.url}'>\n"
-            f"\n{'\n\n'.join(f'{_}' for _ in self.specs.values())}"
+        txt = "<Project '{}'>\n\n{}".format(
+            self.url, "\n\n".join(str(_) for _ in self.specs.values())
         )
         if self.children:
             ch = "\n".join(
