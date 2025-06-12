@@ -9,6 +9,11 @@ from projspec.utils import AttrDict, camel_to_snake
 
 logger = logging.getLogger("projspec")
 registry = set()
+excludes = {
+    ".venv",  # venv, pipenv, uv
+    ".pixi",
+    "envs",  # conda-project
+}
 
 
 class Project:
@@ -37,11 +42,12 @@ class Project:
         fullpath = "/".join([self.url, subpath]) if subpath else self.url
         for cls in registry:
             try:
+                logger.debug("resolving %s as %s", fullpath, cls)
                 inst = cls(self)
                 inst.parse()
                 self.specs[camel_to_snake(cls.__name__)] = inst
             except ValueError:
-                pass
+                logger.debug("failed")
             except Exception as e:
                 # we don't want to fail the parse completely
                 logger.exception("Failed to resolve spec %r", e)
@@ -49,7 +55,10 @@ class Project:
         if walk or (walk is None and not self.specs):
             for fileinfo in self.fs.ls(fullpath, detail=True):
                 if fileinfo["type"] == "directory":
-                    sub = f"{subpath}/{fileinfo['name'].rsplit('/', 1)[-1]}"
+                    basename = fileinfo["name"].rsplit("/", 1)[-1]
+                    if basename in excludes:
+                        continue
+                    sub = f"{subpath}/{basename}"
                     proj2 = Project(
                         fileinfo["name"], fs=self.fs, walk=walk or False
                     )

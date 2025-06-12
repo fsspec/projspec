@@ -1,25 +1,5 @@
-import re
-
-import yaml
-
 from projspec.proj import ProjectSpec
-from projspec.utils import AttrDict
-
-
-def _yaml_no_jinja(fileobj):
-    txt = fileobj.read().decode()
-    txt2 = "\n".join(
-        [
-            # removes line-end selectors; we don't attempt to evaluate them
-            # https://docs.conda.io/projects/conda-build/en/stable/resources/
-            #   define-metadata.html#preprocess-selectors
-            re.sub(r"# \[.*\n", "\n", _)
-            for _ in txt.split("\n")
-            if "{%" not in _
-        ]
-    )
-    txt3 = re.sub(r"(?P<name>\{\{.*?\}\})", '"\\g<name>"', txt2)
-    return yaml.safe_load(txt3)
+from projspec.utils import AttrDict, _yaml_no_jinja
 
 
 class CondaRecipe(ProjectSpec):

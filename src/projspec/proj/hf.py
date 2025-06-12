@@ -5,19 +5,16 @@ from projspec.proj import ProjectSpec
 
 class HuggingFaceRepo(ProjectSpec):
     def match(self) -> bool:
+        readme = f"{self.root.url}/README.md"
+        return self.root.fs.exists(readme)
+
+    def parse(self) -> None:
+        # for now, we just stash the metadata declaration
         import yaml
 
         readme = f"{self.root.url}/README.md"
-        try:
-            with self.root.fs.open(readme) as f:
-                txt = f.read()
-        except (OSError, FileNotFoundError, UnicodeDecodeError):
-            return False
-        if txt.count("---\n") < 2:
-            return False
+
+        with self.root.fs.open(readme) as f:
+            txt = f.read()
         meta = txt.split("---\n")[1]
-        try:
-            yaml.safe_load(StringIO(meta))
-            return True
-        except yaml.YAMLError:
-            return False
+        self.meta = yaml.safe_load(StringIO(meta))

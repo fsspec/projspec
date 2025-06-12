@@ -4,6 +4,8 @@ import re
 import subprocess
 import sys
 
+import yaml
+
 
 class Enum(enum.Enum):
     def __repr__(self):
@@ -94,3 +96,30 @@ class IsInstalled:
 
 
 is_installed = IsInstalled()
+
+
+def _yaml_no_jinja(fileobj):
+    txt = fileobj.read().decode()
+    lines = []
+    for line in txt.splitlines():
+        if "{%" in line:
+            continue
+        if " # [" in line:
+            line = line[: line.index(" # [")]
+        if "{{" in line and "}}" in line:
+            if line.strip()[0] == "-":
+                # list element
+                ind = line.index("-") + 2
+                end = line[ind:].replace('"', "").replace("\\", "")
+                lines.append(f'{line[:ind]}"{end}"')
+            elif ":" in line:
+                # key element
+                ind = line.index(":") + 2
+                end = line[ind:].replace('"', "").replace("\\", "")
+                lines.append(f'{line[:ind]}"{end}"')
+            else:
+                # does not account for text block
+                lines.append(line)
+        else:
+            lines.append(line)
+    return yaml.safe_load("\n".join(lines))

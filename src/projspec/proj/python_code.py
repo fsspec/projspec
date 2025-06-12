@@ -105,7 +105,7 @@ class PythonLibrary(ProjectSpec):
                     cmd = AttrDict()
                     for name, script in proj["scripts"].items():
                         mod, func = script.rsplit(":", 1)
-                        c = f"import sys; from {mod} import {func}; sys.exit(main_cli())"
+                        c = f"import sys; from {mod} import {func}; sys.exit({func}())"
                         cmd[name] = Command(
                             proj=self.root,
                             artifacts=set(),
