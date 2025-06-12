@@ -11,5 +11,6 @@ class CondaProject(ProjectSpec):
         # just stash for now
         # TODO: a .condarc or environment.yml file is actually enough, e.g.,
         # https://github.com/conda-incubator/conda-project/tree/main/examples/condarc-settings
+        # but we could argue that such are not really _useful_ projects
         with self.root.fs.open(f"{self.root.url}/conda-project.yml") as f:
             self.meta = _yaml_no_jinja(f)

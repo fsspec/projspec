@@ -17,7 +17,13 @@ excludes = {
 
 
 class Project:
-    def __init__(self, path, storage_options=None, fs=None, walk=None):
+    def __init__(
+        self,
+        path: str,
+        storage_options: dict | None = None,
+        fs: fsspec.AbstractFileSystem | None = None,
+        walk: bool | None = None,
+    ):
         if fs is None:
             fs, path = fsspec.url_to_fs(path, storage_options=storage_options)
         self.fs = fs
@@ -60,7 +66,9 @@ class Project:
                         continue
                     sub = f"{subpath}/{basename}"
                     proj2 = Project(
-                        fileinfo["name"], fs=self.fs, walk=walk or False
+                        fileinfo["name"],
+                        fs=self.fs,
+                        walk=walk or False,
                     )
                     if proj2.specs:
                         self.children[sub] = proj2
@@ -78,7 +86,8 @@ class Project:
 
     def __repr__(self):
         txt = "<Project '{}'>\n\n{}".format(
-            self.url, "\n\n".join(str(_) for _ in self.specs.values())
+            self.fs.unstrip_protocol(self.original_url),
+            "\n\n".join(str(_) for _ in self.specs.values()),
         )
         if self.children:
             ch = "\n".join(
