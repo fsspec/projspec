@@ -3,6 +3,37 @@ import toml
 from projspec.proj.base import ProjectSpec
 from projspec.utils import AttrDict
 
+# UV also allows dependencies (and other metadata)
+# to be declared inside scripts, which means you can have one-file projects.
+# https://docs.astral.sh/uv/guides/scripts/#declaring-script-dependencies
+# example:
+# /// script
+# # dependencies = [
+# #   "requests<3",
+# #   "rich",
+# # ]
+# # ///
+
+
+class UVScript(ProjectSpec):
+    """Single-file project runnable by UV as a script
+
+    Metadata are declared inline in the script header
+    See https://docs.astral.sh/uv/guides/scripts/#declaring-script-dependencies
+
+    Note that UV explicitly allows running these directly from HTTP URLs.
+    """
+
+    def match(self):
+        return self.root.url.endswith(("py", "pyw"))
+
+    def parse(self):
+        with self.root.fs.open(self.root.url) as f:
+            txt = f.read().decode()
+        lines = txt.split("# /// script\n", 1)[1].txt.split("# ///\n", 1)[0]
+        meta = "\n".join(line[2:] for line in lines.split("\n"))
+        toml.loads(meta)
+
 
 class UVProject(ProjectSpec):
     """UV-runnable project

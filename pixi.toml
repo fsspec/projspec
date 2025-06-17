@@ -1,0 +1,12 @@
+[workspace]
+authors = ["Martin Durant <martin.durant@alumni.utoronto.ca>"]
+channels = ["conda-forge"]
+name = "projspec"
+platforms = ["osx-arm64"]
+
+[tasks]
+
+[dependencies]
+fsspec = "2025.5.*"
+pyyaml = "*"
+toml = "*"

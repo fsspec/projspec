@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import auto
 
 from projspec.content import BaseContent
@@ -27,3 +27,5 @@ class Environment(BaseContent):
     stack: Stack
     precision: Precision
     packages: list[str]
+    # may be empty for loose specs; may include endpoints or index URLs
+    channels: list[str] = field(default_factory=list)

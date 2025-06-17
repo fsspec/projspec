@@ -86,7 +86,7 @@ class Project:
 
     def __repr__(self):
         txt = "<Project '{}'>\n\n{}".format(
-            self.fs.unstrip_protocol(self.original_url),
+            self.fs.unstrip_protocol(self.url),
             "\n\n".join(str(_) for _ in self.specs.values()),
         )
         if self.children:

@@ -90,6 +90,7 @@ class PythonLibrary(ProjectSpec):
                     precision=Precision.SPEC,
                     stack=Stack.PIP,
                     packages=proj["dependencies"],
+                    channels=[],
                 )
             if "optional-dependencies" in proj:
                 for name, deps in proj["optional-dependencies"].items():
@@ -99,6 +100,7 @@ class PythonLibrary(ProjectSpec):
                         precision=Precision.SPEC,
                         stack=Stack.PIP,
                         packages=deps,
+                        channels=[],
                     )
             for x in ("scripts", "gui-scripts"):
                 if x in proj:
@@ -121,6 +123,7 @@ class PythonLibrary(ProjectSpec):
                         precision=Precision.SPEC,
                         stack=Stack.PIP,
                         packages=v,
+                        channels=[],
                     )
                     for k, v in _resolve_groups(
                         self.root.pyproject["dependency-groups"]
@@ -137,6 +140,7 @@ class PythonLibrary(ProjectSpec):
                 precision=Precision.SPEC,
                 stack=Stack.PIP,
                 packages=[l.rstrip() for l in lines if l and "#" not in l],
+                channels=[],
             )
 
         if env:
