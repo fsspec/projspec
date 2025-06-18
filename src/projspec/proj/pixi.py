@@ -45,6 +45,16 @@ def this_platform():
 
 
 class Pixi(ProjectSpec):
+    """A project using https://pixi.sh/
+
+    pixi is a conda-stack project-oriented env and execution manager
+    """
+
+    # some example projects:
+    # https://github.com/prefix-dev/pixi/tree/main/examples
+    # spec docs
+    # https://pixi.sh/dev/reference/pixi_manifest/
+
     def match(self) -> bool:
         meta = self.root.pyproject.get("tools", {}).get("pixi", {})
         basenames = (_.rsplit("/", 1)[-1] for _ in self.root.filelist)
@@ -102,11 +112,16 @@ class Pixi(ProjectSpec):
 
         # TODO: (python) environments, pixi.lock environment(s)
         #  any environment can be packed if we have access to pixi-pack
-        #  If there is a "package" section, project can build to a .conda.
+        #  If there is a "package" section, project can build to a .conda/.whl
         #  Env vars are defined in activation.env .
 
+        # pixi supports conda/pypi split envs with [pypi-dependencies], which
+        # can include local paths, git, URL
+        # https://pixi.sh/v0.35.0/reference/project_configuration/#full-specification
+
         # pixi also allows for building sub-packages by including them in
-        # package.run-dependencies with local or remote paths
+        # package.run-dependencies with local or remote paths. In such cases,
+        # we can know of projects in the tree without walking the directory.
 
         self._artifacts = arts
         self._contents = conts

@@ -46,7 +46,8 @@ class Project:
             if False don't descend at all.
         """
         fullpath = "/".join([self.url, subpath]) if subpath else self.url
-        for cls in registry:
+        # sorting to ensure consistency
+        for cls in sorted(registry):
             try:
                 logger.debug("resolving %s as %s", fullpath, cls)
                 inst = cls(self)
