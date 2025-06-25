@@ -47,7 +47,7 @@ def this_platform():
 class Pixi(ProjectSpec):
     """A project using https://pixi.sh/
 
-    pixi is a conda-stack project-oriented env and execution manager
+    pixi is a conda-stack project-oriented (aka "workspace") env and execution manager
     """
 
     # some example projects:
@@ -111,9 +111,11 @@ class Pixi(ProjectSpec):
             conts["commands"] = commands
 
         # TODO: (python) environments, pixi.lock environment(s)
-        #  any environment can be packed if we have access to pixi-pack
-        #  If there is a "package" section, project can build to a .conda/.whl
-        #  Env vars are defined in activation.env .
+
+        # Any environment can be packed if we have access to pixi-pack
+
+        # If there is a "package" section, project can build to a .conda/.whl
+        # Env vars are defined in activation.env .
 
         # pixi supports conda/pypi split envs with [pypi-dependencies], which
         # can include local paths, git, URL

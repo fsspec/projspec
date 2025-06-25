@@ -33,6 +33,9 @@ class UVScript(ProjectSpec):
         lines = txt.split("# /// script\n", 1)[1].txt.split("# ///\n", 1)[0]
         meta = "\n".join(line[2:] for line in lines.split("\n"))
         toml.loads(meta)
+        # once we have the meta, we can reuse UVProject
+        #
+        # Apparently, uv.lock may or may not be in the same directory
 
 
 class UVProject(ProjectSpec):
