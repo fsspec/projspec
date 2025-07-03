@@ -3,7 +3,7 @@ from projspec.utils import AttrDict, _yaml_no_jinja
 
 
 class CondaRecipe(ProjectSpec):
-    """Recipe package"""
+    """Recipe package for conda-build"""
 
     def match(self) -> bool:
         allfiles = self.root.filelist
@@ -55,7 +55,9 @@ class CondaRecipe(ProjectSpec):
 
 
 class RattlerRecipe(CondaRecipe):
-    # conda recipes are also valid for rattler if they don't havecomplex jinja.
+    """Recipe project for rattler-build"""
+
+    # conda recipes are also valid for rattler if they don't have complex jinja.
 
     def match(self) -> bool:
         allfiles = self.root.filelist
@@ -89,7 +91,7 @@ class RattlerRecipe(CondaRecipe):
             filter(
                 bool,
                 (
-                    meta.get("context", {}).get("name")
+                    meta.get(_, {}).get("name")
                     for _ in ("context", "recipe", "package")
                 ),
             )

@@ -47,7 +47,7 @@ class Project:
         """
         fullpath = "/".join([self.url, subpath]) if subpath else self.url
         # sorting to ensure consistency
-        for cls in sorted(registry):
+        for cls in registry:
             try:
                 logger.debug("resolving %s as %s", fullpath, cls)
                 inst = cls(self)

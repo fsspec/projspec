@@ -48,7 +48,7 @@ class CondaPackage(BaseArtifact):
         self.path: str | None = path
         self.name = name
 
-    def make(self, *args, **kwargs):
+    def _make(self, *args, **kwargs):
         """Create the artifact and any runtime it depends on"""
         import re
 

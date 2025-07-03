@@ -52,6 +52,9 @@ class BaseArtifact:
             raise RuntimeError("Can't run local command on remote project")
         logger.debug(" ".join(self.cmd))
         # this default implementation does not store any state
+        self._make(*args, **kwargs)
+
+    def _make(self, *args, **kwargs):
         subprocess.check_call(self.cmd, cwd=self.proj.url, **self.kw)
 
     def remake(self, reqs=False):
