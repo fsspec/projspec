@@ -21,7 +21,7 @@ class BaseArtifact:
         self.proj = proj
         self.requires = requires or []
         self.cmd = cmd
-        self.kw = kw
+        self.__dict__.update(kw)
         self.proc = None
 
     def _is_clean(self) -> bool:
@@ -75,3 +75,15 @@ class BaseArtifact:
 
     def __repr__(self):
         return f"{type(self).__name__}, {self.state}"
+
+
+class FileArtifact(BaseArtifact):
+    def __init__(self, proj: Project, fn: str, **kw):
+        self.fn = fn
+        super().__init__(proj, **kw)
+
+    def _is_done(self) -> bool:
+        return self.proj.fs.exists(self.fn)
+
+    def _is_clean(self) -> bool:
+        return not self.proj.fs.exists(self.fn)

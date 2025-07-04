@@ -73,7 +73,12 @@ class UVProject(ProjectSpec):
         return False
 
     def parse(self):
-        conf = self.root.pyproject.get("tools", {}).get("uv", {})
+        from projspec.artifact.installable import Wheel
+        from projspec.artifact.python_env import LockFile, VirtualEnv
+        from projspec.content.environment import Environment, Precision, Stack
+
+        meta = self.root.pyproject
+        conf = meta.get("tools", {}).get("uv", {})
         try:
             with self.root.fs.open(f"{self.root.url}/uv.toml", "rt") as f:
                 conf2 = toml.load(f)
@@ -86,15 +91,81 @@ class UVProject(ProjectSpec):
         except (OSError, FileNotFoundError):
             lock = {}
 
-        # TODO: fill out the following
-        lock.clear()
+        envs = AttrDict()
+        # TODO: uv allows dependencies with source=, which would show us where the
+        #  sub-packages in a project are
+        if "dependencies" in meta.get("project", {}):
+            # conf key [tool.uv.pip] means optional-dependencies may be included here
+            envs["default"] = Environment(
+                proj=self.root,
+                stack=Stack.PIP,
+                precision=Precision.SPEC,
+                packages=meta["project"]["dependencies"],
+                artifacts=set(),
+            )
+        envs.update(
+            {
+                k: Environment(
+                    proj=self.root,
+                    stack=Stack.PIP,
+                    precision=Precision.SPEC,
+                    packages=v,
+                    artifacts=set(),
+                )
+                for k, v in conf.get("project", {})
+                .get("dependency-groups", {})
+                .items()
+            }
+        )
+        if "dev-dependencies" in conf:
+            envs["dev"] = Environment(
+                proj=self.root,
+                stack=Stack.PIP,
+                precision=Precision.SPEC,
+                packages=conf["dev-dependencies"],
+                artifacts=set(),
+            )
 
-        # environment spec
-        # commands
-        # python package (unless tools.uv.package == False)
         self._contents = AttrDict()
+        if envs:
+            self._contents["environment"] = envs
 
-        # lockfile
-        # runtime environment
-        # process from defined commands
-        self._artifacts = AttrDict()
+        # TODO: process from defined commands
+        self._artifacts = AttrDict(
+            lock=AttrDict(
+                default=LockFile(
+                    proj=self.root,
+                    cmd=["uv", "lock"],
+                    fn=f"{self.root.url}/uv.lock",
+                )
+            ),
+            venv=AttrDict(
+                default=VirtualEnv(
+                    proj=self.root,
+                    cmd=["uv", "sync"],
+                    fn=f"{self.root.url}/.venv",
+                )
+            ),
+        )
+        if conf.get("package", True):
+            self._artifacts["wheel"] = Wheel(
+                proj=self.root,
+                cmd=["uv", "build"],
+            )
+
+        if lock:
+            pkg = [f"python {lock['requires-python']}"]
+            # TODO: check for source= packages as opposed to pip wheel installs
+            pkg.extend(
+                [
+                    f"{_['name']} =={_.get('version', '')}"
+                    for _ in lock["package"]
+                ]
+            )
+            envs["lockfile"] = Environment(
+                proj=self.root,
+                stack=Stack.PIP,
+                precision=Precision.LOCK,
+                packages=pkg,
+                artifacts={self._artifacts["venv"]["default"]},
+            )

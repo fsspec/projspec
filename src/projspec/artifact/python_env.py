@@ -9,7 +9,7 @@ import json
 import subprocess
 from functools import cache
 
-from projspec.artifact import BaseArtifact
+from projspec.artifact import BaseArtifact, FileArtifact
 
 
 class CondaEnv(BaseArtifact):
@@ -31,23 +31,20 @@ class CondaEnv(BaseArtifact):
         return json.loads(out.decode())["envs"]
 
 
-class VirtualEnv(BaseArtifact):
+class VirtualEnv(FileArtifact):
     """Path to a project virtual environment
 
     Some tools like pipenv put these environments in a global location
     """
 
-    # includes venv, virtualenv, uv, poetry and pipenv
-    # can also be made from deps (in pyproject or requirements.txt) or lock-files
 
-    def __init__(self, *args, path="", **kw):
-        super().__init__(*args, **kw)
-        self.path = path
-
-
-class EnvPack(BaseArtifact):
+class EnvPack(FileArtifact):
     """Archival form of a python environment
 
     - conda-pack: https://conda.github.io/conda-pack/
     - pixi-pack: https://pixi.sh/latest/deployment/pixi_pack/
     """
+
+
+class LockFile(FileArtifact):
+    """File containing exact environment specification"""

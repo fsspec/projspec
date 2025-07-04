@@ -47,7 +47,7 @@ class Project:
         """
         fullpath = "/".join([self.url, subpath]) if subpath else self.url
         # sorting to ensure consistency
-        for cls in registry:
+        for cls in sorted(registry, key=str):
             try:
                 logger.debug("resolving %s as %s", fullpath, cls)
                 inst = cls(self)
@@ -99,6 +99,18 @@ class Project:
             )
             txt += f"\n\nChildren:\n{ch}"
         return txt
+
+    def __getitem__(self, key):
+        if key in self.specs:
+            return self.specs[key]
+        elif key in self.children:
+            return self.children[key]
+        raise KeyError(key)
+
+    def __getattr__(self, key):
+        if key in self.specs:
+            return self.specs[key]
+        raise AttributeError(key)
 
     @cached_property
     def pyproject(self):

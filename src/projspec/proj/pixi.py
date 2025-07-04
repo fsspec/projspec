@@ -32,7 +32,7 @@ _arch_names = {
 
 
 def this_platform():
-    """Name of current platform as a conda channel"""
+    """Name of the current platform as a conda channel"""
     import platform
     import struct
     import sys
@@ -78,17 +78,18 @@ class Pixi(ProjectSpec):
         arts = AttrDict()
         conts = AttrDict()
 
-        # Can categorize metadata into "features", each of which is an independednt
-        # set of deps, tasks etc. However, project may have only one such,
+        # Can categorize metadata into "features", each of which is an independent
+        # set of deps, tasks ,etc. However, projects may have only one,
         # the implicit "default" feature. Often, environments map to features.
 
         # target.*.activation run when starting an env for given platform
         procs = AttrDict()
         commands = AttrDict()
         for name, task in meta.get("tasks", {}).items():
-            cmd = task["cmd"] if isinstance(task, dict) else task
+            # tasks without a command are aliases
+            cmd = task.get("cmd", "") if isinstance(task, dict) else task
             # NB: these may have dependencies on other tasks and envs, but pixi
-            # manages those
+            # manages those.
             art = Process(proj=self.root, cmd=["pixi", "run", name])
             procs[name] = art
             commands[name] = Command(proj=self.root, artifacts={art}, cmd=cmd)
