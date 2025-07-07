@@ -3,7 +3,7 @@ import toml
 from projspec.proj import ProjectSpec
 from projspec.utils import AttrDict
 
-# pixi supports extensions, e.g., ``pixi global install``
+# pixi supports extensions, e.g., ``pixi global install``,
 # which is how you get access to pixi-pack, for instance.
 
 # https://github.com/conda/conda/blob/main/conda/base/context.py
@@ -61,6 +61,7 @@ class Pixi(ProjectSpec):
         return bool(meta) or "pixi.toml" in basenames
 
     def parse(self) -> None:
+        from projspec.artifact.installable import CondaPackage
         from projspec.artifact.process import Process
         from projspec.content.executable import Command
 
@@ -100,7 +101,7 @@ class Pixi(ProjectSpec):
                     proj=self.root, artifacts=set(), cmd=cmd
                 )
                 if platform == this_platform():
-                    # only commands on current platform can be executed
+                    # only commands on the current platform can be executed
                     procs[name] = Process(
                         proj=self.root, cmd=["pixi", "run", name]
                     )
@@ -113,18 +114,32 @@ class Pixi(ProjectSpec):
 
         # TODO: (python) environments, pixi.lock environment(s)
 
-        # Any environment can be packed if we have access to pixi-pack
+        if pkg := meta.get("package", {}):
+            arts["conda"] = CondaPackage(
+                proj=self.root,
+                package=pkg,
+                name=pkg["name"],
+                path=f"{pkg['name']}-{pkg['version']}*.conda",
+                cmd=["pixi", "build"],
+            )
 
-        # If there is a "package" section, project can build to a .conda/.whl
-        # Env vars are defined in activation.env .
+        # Any environment can be packed if we have access to pixi-pack; this currently (v0.6.5)
+        # fails if there is any source-install in the env, which there normally is!
+
+        # If there is a "package" section, the project can build to a .conda/.whl
+        # Env vars are defined in [activation.env].
 
         # pixi supports conda/pypi split envs with [pypi-dependencies], which
         # can include local paths, git, URL
-        # https://pixi.sh/v0.35.0/reference/project_configuration/#full-specification
+        # <https://pixi.sh/latest/reference/project_configuration/#full-specification>.
 
-        # pixi also allows for building sub-packages by including them in
+        # Pixi also allows for requiring sub-packages by including them in
         # package.run-dependencies with local or remote paths. In such cases,
         # we can know of projects in the tree without walking the directory.
+
+        # environment runtimes are at ./.pixi/envs/<name>/
+        # environments built by pixi will contain a conda-meta/pixi file with the meta file,
+        # pixi version, and lockfile hash detailed.
 
         self._artifacts = arts
         self._contents = conts

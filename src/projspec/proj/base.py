@@ -1,11 +1,12 @@
 import logging
+from collections.abc import Iterable
 from functools import cached_property
 
 import fsspec
 import fsspec.implementations.local
 import toml
 
-from projspec.utils import AttrDict, camel_to_snake
+from projspec.utils import AttrDict, camel_to_snake, flatten
 
 logger = logging.getLogger("projspec")
 registry = set()
@@ -124,6 +125,24 @@ class Project:
                 # debug/warn?
                 pass
         return {}
+
+    @property
+    def artifacts(self) -> set:
+        """A flat list of all the artifact objects nested in this project."""
+        arts = set()
+        for spec in self.specs.values():
+            arts.update(flatten(spec.artifacts))
+        for child in self.children.values():
+            arts.update(child.artifacts)
+        return arts
+
+    def filter_by_type(self, types: Iterable[type]) -> bool:
+        """Answers 'does this project support outputting the given artifact type'
+
+        This is an experimental example of filtering through projects
+        """
+        types = tuple(types)
+        return any(isinstance(_, types) for _ in self.artifacts)
 
 
 class ProjectSpec:

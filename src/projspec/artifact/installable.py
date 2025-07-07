@@ -34,8 +34,8 @@ class Wheel(BaseArtifact):
 class CondaPackage(BaseArtifact):
     """An installable python wheel file
 
-    Note that in general there may be a set of wheels for different platforms.
-    The actual name of the wheel file depends on platform, vcs config
+    Note that in general, there may be a set of wheels for different platforms.
+    The actual name of the wheel file depends on the platform, vcs config
     and maybe other factors. We just check if the dist/ directory is
     populated.
 
@@ -49,21 +49,20 @@ class CondaPackage(BaseArtifact):
         self.name = name
 
     def _make(self, *args, **kwargs):
-        """Create the artifact and any runtime it depends on"""
         import re
 
         logger.debug(" ".join(self.cmd))
-        out = subprocess.check_output(self.cmd, **self.kw).decode("utf-8")
-        fn = re.search(".conda\n", out).group(0)
-        if os.path.exists(fn):
-            self.path = fn
+        out = subprocess.check_output(self.cmd).decode("utf-8")
+        if fn := re.match(r"'(.*?\.conda)'\n", out):
+            if os.path.exists(fn.group(1)):
+                self.path = fn.group(1)
 
     def _is_done(self) -> bool:
         return True
 
     def _is_clean(self) -> bool:
-        return self.path is None or os.path.exists(self.path)
+        return self.path is None or not self.proj.fs.glob(self.path)
 
     def clean(self):
         if self.path is not None:
-            os.unlink(self.path)
+            self.proj.fs.rm(self.path)

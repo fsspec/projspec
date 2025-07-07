@@ -23,7 +23,7 @@ class Cargo(PythonPackage):
 
 
 @dataclass
-class Conda(PythonPackage):
+class CondaRecipe(PythonPackage):
     """usually from a meta.yaml file"""
 
     meta: str

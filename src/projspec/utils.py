@@ -3,6 +3,7 @@ import pathlib
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 
 import yaml
 
@@ -123,3 +124,22 @@ def _yaml_no_jinja(fileobj):
         else:
             lines.append(line)
     return yaml.safe_load("\n".join(lines))
+
+
+def flatten(x: Iterable):
+    out = set()
+    if isinstance(x, dict):
+        x = x.values()
+    for item in x:
+        if isinstance(item, dict):
+            out.update(flatten(item.values()))
+        elif isinstance(item, (str, bytes)):
+            # These are iterables whose items are also iterable, i.e.,
+            # the first item of "item" is "i", which is also a string.
+            out.add(item)
+        else:
+            try:
+                out.update(flatten(item))
+            except TypeError:
+                out.add(item)
+    return out
