@@ -62,8 +62,8 @@ class Pixi(ProjectSpec):
 
     def parse(self) -> None:
         from projspec.artifact.installable import CondaPackage
-        from projspec.artifact.process import Process
-        from projspec.content.executable import Command
+        from projspec.artifact.python_env import CondaEnv, LockFile
+        from projspec.content.environment import Environment, Precision, Stack
 
         meta = self.root.pyproject.get("tools", {}).get("pixi", {})
         basenames = {_.rsplit("/", 1)[-1]: _ for _ in self.root.filelist}
@@ -86,33 +86,52 @@ class Pixi(ProjectSpec):
         # target.*.activation run when starting an env for given platform
         procs = AttrDict()
         commands = AttrDict()
-        for name, task in meta.get("tasks", {}).items():
-            # tasks without a command are aliases
-            cmd = task.get("cmd", "") if isinstance(task, dict) else task
-            # NB: these may have dependencies on other tasks and envs, but pixi
-            # manages those.
-            art = Process(proj=self.root, cmd=["pixi", "run", name])
-            procs[name] = art
-            commands[name] = Command(proj=self.root, artifacts={art}, cmd=cmd)
-        for platform, v in meta.get("target", {}).items():
-            for name, task in v.get("tasks", {}).items():
-                cmd = task["cmd"] if isinstance(task, dict) else task
-                commands[name] = Command(
-                    proj=self.root, artifacts=set(), cmd=cmd
+        extract_feature(meta, procs, commands, self)
+        if "environments" in meta and "feature" in meta:
+            for env_name, details in meta["environments"].items():
+                feat = {}
+                feats = set(
+                    details
+                    if isinstance(details, list)
+                    else details["features"]
                 )
-                if platform == this_platform():
-                    # only commands on the current platform can be executed
-                    procs[name] = Process(
-                        proj=self.root, cmd=["pixi", "run", name]
-                    )
-                    commands[name].artifacts.add(art)
+                for feat_name in feats:
+                    feat.update(meta["feature"][feat_name])
+                if isinstance(details, list) or not details.get(
+                    "no-default-feature"
+                ):
+                    feat.update(meta)
+                extract_feature(feat, procs, commands, self, env=env_name)
 
         if procs:
             arts["process"] = procs
         if commands:
             conts["commands"] = commands
 
-        # TODO: (python) environments, pixi.lock environment(s)
+        if "pixi.lock" in basenames:
+            conts["environments"] = AttrDict()
+            arts["conda_envs"] = AttrDict()
+            with self.root.fs.open(basenames["pixi.lock"], "rb") as f:
+                lock_envs = envs_from_lock(f)
+            for env_name, details in lock_envs.items():
+                art = CondaEnv(
+                    proj=self.root,
+                    fn=f"{self.root.url}/.pixi/envs/{env_name}",
+                    cmd=["pixi", "install", "-e", env_name],
+                )
+                arts["conda_envs"][env_name] = art
+                conts["environments"][env_name] = Environment(
+                    proj=self.root,
+                    packages=details,
+                    artifacts={art},
+                    stack=Stack.CONDA,
+                    precision=Precision.LOCK,
+                )
+        arts["lockfile"] = LockFile(
+            proj=self.root,
+            fn=f"{self.root.url}/pixi.lock",
+            cmd=["pixi", "lock"],
+        )
 
         if pkg := meta.get("package", {}):
             arts["conda"] = CondaPackage(
@@ -126,9 +145,6 @@ class Pixi(ProjectSpec):
         # Any environment can be packed if we have access to pixi-pack; this currently (v0.6.5)
         # fails if there is any source-install in the env, which there normally is!
 
-        # If there is a "package" section, the project can build to a .conda/.whl
-        # Env vars are defined in [activation.env].
-
         # pixi supports conda/pypi split envs with [pypi-dependencies], which
         # can include local paths, git, URL
         # <https://pixi.sh/latest/reference/project_configuration/#full-specification>.
@@ -137,9 +153,67 @@ class Pixi(ProjectSpec):
         # package.run-dependencies with local or remote paths. In such cases,
         # we can know of projects in the tree without walking the directory.
 
-        # environment runtimes are at ./.pixi/envs/<name>/
+        # environment runtimes are at ./.pixi/envs/<name>/ ; temporary envs for building
+        # may also exist in ./.pixi/<proj_name>-<hash>/
         # environments built by pixi will contain a conda-meta/pixi file with the meta file,
         # pixi version, and lockfile hash detailed.
 
         self._artifacts = arts
         self._contents = conts
+
+
+def extract_feature(meta, procs, commands, pixi, env=None):
+    from projspec.artifact.process import Process
+    from projspec.content.executable import Command
+
+    for name, task in meta.get("tasks", {}).items():
+        if env:
+            name = f"{name}.{env}"
+        cmd = ["pixi", "run", name]
+        if env:
+            cmd.extend(["--environment", env])
+        art = Process(proj=pixi.root, cmd=cmd)
+        procs[name] = art
+        # tasks without a command are aliases
+        cmd = task.get("cmd", "") if isinstance(task, dict) else task
+        # NB: these may have dependencies on other tasks and envs, but pixi
+        # manages those.
+        commands[name] = Command(proj=pixi.root, artifacts={art}, cmd=cmd)
+    for platform, v in meta.get("target", {}).items():
+        for name, task in v.get("tasks", {}).items():
+            if env:
+                name = f"{name}.{env}"
+            cmd = task["cmd"] if isinstance(task, dict) else task
+            commands[name] = Command(proj=pixi.root, artifacts=set(), cmd=cmd)
+            if platform == this_platform():
+                # only commands on the current platform can be executed
+                cmd = ["pixi", "run", name]
+                if env:
+                    cmd.extend(["--environment", env])
+                art = Process(proj=pixi.root, cmd=cmd)
+                procs[name] = art
+                commands[name].artifacts.add(art)
+
+
+def envs_from_lock(infile):
+    """Extract the environments info from a pixi (yaml) lock file"""
+    # Developed for pixi format format 6
+    import yaml
+
+    data = yaml.safe_load(infile)
+    pkgs = {}
+    for pkg in data["packages"]:
+        if "conda" in pkg:
+            basename = pkg["conda"].rsplit("/", 1)[-1]
+            name, version, _hash = basename.rsplit("-", 2)
+            pkgs[pkg["conda"]] = f"{name} =={version}"
+        else:
+            pkgs[pkg["pypi"]] = f"{pkg['name']} =={pkg['version']}"
+    out = {}
+    for env_name, env in data["environments"].items():
+        req = [
+            pkgs[entry.get("conda", entry.get("pypi"))]
+            for entry in next(iter(env["packages"].values()))
+        ]
+        out[env_name] = req
+    return out

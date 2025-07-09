@@ -9,10 +9,10 @@ import json
 import subprocess
 from functools import cache
 
-from projspec.artifact import BaseArtifact, FileArtifact
+from projspec.artifact import FileArtifact
 
 
-class CondaEnv(BaseArtifact):
+class CondaEnv(FileArtifact):
     """Path to a project conda-built env
 
     Contains both python itself and any other binaries, as well as linked

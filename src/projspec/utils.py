@@ -127,6 +127,9 @@ def _yaml_no_jinja(fileobj):
 
 
 def flatten(x: Iterable):
+    """Descend into dictionaries to return a set of all of the leaf values"""
+    # todo: only works on hashables
+    # todo: pass set for mutation rather than create set on each recursion
     out = set()
     if isinstance(x, dict):
         x = x.values()

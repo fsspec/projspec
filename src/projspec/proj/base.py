@@ -144,6 +144,12 @@ class Project:
         types = tuple(types)
         return any(isinstance(_, types) for _ in self.artifacts)
 
+    def __contains__(self, item) -> bool:
+        """Is the given project type supported ANYWHERE in this directory?"""
+        return item in self.specs or any(
+            item in _ for _ in self.children.values()
+        )
+
 
 class ProjectSpec:
     """A project specification
