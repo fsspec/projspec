@@ -120,6 +120,8 @@ class Pixi(ProjectSpec):
                     cmd=["pixi", "install", "-e", env_name],
                 )
                 arts["conda_envs"][env_name] = art
+                # TODO: we are not gathering the channels
+                #  where pixi also lists the pip index URL(s) used.
                 conts["environments"][env_name] = Environment(
                     proj=self.root,
                     packages=details,
@@ -203,6 +205,7 @@ def envs_from_lock(infile):
     data = yaml.safe_load(infile)
     pkgs = {}
     for pkg in data["packages"]:
+        # TODO: include build/hashes in conda explicit format?
         if "conda" in pkg:
             basename = pkg["conda"].rsplit("/", 1)[-1]
             name, version, _hash = basename.rsplit("-", 2)

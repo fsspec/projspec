@@ -27,5 +27,5 @@ class Environment(BaseContent):
     stack: Stack
     precision: Precision
     packages: list[str]
-    # may be empty for loose specs; may include endpoints or index URLs
+    # This may be empty for loose specs; may include endpoints or index URLs.
     channels: list[str] = field(default_factory=list)

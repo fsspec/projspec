@@ -6,7 +6,7 @@ import fsspec
 import fsspec.implementations.local
 import toml
 
-from projspec.utils import AttrDict, camel_to_snake, flatten
+from projspec.utils import AttrDict, IndentDumper, camel_to_snake, flatten
 
 logger = logging.getLogger("projspec")
 registry = set()
@@ -216,9 +216,11 @@ class ProjectSpec:
         registry.add(cls)
 
     def __repr__(self):
+        import yaml
+
         base = f"<{type(self).__name__}>"
         if self.contents:
-            base += f"\nContents:\n {self.contents}\n"
+            base += f"\nContents:\n{yaml.dump(self.contents.to_dict(), Dumper=IndentDumper).rstrip()}\n"
         if self.artifacts:
-            base += f"\nArtifacts:\n {self.artifacts}\n"
+            base += f"\nArtifacts:\n{yaml.dump(self.artifacts.to_dict(), Dumper=IndentDumper).rstrip()}\n"
         return base

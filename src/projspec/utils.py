@@ -41,6 +41,40 @@ class AttrDict(dict):
             return self[item]
         raise AttributeError(item)
 
+    def to_dict(self):
+        return to_dict(self)
+
+
+def to_dict(obj):
+    from projspec.artifact import BaseArtifact
+    from projspec.content import BaseContent
+
+    if isinstance(obj, dict):
+        # includes AttrDict
+        return {k: to_dict(v) for k, v in obj.items()}
+    if isinstance(obj, (bytes, str)):
+        return obj
+    if isinstance(obj, Iterable):
+        return [to_dict(_) for _ in obj]
+    if isinstance(obj, (BaseArtifact, BaseContent)):
+        return to_dict(
+            {
+                k: v
+                for k, v in obj.__dict__.items()
+                if k not in {"proj", "artifacts"}
+            }
+        )
+    return str(obj)
+
+
+class IndentDumper(yaml.Dumper):
+    def __init__(self, stream, **kw):
+        super().__init__(stream, **kw)
+        self.increase_indent()
+
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
+
 
 cam_patt = re.compile(r"(?<!^)(?=[A-Z])")
 
