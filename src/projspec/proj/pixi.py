@@ -124,10 +124,11 @@ class Pixi(ProjectSpec):
                 #  where pixi also lists the pip index URL(s) used.
                 conts["environments"][env_name] = Environment(
                     proj=self.root,
-                    packages=details,
+                    packages=details["packages"],
                     artifacts={art},
                     stack=Stack.CONDA,
                     precision=Precision.LOCK,
+                    channels=details["channels"],
                 )
         arts["lockfile"] = LockFile(
             proj=self.root,
@@ -214,9 +215,16 @@ def envs_from_lock(infile):
             pkgs[pkg["pypi"]] = f"{pkg['name']} =={pkg['version']}"
     out = {}
     for env_name, env in data["environments"].items():
-        req = [
-            pkgs[entry.get("conda", entry.get("pypi"))]
-            for entry in next(iter(env["packages"].values()))
-        ]
+        req = {
+            "packages": [
+                pkgs[entry.get("conda", entry.get("pypi"))]
+                for entry in next(iter(env["packages"].values()))
+            ],
+            "channels": [
+                _ if isinstance(_, str) else _.get("url", "")
+                for _ in env["channels"]
+            ]
+            + env["indexes"],
+        }
         out[env_name] = req
     return out
