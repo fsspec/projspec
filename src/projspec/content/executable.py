@@ -9,6 +9,7 @@ from projspec.content import BaseContent
 class Command(BaseContent):
     """The simplest runnable thing - we don't know what it does"""
 
-    cmd: list[str]
-    background: bool = False
-    interactive: bool = False
+    cmd: list[str] | str
+
+    def _repr2(self):
+        return " ".join(self.cmd) if isinstance(self.cmd, list) else self.cmd

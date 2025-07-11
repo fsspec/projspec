@@ -74,7 +74,10 @@ class BaseArtifact:
         pass
 
     def __repr__(self):
-        return f"{type(self).__name__}, {self.state}"
+        return f"{type(self).__name__}, '{' '.join(self.cmd)}', {self.state}"
+
+    def _repr2(self):
+        return f"{' '.join(self.cmd)}, {self.state}"
 
 
 class FileArtifact(BaseArtifact):

@@ -57,13 +57,7 @@ def to_dict(obj):
     if isinstance(obj, Iterable):
         return [to_dict(_) for _ in obj]
     if isinstance(obj, (BaseArtifact, BaseContent)):
-        return to_dict(
-            {
-                k: v
-                for k, v in obj.__dict__.items()
-                if k not in {"proj", "artifacts"}
-            }
-        )
+        return obj._repr2()
     return str(obj)
 
 
@@ -134,6 +128,8 @@ is_installed = IsInstalled()
 
 
 def _yaml_no_jinja(fileobj):
+    # TODO: rather than skip jinja stuff, we can copy conda code to parse it, but
+    #  templates can involve function calls and reference to env vars we don't have
     txt = fileobj.read().decode()
     lines = []
     for line in txt.splitlines():

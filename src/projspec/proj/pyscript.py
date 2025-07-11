@@ -6,15 +6,15 @@ from projspec.utils import AttrDict
 
 class PyScriptSpec(ProjectSpec):
     def match(self) -> bool:
-        basenames = [_.rsplit("/", 1)[0] for _ in self.root.filelist]
+        basenames = [_.rsplit("/", 1)[-1] for _ in self.root.filelist]
         return "pyscript.toml" in basenames or "pyscript.json" in basenames
 
     def parse(self) -> None:
         try:
-            with self.root.fs.open(f"{self.root.url}/pyscript.toml") as f:
+            with self.root.fs.open(f"{self.root.url}/pyscript.toml", "rt") as f:
                 meta = toml.load(f)
         except FileNotFoundError:
-            with self.root.fs.open(f"{self.root.url}/pyscript.json") as f:
+            with self.root.fs.open(f"{self.root.url}/pyscript.json", "rt") as f:
                 meta = toml.load(f)
         cont = AttrDict()
         if "packages" in meta:
