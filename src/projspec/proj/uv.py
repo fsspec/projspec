@@ -24,6 +24,8 @@ class UVScript(ProjectSpec):
     Note that UV explicitly allows running these directly from HTTP URLs.
     """
 
+    spec_doc = "https://docs.astral.sh/uv/reference/settings/"
+
     def match(self):
         return self.root.url.endswith(("py", "pyw"))
 

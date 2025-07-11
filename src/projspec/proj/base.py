@@ -158,6 +158,8 @@ class ProjectSpec:
     runtime specification (uv, pixi, maturin, etc.).
     """
 
+    spec_doc = ""  # URL to prose about this spec
+
     def __init__(self, root: Project, subpath: str = ""):
         self.root = root
         self.subpath = subpath  # not used yet

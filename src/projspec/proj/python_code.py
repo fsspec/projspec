@@ -19,6 +19,10 @@ class PythonCode(ProjectSpec):
      A package is executable if it contains a ``__main__.py`` file.
     """
 
+    spec_doc = (
+        "https://docs.python.org/3/reference/import.html#regular-packages"
+    )
+
     def match(self) -> bool:
         basenames = {_.rsplit("/", 1)[-1] for _ in self.root.filelist}
         return "__init__.py" in basenames
@@ -51,10 +55,15 @@ class PythonCode(ProjectSpec):
 
 
 class PythonLibrary(ProjectSpec):
-    """Complete python buildable project
+    """Complete buildable python project
 
-    Defined by existence of pyproject.toml or setup.py.
+    Defined by the existence of pyproject.toml or setup.py.
     """
+
+    # setup.py never had a spec
+    spec_doc = (
+        "https://packaging.python.org/en/latest/specifications/pyproject-toml/"
+    )
 
     def match(self) -> bool:
         basenames = {_.rsplit("/", 1)[-1] for _ in self.root.filelist}

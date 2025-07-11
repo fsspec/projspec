@@ -5,6 +5,11 @@ from projspec.utils import AttrDict, _yaml_no_jinja
 class CondaRecipe(ProjectSpec):
     """Recipe package for conda-build"""
 
+    spec_doc = (
+        "https://docs.conda.io/projects/conda-build/"
+        "en/stable/resources/define-metadata.html"
+    )
+
     def match(self) -> bool:
         allfiles = self.root.filelist
         basenames = {_.rsplit("/", 1)[-1] for _ in allfiles}
@@ -56,6 +61,8 @@ class CondaRecipe(ProjectSpec):
 
 class RattlerRecipe(CondaRecipe):
     """Recipe project for rattler-build"""
+
+    spec_doc = "https://rattler.build/latest/reference/recipe_file/"
 
     # conda recipes are also valid for rattler if they don't have complex jinja.
 

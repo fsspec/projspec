@@ -47,8 +47,10 @@ def this_platform():
 class Pixi(ProjectSpec):
     """A project using https://pixi.sh/
 
-    pixi is a conda-stack project-oriented (aka "workspace") env and execution manager
+    pixi is a conda-stack, project-oriented (aka "workspace") env and execution manager.
     """
+
+    spec_doc = "https://pixi.sh/latest/reference/pixi_manifest"
 
     # some example projects:
     # https://github.com/prefix-dev/pixi/tree/main/examples

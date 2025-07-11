@@ -3,9 +3,11 @@ from projspec.utils import _yaml_no_jinja
 
 
 class CondaProject(ProjectSpec):
+    spec_doc = "https://conda-incubator.github.io/conda-project/tutorial.html"
+
     def match(self) -> bool:
-        basenames = (_.rsplit("/", 1)[-1] for _ in self.root.filelist)
-        return "conda-project.yml" in basenames
+        basenames = {_.rsplit("/", 1)[-1] for _ in self.root.filelist}
+        return basenames.isdisjoint({"conda-project.yml", "conda-meta.yaml"})
 
     def parse(self) -> None:
         # just stash for now
