@@ -26,7 +26,7 @@ class Project:
         walk: bool | None = None,
     ):
         if fs is None:
-            fs, path = fsspec.url_to_fs(path, storage_options=storage_options)
+            fs, path = fsspec.url_to_fs(path, **(storage_options or {}))
         self.fs = fs
         self.url = path
         self.specs = {}

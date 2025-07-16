@@ -73,7 +73,7 @@ class Pixi(ProjectSpec):
             try:
                 with self.root.fs.open(basenames["pixi.toml"], "rb") as f:
                     meta.update(toml.loads(f.read().decode()))
-            except (OSError, ValueError, UnicodeDecodeError):
+            except (OSError, ValueError, UnicodeDecodeError, FileNotFoundError):
                 pass
         if not meta:
             raise ValueError
@@ -122,8 +122,6 @@ class Pixi(ProjectSpec):
                     cmd=["pixi", "install", "-e", env_name],
                 )
                 arts["conda_envs"][env_name] = art
-                # TODO: we are not gathering the channels
-                #  where pixi also lists the pip index URL(s) used.
                 conts["environments"][env_name] = Environment(
                     proj=self.root,
                     packages=details["packages"],
@@ -158,8 +156,6 @@ class Pixi(ProjectSpec):
         # package.run-dependencies with local or remote paths. In such cases,
         # we can know of projects in the tree without walking the directory.
 
-        # environment runtimes are at ./.pixi/envs/<name>/ ; temporary envs for building
-        # may also exist in ./.pixi/<proj_name>-<hash>/
         # environments built by pixi will contain a conda-meta/pixi file with the meta file,
         # pixi version, and lockfile hash detailed.
 
@@ -167,7 +163,14 @@ class Pixi(ProjectSpec):
         self._contents = conts
 
 
-def extract_feature(meta, procs, commands, pixi, env=None):
+def extract_feature(
+    meta: dict,
+    procs: AttrDict,
+    commands: AttrDict,
+    pixi: Pixi,
+    env: str | None = None,
+):
+    """Consolidate metadata from 'features' to create commands and processes"""
     from projspec.artifact.process import Process
     from projspec.content.executable import Command
 
@@ -200,7 +203,7 @@ def extract_feature(meta, procs, commands, pixi, env=None):
                 commands[name].artifacts.add(art)
 
 
-def envs_from_lock(infile):
+def envs_from_lock(infile) -> dict:
     """Extract the environments info from a pixi (yaml) lock file"""
     # Developed for pixi format format 6
     import yaml
@@ -226,7 +229,7 @@ def envs_from_lock(infile):
                 _ if isinstance(_, str) else _.get("url", "")
                 for _ in env["channels"]
             ]
-            + env["indexes"],
+            + env.get("indexes", []),
         }
         out[env_name] = req
     return out
