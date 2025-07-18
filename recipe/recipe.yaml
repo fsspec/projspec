@@ -1,0 +1,23 @@
+# an extremely minimal conda package prescription for rattler
+package:
+  name: projspec
+  version: 0.0.1
+
+source:
+  git: ..
+
+build:
+  script: python -m pip install . --no-deps -vv
+  noarch: python
+  number: 0
+
+requirements:
+  build:
+    - python
+    - pip
+    - hatch
+    - hatch-vcs
+  run:
+    - fsspec
+    - pyyaml
+    - toml

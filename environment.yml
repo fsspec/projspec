@@ -1,0 +1,15 @@
+name: default
+channels:
+  - defaults
+dependencies:
+  - python
+  - fsspec
+  - pyyaml
+  - toml
+variables:
+prefix:
+platforms:
+  - osx-arm64
+  - win-64
+  - osx-64
+  - linux-64

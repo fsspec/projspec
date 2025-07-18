@@ -1,0 +1,6 @@
+name: projspec
+environments:
+  default:
+    - environment.yml
+variables: {}
+commands: {}
