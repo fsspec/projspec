@@ -1,4 +1,6 @@
-# an extremely minimal conda package prescription for conda-build
+# a minimal conda package prescription for conda-build
+# {% set extra = "jinja2" %}
+
 package:
   name: projspec
   version: 0.0.1
@@ -19,3 +21,4 @@ requirements:
     - fsspec
     - pyyaml
     - toml
+    - "{{ extra }}"

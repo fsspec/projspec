@@ -1,4 +1,5 @@
 import enum
+import logging
 import pathlib
 import re
 import subprocess
@@ -126,31 +127,48 @@ class IsInstalled:
 
 is_installed = IsInstalled()
 
+# {% set sha256 = "fff" %}
+sj = re.compile(r'{%\s+set\s+(\S+)\s+=\s+"(.*)"\s+%}')
+
 
 def _yaml_no_jinja(fileobj):
     # TODO: rather than skip jinja stuff, we can copy conda code to parse it, but
     #  templates can involve function calls and reference to env vars we don't have
     txt = fileobj.read().decode()
     lines = []
+    variables = {}
     for line in txt.splitlines():
         if "{%" in line:
+            if match := sj.search(line):
+                key, var = match.groups()
+                variables[key] = var
             continue
         if " # [" in line:
             line = line[: line.index(" # [")]
         if "{{" in line and "}}" in line:
-            if line.strip()[0] == "-":
-                # list element
-                ind = line.index("-") + 2
-                end = line[ind:].replace('"', "").replace("\\", "")
-                lines.append(f'{line[:ind]}"{end}"')
-            elif ":" in line:
-                # key element
-                ind = line.index(":") + 2
-                end = line[ind:].replace('"', "").replace("\\", "")
-                lines.append(f'{line[:ind]}"{end}"')
-            else:
-                # does not account for text block
-                lines.append(line)
+            try:
+                import jinja2
+
+                line = jinja2.Template(line).render(variables)
+                done = True
+            except jinja2.TemplateError:
+                logging.exception("Jinja Template Error")
+                done = False
+            except ImportError:
+                done = False
+            if not done:
+                # include unrendered template
+                if line.strip()[0] == "-":
+                    # list element
+                    ind = line.index("-") + 2
+                    end = line[ind:].replace('"', "").replace("\\", "")
+                    line = f'{line[:ind]}"{end}"'
+                elif ":" in line:
+                    # key element
+                    ind = line.index(":") + 2
+                    end = line[ind:].replace('"', "").replace("\\", "")
+                    line = f'{line[:ind]}"{end}"'
+            lines.append(line)
         else:
             lines.append(line)
     return yaml.safe_load("\n".join(lines))

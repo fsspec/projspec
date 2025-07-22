@@ -3,10 +3,7 @@ from projspec.content import BaseContent
 
 class License(BaseContent):
     # https://opensource.org/licenses
-    # (fields may change)
 
-    # although a repo may well have a freestanding LICENSE file, many project metadata
-    # formats also specify this by name or URL.
-    shortname: str
+    shortname: str  # aka SPDX
     fullname: str
-    url: str
+    url: str  # relative in the project or remote HTTP
