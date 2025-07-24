@@ -8,6 +8,9 @@ class PyScriptSpec(ProjectSpec):
     spec_doc = "https://docs.pyscript.net/2023.11.2/user-guide/configuration/"
 
     def match(self) -> bool:
+        # actually, config can be specified by a local path in the repo, but this is rare;
+        # also you can just declare things to install as you go, which we won't be able to
+        # guess.
         basenames = [_.rsplit("/", 1)[-1] for _ in self.root.filelist]
         return "pyscript.toml" in basenames or "pyscript.json" in basenames
 

@@ -25,7 +25,8 @@ classifiers = [
 dependencies = [
     "fsspec>=2025.5.1",
     "pyyaml",
-    "toml"
+    "toml",
+    "click"
 ]
 
 [project.optional-dependencies]

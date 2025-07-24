@@ -24,6 +24,7 @@ class Project:
         storage_options: dict | None = None,
         fs: fsspec.AbstractFileSystem | None = None,
         walk: bool | None = None,
+        types: set[str] | None = None,
     ):
         if fs is None:
             fs, path = fsspec.url_to_fs(path, **(storage_options or {}))
@@ -31,29 +32,39 @@ class Project:
         self.url = path
         self.specs = {}
         self.children = {}
-        self.resolve(walk=walk)
+        self.resolve(walk=walk, types=types)
 
     def is_local(self) -> bool:
         """Did we read this from the local filesystem"""
         # see also fsspec.utils.can_be_local for more flexibility with caching.
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
-    def resolve(self, subpath: str = "", walk: bool | None = None) -> None:
+    def resolve(
+        self,
+        subpath: str = "",
+        walk: bool | None = None,
+        types: set[str] | None = None,
+    ) -> None:
         """Fill out project specs in this directory
 
         :param subpath: find specs at the given subpath
         :param walk: if None (default) only try subdirectories if root has
             no specs, and don't descend further. If True, recurse all directories;
             if False don't descend at all.
+        :param types: names of types to allow while parsing. If empty or None, allow all
         """
         fullpath = "/".join([self.url, subpath]) if subpath else self.url
         # sorting to ensure consistency
         for cls in sorted(registry, key=str):
             try:
                 logger.debug("resolving %s as %s", fullpath, cls)
+                name = cls.__name__
+                snake_name = camel_to_snake(cls.__name__)
+                if types and name not in types and snake_name not in types:
+                    continue
                 inst = cls(self)
                 inst.parse()
-                self.specs[camel_to_snake(cls.__name__)] = inst
+                self.specs[snake_name] = inst
             except ValueError:
                 logger.debug("failed")
             except Exception as e:
@@ -71,6 +82,7 @@ class Project:
                         fileinfo["name"],
                         fs=self.fs,
                         walk=walk or False,
+                        types=types,
                     )
                     if proj2.specs:
                         self.children[sub] = proj2
@@ -163,8 +175,8 @@ class ProjectSpec:
     def __init__(self, root: Project, subpath: str = ""):
         self.root = root
         self.subpath = subpath  # not used yet
-        self._contents = None
-        self._artifacts = None
+        self._contents = AttrDict()
+        self._artifacts = AttrDict()
         if not self.match():
             raise ValueError(f"Not a {type(self).__name__}")
 
