@@ -30,8 +30,11 @@ class UVScript(ProjectSpec):
         return self.root.url.endswith(("py", "pyw"))
 
     def parse(self):
-        with self.root.fs.open(self.root.url) as f:
-            txt = f.read().decode()
+        try:
+            with self.root.fs.open(self.root.url) as f:
+                txt = f.read().decode()
+        except OSError as e:
+            raise ValueError from e
         lines = txt.split("# /// script\n", 1)[1].txt.split("# ///\n", 1)[0]
         meta = "\n".join(line[2:] for line in lines.split("\n"))
         toml.loads(meta)

@@ -10,7 +10,7 @@ class PoetryProject(ProjectSpec):
             .get("build-backend", "")
             .startswith("poetry.")
         )
-        return "poetry" in self.root.pyproject.get("tool") or back
+        return "poetry" in self.root.pyproject.get("tool", ()) or back
 
     def parse(self) -> None:
         # essentially the same as PythonLibrary?

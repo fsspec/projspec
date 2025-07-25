@@ -10,10 +10,13 @@ from projspec.utils import AttrDict, IndentDumper, camel_to_snake, flatten
 
 logger = logging.getLogger("projspec")
 registry = set()
-excludes = {
+default_excludes = {
     ".venv",  # venv, pipenv, uv
     ".pixi",
     "envs",  # conda-project
+    "bld",
+    ".git",
+    "distbuild",
 }
 
 
@@ -25,6 +28,7 @@ class Project:
         fs: fsspec.AbstractFileSystem | None = None,
         walk: bool | None = None,
         types: set[str] | None = None,
+        excludes: set[str] | None = None,
     ):
         if fs is None:
             fs, path = fsspec.url_to_fs(path, **(storage_options or {}))
@@ -32,6 +36,7 @@ class Project:
         self.url = path
         self.specs = {}
         self.children = {}
+        self.excludes = excludes or default_excludes
         self.resolve(walk=walk, types=types)
 
     def is_local(self) -> bool:
@@ -75,7 +80,7 @@ class Project:
             for fileinfo in self.fs.ls(fullpath, detail=True):
                 if fileinfo["type"] == "directory":
                     basename = fileinfo["name"].rsplit("/", 1)[-1]
-                    if basename in excludes:
+                    if basename in self.excludes:
                         continue
                     sub = f"{subpath}/{basename}"
                     proj2 = Project(
@@ -83,6 +88,7 @@ class Project:
                         fs=self.fs,
                         walk=walk or False,
                         types=types,
+                        excludes=self.excludes,
                     )
                     if proj2.specs:
                         self.children[sub] = proj2

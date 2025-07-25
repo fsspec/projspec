@@ -78,10 +78,12 @@ class CondaProject(ProjectSpec):
                 if self.root.fs.exists(lock_fname):
                     with self.root.fs.open(lock_fname) as f:
                         data = yaml.load(f, Loader=yaml.SafeLoader)
-                        lpackages = [
-                            f"{p['name']} =={p['version']}"
-                            for p in data.get("package", [])
-                        ]
+                        lpackages = list(
+                            {
+                                f"{p['name']} =={p['version']}"
+                                for p in data.get("package", [])
+                            }
+                        )
                     envs[f"{env_name}.lock"] = Environment(
                         proj=self.root,
                         channels=[],
