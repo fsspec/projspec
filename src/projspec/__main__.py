@@ -7,6 +7,8 @@ import click
 
 import projspec.proj
 
+# TODO: allow subcommands to list known types and set config
+
 
 @click.command()
 @click.option(

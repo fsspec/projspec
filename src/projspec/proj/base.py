@@ -66,6 +66,7 @@ class Project:
                 name = cls.__name__
                 snake_name = camel_to_snake(cls.__name__)
                 if types and name not in types and snake_name not in types:
+                    # TODO: allow partial matches here
                     continue
                 inst = cls(self)
                 inst.parse()

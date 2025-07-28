@@ -38,6 +38,10 @@ projspec = "projspec.__main__:main"
 [tool.poetry.extras]
 po_test = ["pytest"]
 
+[tool.poetry]
+# poetry can't resolve hatch's dynamic version but needs a value
+version="0.0.1"
+
 [tool.hatch.version]
 source = "vcs"
 raw-options = {'version_scheme'='post-release'}
