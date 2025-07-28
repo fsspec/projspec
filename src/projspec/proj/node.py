@@ -1,5 +1,4 @@
 from projspec.proj.base import ProjectSpec
-from projspec.utils import AttrDict
 
 
 class NodeProject(ProjectSpec):
@@ -17,6 +16,3 @@ class NodeProject(ProjectSpec):
 
         with self.root.fs.open(f"{self.root.url}/package.json", "rt") as f:
             json.load(f)
-
-        self._contents = AttrDict()
-        self._artifacts = AttrDict()

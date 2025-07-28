@@ -27,6 +27,7 @@ class UVScript(ProjectSpec):
     spec_doc = "https://docs.astral.sh/uv/reference/settings/"
 
     def match(self):
+        # this is a file, not a directory
         return self.root.url.endswith(("py", "pyw"))
 
     def parse(self):
@@ -38,16 +39,16 @@ class UVScript(ProjectSpec):
         lines = txt.split("# /// script\n", 1)[1].txt.split("# ///\n", 1)[0]
         meta = "\n".join(line[2:] for line in lines.split("\n"))
         toml.loads(meta)
-        # once we have the meta, we can reuse UVProject
+        # TODO: once we have the meta, we can reuse UVProject
         #
-        # Apparently, uv.lock may or may not be in the same directory
+        # Apparently, uv.lock may or may not be in the same directory.
 
 
 class UVProject(ProjectSpec):
     """UV-runnable project
 
     Note: uv can run any python project, but this tests for uv-specific
-    config. See also ``projspec.deploty.python.UVRunner``.
+    config.
     """
 
     def match(self):
