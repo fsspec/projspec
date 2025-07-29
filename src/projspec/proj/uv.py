@@ -44,7 +44,7 @@ class UVScript(ProjectSpec):
         # Apparently, uv.lock may or may not be in the same directory.
 
 
-class UVProject(ProjectSpec):
+class UV(ProjectSpec):
     """UV-runnable project
 
     Note: uv can run any python project, but this tests for uv-specific

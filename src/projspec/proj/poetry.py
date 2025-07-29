@@ -3,7 +3,7 @@ import toml
 from projspec.proj.python_code import PythonLibrary
 
 
-class PoetryProject(PythonLibrary):
+class Poetry(PythonLibrary):
     spec_doc = "https://python-poetry.org/docs/pyproject/"
 
     def match(self) -> bool:

@@ -4,7 +4,7 @@ from projspec.proj import ProjectSpec
 from projspec.utils import AttrDict
 
 
-class PyScriptSpec(ProjectSpec):
+class PyScript(ProjectSpec):
     spec_doc = "https://docs.pyscript.net/2023.11.2/user-guide/configuration/"
 
     def match(self) -> bool:

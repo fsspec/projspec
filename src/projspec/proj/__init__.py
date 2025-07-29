@@ -4,11 +4,11 @@ from .conda_project import CondaProject
 from .documentation import RTD, MDBook
 from .git import GitRepo
 from .pixi import Pixi
-from .poetry import PoetryProject
-from .pyscript import PyScriptSpec
+from .poetry import Poetry
+from .pyscript import PyScript
 from .python_code import PythonCode, PythonLibrary
 from .rust import Rust, RustPython
-from .uv import UVProject
+from .uv import UV
 
 __all__ = [
     "Project",
@@ -17,14 +17,14 @@ __all__ = [
     "CondaProject",
     "GitRepo",
     "MDBook",
-    "PoetryProject",
+    "Poetry",
     "RattlerRecipe",
     "Pixi",
-    "PyScriptSpec",
+    "PyScript",
     "PythonCode",
     "PythonLibrary",
     "RTD",
     "Rust",
     "RustPython",
-    "UVProject",
+    "UV",
 ]

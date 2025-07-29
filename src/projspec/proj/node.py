@@ -1,7 +1,7 @@
 from projspec.proj.base import ProjectSpec
 
 
-class NodeProject(ProjectSpec):
+class Node(ProjectSpec):
     """Node.js project"""
 
     spec_doc = "https://docs.npmjs.com/cli/v11/configuring-npm/package-json"
