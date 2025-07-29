@@ -5,8 +5,7 @@ class Rust(ProjectSpec):
     spec_doc = "https://doc.rust-lang.org/cargo/reference/manifest.html"
 
     def match(self) -> bool:
-        basenames = [_.rsplit("/", 1)[0] for _ in self.root.filelist]
-        return "Cargo.toml" in basenames
+        return "Cargo.toml" in self.root.basenames
 
 
 class RustPython(Rust, PythonLibrary):

@@ -9,8 +9,7 @@ class MDBook(ProjectSpec):
     )
 
     def match(self) -> bool:
-        basenames = [_.rsplit("/", 1)[-1] for _ in self.root.filelist]
-        return "book.toml" in basenames
+        return "book.toml" in self.root.basenames
 
 
 class RTD(ProjectSpec):
@@ -19,8 +18,9 @@ class RTD(ProjectSpec):
     )
 
     def match(self) -> bool:
-        basenames = [_.rsplit("/", 1)[-1] for _ in self.root.filelist]
-        return any(re.match("[.]?readthedocs.y[a]?ml", _) for _ in basenames)
+        return any(
+            re.match("[.]?readthedocs.y[a]?ml", _) for _ in self.root.basenames
+        )
 
     def parse(self) -> None:
         # supports mkdocs and sphinx builders

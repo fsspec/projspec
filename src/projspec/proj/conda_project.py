@@ -17,9 +17,8 @@ class CondaProject(ProjectSpec):
         #  but we could argue that such are not really _useful_ projects; but can you
         #  ever see a .condarc otherwise?
 
-        basenames = {_.rsplit("/", 1)[-1] for _ in self.root.filelist}
-        return not basenames.isdisjoint(
-            {"conda-project.yml", "conda-meta.yaml"}
+        return not {"conda-project.yml", "conda-meta.yaml"}.isdisjoint(
+            self.root.basenames
         )
 
     def parse(self) -> None:

@@ -7,9 +7,7 @@ class Node(ProjectSpec):
     spec_doc = "https://docs.npmjs.com/cli/v11/configuring-npm/package-json"
 
     def match(self):
-        contents = self.root.filelist
-        basenames = {_.rsplit("/", 1)[-1]: _ for _ in contents}
-        return "package.json" in basenames
+        return "package.json" in self.root.basenames
 
     def parse(self):
         import json

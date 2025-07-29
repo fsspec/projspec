@@ -52,12 +52,8 @@ class UV(ProjectSpec):
     """
 
     def match(self):
-        contents = self.root.filelist
-        basenames = {_.rsplit("/", 1)[-1]: _ for _ in contents}
-        if (
-            "uv.lock" in basenames
-            or "uv.toml" in basenames
-            or ".python-version" in basenames
+        if not {"uv.lock", "uv.toml", ".python-version"}.isdisjoint(
+            self.root.basenames
         ):
             return True
         if "uv" in self.root.pyproject.get("tools", {}):
@@ -67,7 +63,7 @@ class UV(ProjectSpec):
             == "uv_build"
         ):
             return True
-        if ".venv" in basenames:
+        if ".venv" in self.root.basenames:
             try:
                 with self.root.fs.open(
                     f"{self.root.url}/.venv/pyvenv.cfg", "rt"

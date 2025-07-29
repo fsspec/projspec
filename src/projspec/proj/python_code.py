@@ -24,8 +24,7 @@ class PythonCode(ProjectSpec):
     )
 
     def match(self) -> bool:
-        basenames = {_.rsplit("/", 1)[-1] for _ in self.root.filelist}
-        return "__init__.py" in basenames
+        return "__init__.py" in self.root.basenames
 
     def parse(self):
         arts = AttrDict()
@@ -66,20 +65,20 @@ class PythonLibrary(ProjectSpec):
     )
 
     def match(self) -> bool:
-        basenames = {_.rsplit("/", 1)[-1] for _ in self.root.filelist}
-        return "pyproject.toml" in basenames or "setup.py" in basenames
+        return not {"pyproject.toml", "setup.py"}.isdisjoint(
+            self.root.basenames
+        )
 
     def parse(self):
-        basenames = {_.rsplit("/", 1)[-1] for _ in self.root.filelist}
-
         arts = AttrDict()
         if "build-system" in self.root.pyproject:
             # should imply that "python -m build" can run
-            # With `--wheel` ?
+            # With `--wheel`?
             arts["wheel"] = Wheel(proj=self.root, cmd=["python", "-m", "build"])
-        elif "setup.py" in basenames:
+        elif "setup.py" in self.root.basenames:
             arts["wheel"] = Wheel(
-                proj=self.root, cmd=["python", "setup.py", "bdist_wheel"]
+                proj=self.root,
+                cmd=["python", f"{self.root.url}/setup.py", "bdist_wheel"],
             )
         self._artifacts = arts
 
@@ -139,7 +138,7 @@ class PythonLibrary(ProjectSpec):
                     ).items()
                 }
             )
-        if "default" not in env and "requirements.txt" in basenames:
+        if "default" not in env and "requirements.txt" in self.root.basenames:
             fn = f"{self.root.url}/requirements.txt"
             with self.root.fs.open(fn, "rt") as f:
                 lines = f.readlines()

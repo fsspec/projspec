@@ -59,8 +59,7 @@ class Pixi(ProjectSpec):
 
     def match(self) -> bool:
         meta = self.root.pyproject.get("tools", {}).get("pixi", {})
-        basenames = (_.rsplit("/", 1)[-1] for _ in self.root.filelist)
-        return bool(meta) or "pixi.toml" in basenames
+        return bool(meta) or "pixi.toml" in self.root.basenames
 
     def parse(self) -> None:
         from projspec.artifact.installable import CondaPackage
@@ -68,10 +67,11 @@ class Pixi(ProjectSpec):
         from projspec.content.environment import Environment, Precision, Stack
 
         meta = self.root.pyproject.get("tools", {}).get("pixi", {})
-        basenames = {_.rsplit("/", 1)[-1]: _ for _ in self.root.filelist}
-        if "pixi.toml" in basenames:
+        if "pixi.toml" in self.root.basenames:
             try:
-                with self.root.fs.open(basenames["pixi.toml"], "rb") as f:
+                with self.root.fs.open(
+                    self.root.basenames["pixi.toml"], "rb"
+                ) as f:
                     meta.update(toml.loads(f.read().decode()))
             except (OSError, ValueError, UnicodeDecodeError, FileNotFoundError):
                 pass
@@ -110,10 +110,10 @@ class Pixi(ProjectSpec):
         if commands:
             conts["commands"] = commands
 
-        if "pixi.lock" in basenames:
+        if "pixi.lock" in self.root.basenames:
             conts["environments"] = AttrDict()
             arts["conda_envs"] = AttrDict()
-            with self.root.fs.open(basenames["pixi.lock"], "rb") as f:
+            with self.root.fs.open(self.root.basenames["pixi.lock"], "rb") as f:
                 lock_envs = envs_from_lock(f)
             for env_name, details in lock_envs.items():
                 art = CondaEnv(

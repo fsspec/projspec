@@ -96,7 +96,7 @@ class Project:
                     elif proj2.children:
                         self.children.update(
                             {
-                                f"{sub}/{s2}": p
+                                f"{sub.rstrip('/')}/{s2.lstrip('/')}": p
                                 for s2, p in proj2.children.items()
                             }
                         )
@@ -104,6 +104,10 @@ class Project:
     @cached_property
     def filelist(self):
         return self.fs.ls(self.url, detail=False)
+
+    @cached_property
+    def basenames(self):
+        return {_.rsplit("/", 1)[-1]: _ for _ in self.filelist}
 
     def __repr__(self):
         txt = "<Project '{}'>\n\n{}".format(
@@ -135,10 +139,9 @@ class Project:
     @cached_property
     def pyproject(self):
         """Contents of top-level pyproject.toml, if found"""
-        basenames = {_.rsplit("/", 1)[-1]: _ for _ in self.filelist}
-        if "pyproject.toml" in basenames:
+        if "pyproject.toml" in self.basenames:
             try:
-                with self.fs.open(basenames["pyproject.toml"], "rt") as f:
+                with self.fs.open(self.basenames["pyproject.toml"], "rt") as f:
                     return toml.load(f)
             except (OSError, ValueError, TypeError):
                 # debug/warn?

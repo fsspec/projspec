@@ -11,21 +11,19 @@ class CondaRecipe(ProjectSpec):
     )
 
     def match(self) -> bool:
-        allfiles = self.root.filelist
-        basenames = {_.rsplit("/", 1)[-1] for _ in allfiles}
-        return {"meta.yaml", "meta.yml", "conda.yaml"}.intersection(basenames)
+        return not {"meta.yaml", "meta.yml", "conda.yaml"}.isdisjoint(
+            self.root.basenames
+        )
 
     def parse(self) -> None:
         from projspec.artifact.installable import CondaPackage
         from projspec.content.environment import Environment, Precision, Stack
 
-        allfiles = self.root.filelist
-        basenames = {_.rsplit("/", 1)[-1]: _ for _ in allfiles}
         meta = None
         for fn in ("meta.yaml", "meta.yml", "conda.yaml"):
-            if fn in basenames:
+            if fn in self.root.basenames:
                 try:
-                    with self.root.fs.open(basenames[fn], "rb") as f:
+                    with self.root.fs.open(self.root.basenames[fn], "rb") as f:
                         meta0 = _yaml_no_jinja(f)
                     # TODO: multiple output recipe
                     if "package" in meta0:
@@ -67,21 +65,19 @@ class RattlerRecipe(CondaRecipe):
     # conda recipes are also valid for rattler if they don't have complex jinja.
 
     def match(self) -> bool:
-        allfiles = self.root.filelist
-        basenames = {_.rsplit("/", 1)[-1] for _ in allfiles}
-        return "recipe.yaml" in basenames
+        return "recipe.yaml" in self.root.basenames
 
     def parse(self) -> None:
         from projspec.artifact.installable import CondaPackage
         from projspec.content.environment import Environment, Precision, Stack
 
-        allfiles = self.root.filelist
-        basenames = {_.rsplit("/", 1)[-1]: _ for _ in allfiles}
-        if "recipe.yaml" in basenames:
-            with self.root.fs.open(basenames["recipe.yaml"], "rb") as f:
+        if "recipe.yaml" in self.root.basenames:
+            with self.root.fs.open(
+                self.root.basenames["recipe.yaml"], "rb"
+            ) as f:
                 meta = _yaml_no_jinja(f)
-        elif "meta.yaml" in basenames:
-            with self.root.fs.open(basenames["meta.yaml"], "rb") as f:
+        elif "meta.yaml" in self.root.basenames:
+            with self.root.fs.open(self.root.basenames["meta.yaml"], "rb") as f:
                 meta = _yaml_no_jinja(f)
         else:
             raise ValueError

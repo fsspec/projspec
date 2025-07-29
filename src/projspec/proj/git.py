@@ -4,8 +4,7 @@ from projspec.utils import AttrDict
 
 class GitRepo(ProjectSpec):
     def match(self) -> bool:
-        basenames = [_.rsplit("/", 1)[-1] for _ in self.root.filelist]
-        return ".git" in basenames
+        return ".git" in self.root.basenames
 
     def parse(self) -> None:
         cont = AttrDict()
