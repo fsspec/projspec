@@ -132,8 +132,7 @@ sj = re.compile(r'{%\s+set\s+(\S+)\s+=\s+"(.*)"\s+%}')
 
 
 def _yaml_no_jinja(fileobj):
-    # TODO: rather than skip jinja stuff, we can copy conda code to parse it, but
-    #  templates can involve function calls and reference to env vars we don't have
+    """Read YAML text from the given file, attempting to evaluate jinja2 templates."""
     txt = fileobj.read().decode()
     lines = []
     variables = {}
@@ -194,3 +193,13 @@ def flatten(x: Iterable):
             except TypeError:
                 out.add(item)
     return out
+
+
+def sort_version_strings(versions: Iterable[str]) -> list[str]:
+    def int_or(x):
+        try:
+            return int(x)
+        except ValueError:
+            return x
+
+    return sorted(versions, key=lambda s: [int_or(_) for _ in s.split(".")])

@@ -1,3 +1,5 @@
+import re
+
 from projspec.proj import ProjectSpec
 
 
@@ -18,5 +20,10 @@ class RTD(ProjectSpec):
 
     def match(self) -> bool:
         basenames = [_.rsplit("/", 1)[-1] for _ in self.root.filelist]
+        return any(re.match("[.]?readthedocs.y[a]?ml", _) for _ in basenames)
+
+    def parse(self) -> None:
         # supports mkdocs and sphinx builders
-        return ".readthedocs.yaml" in basenames
+        # build env usually in `python.install[*].requirements`, which can
+        # point to a requirements.txt or conda.environment for conda env.
+        pass

@@ -7,7 +7,7 @@ import click
 
 import projspec.proj
 
-# TODO: allow subcommands to list known types and set config
+# TODO: allow subcommands to execute artifacts, list known types and set config
 
 
 @click.command()
