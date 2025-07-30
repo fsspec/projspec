@@ -4,78 +4,77 @@ from projspec.proj.base import ProjectSpec
 from projspec.utils import AttrDict
 
 
-class UVMixin:
-    def _parse_meta(self, conf):
-        from projspec.artifact.installable import Wheel
-        from projspec.artifact.python_env import LockFile, VirtualEnv
-        from projspec.content.environment import Environment, Precision, Stack
+def _parse_conf(self: ProjectSpec, conf: dict):
+    from projspec.artifact.installable import Wheel
+    from projspec.artifact.python_env import LockFile, VirtualEnv
+    from projspec.content.environment import Environment, Precision, Stack
 
-        meta = self.root.pyproject
+    meta = self.root.pyproject
 
-        envs = AttrDict()
-        # TODO: uv allows dependencies with source=, which would show us where the
-        #  sub-packages in a project are
-        if "dependencies" in meta.get("project", {}):
-            # conf key [tool.uv.pip] means optional-dependencies may be included here
-            envs["default"] = Environment(
+    envs = AttrDict()
+    # TODO: uv allows dependencies with source=, which would show us where the
+    #  sub-packages in a project are
+    if "dependencies" in meta.get("project", {}):
+        # conf key [tool.uv.pip] means optional-dependencies may be included here
+        envs["default"] = Environment(
+            proj=self.root,
+            stack=Stack.PIP,
+            precision=Precision.SPEC,
+            packages=meta["project"]["dependencies"],
+            artifacts=set(),
+        )
+    envs.update(
+        {
+            k: Environment(
                 proj=self.root,
                 stack=Stack.PIP,
                 precision=Precision.SPEC,
-                packages=meta["project"]["dependencies"],
+                packages=v,
                 artifacts=set(),
             )
-        envs.update(
-            {
-                k: Environment(
-                    proj=self.root,
-                    stack=Stack.PIP,
-                    precision=Precision.SPEC,
-                    packages=v,
-                    artifacts=set(),
-                )
-                for k, v in conf.get("project", {})
-                .get("dependency-groups", {})
-                .items()
-            }
+            for k, v in conf.get("project", {})
+            .get("dependency-groups", {})
+            .items()
+        }
+    )
+    if "dev-dependencies" in conf:
+        envs["dev"] = Environment(
+            proj=self.root,
+            stack=Stack.PIP,
+            precision=Precision.SPEC,
+            packages=conf["dev-dependencies"],
+            artifacts=set(),
         )
-        if "dev-dependencies" in conf:
-            envs["dev"] = Environment(
+
+    self._contents = AttrDict()
+    if envs:
+        self._contents["environment"] = envs
+
+    # TODO: process from defined commands
+    self._artifacts = AttrDict(
+        lock=AttrDict(
+            default=LockFile(
                 proj=self.root,
-                stack=Stack.PIP,
-                precision=Precision.SPEC,
-                packages=conf["dev-dependencies"],
-                artifacts=set(),
+                cmd=["uv", "lock"],
+                fn=f"{self.root.url}/uv.lock",
             )
-
-        self._contents = AttrDict()
-        if envs:
-            self._contents["environment"] = envs
-
-        # TODO: process from defined commands
-        self._artifacts = AttrDict(
-            lock=AttrDict(
-                default=LockFile(
-                    proj=self.root,
-                    cmd=["uv", "lock"],
-                    fn=f"{self.root.url}/uv.lock",
-                )
-            ),
-            venv=AttrDict(
-                default=VirtualEnv(
-                    proj=self.root,
-                    cmd=["uv", "sync"],
-                    fn=f"{self.root.url}/.venv",
-                )
-            ),
+        ),
+        venv=AttrDict(
+            default=VirtualEnv(
+                proj=self.root,
+                cmd=["uv", "sync"],
+                fn=f"{self.root.url}/.venv",
+            )
+        ),
+    )
+    if conf.get("package", True):
+        self._artifacts["wheel"] = Wheel(
+            proj=self.root,
+            cmd=["uv", "build"],
         )
-        if conf.get("package", True):
-            self._artifacts["wheel"] = Wheel(
-                proj=self.root,
-                cmd=["uv", "build"],
-            )
 
 
-class UVScript(ProjectSpec, UVMixin):
+class UVScript(ProjectSpec):
     """Single-file project runnable by UV as a script
 
     Metadata are declared inline in the script header
@@ -97,14 +96,14 @@ class UVScript(ProjectSpec, UVMixin):
             raise ValueError from e
         lines = txt.split("# /// script\n", 1)[1].txt.split("# ///\n", 1)[0]
         meta = "\n".join(line[2:] for line in lines.split("\n"))
-        self._parse_meta(toml.loads(meta))
-        # if URL is local or http(s):
+        _parse_conf(self, toml.loads(meta))
+        # if URL/filesystem is local or http(s):
         # self.artifacts["process"] = Process(
         #     proj=self.root, cmd=['uv', 'run', self.root.url]
         # )
 
 
-class UV(ProjectSpec, UVMixin):
+class UV(ProjectSpec):
     """UV-runnable project
 
     Note: uv can run any python project, but this tests for uv-specific
@@ -150,7 +149,7 @@ class UV(ProjectSpec, UVMixin):
                 lock = toml.load(f)
         except (OSError, FileNotFoundError):
             lock = {}
-        self._parse_meta(conf)
+        _parse_conf(self, conf)
 
         if lock:
             pkg = [f"python {lock['requires-python']}"]
