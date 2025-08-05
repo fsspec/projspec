@@ -7,6 +7,8 @@ class Rust(ProjectSpec):
     def match(self) -> bool:
         return "Cargo.toml" in self.root.basenames
 
+    # this builds a (static) library or an executable, or both.
+
 
 class RustPython(Rust, PythonLibrary):
     spec_doc = "https://www.maturin.rs/config.html"
@@ -19,3 +21,5 @@ class RustPython(Rust, PythonLibrary):
             and "maturin" in self.root.pyproject.get("tool", {})
             and self.root.pyproject.get("build-backend", "") == "maturin"
         )
+
+    # this builds a python-installable wheel in addition to rust artifacts.

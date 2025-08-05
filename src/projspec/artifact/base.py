@@ -5,9 +5,10 @@ from typing import Literal
 import fsspec.implementations.local
 
 from projspec.proj import Project
-from projspec.utils import is_installed
+from projspec.utils import camel_to_snake, is_installed
 
 logger = logging.getLogger("projspec")
+registry = {}
 
 
 class BaseArtifact:
@@ -25,10 +26,10 @@ class BaseArtifact:
         self.proc = None
 
     def _is_clean(self) -> bool:
-        return self.proc is None  # in general more complex
+        return self.proc is None  # in general, more complex
 
     def _is_done(self) -> bool:
-        return self.proc is not None  # in general more complex
+        return self.proc is not None  # in general, more complex
 
     def _check_runner(self):
         return self.cmd[0] in is_installed
@@ -78,6 +79,20 @@ class BaseArtifact:
 
     def _repr2(self):
         return f"{' '.join(self.cmd)}, {self.state}"
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        registry[camel_to_snake(cls.__name__)] = cls
+
+    def to_json(self):
+        out = self.__dict__.copy()
+        out["cls"] = camel_to_snake(self.__name__)
+        return out
+
+
+def get_artifact_cls(name: str) -> type[BaseArtifact]:
+    """Find an artifact class by snake-case name."""
+    return registry[name]
 
 
 class FileArtifact(BaseArtifact):

@@ -15,11 +15,11 @@ class Enum(enum.Enum):
 
 
 class AttrDict(dict):
-    """Contains a dict but allows attribute read access for compliant keys"""
+    """Contains a dict but allows attribute read access for compliant keys."""
 
     def __init__(self, *data, **kw):
         dic = False
-        if len(data) == 1 and isinstance(data[0], (tuple, list)):
+        if len(data) == 1 and isinstance(data[0], (tuple, list, dict)):
             types = {type(_) for _ in data[0]}
             if isinstance(data[0], dict):
                 super().__init__(data[0])
@@ -27,6 +27,8 @@ class AttrDict(dict):
                 super().__init__(
                     {camel_to_snake(next(iter(types)).__name__): data[0]}
                 )
+            elif isinstance(data[0], dict):
+                super().__init__(data[0])
             else:
                 dic = True
         else:
