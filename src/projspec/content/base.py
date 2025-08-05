@@ -2,7 +2,9 @@ from dataclasses import dataclass, field
 
 from projspec.artifact import BaseArtifact
 from projspec.proj.base import Project
-from projspec.utils import Enum
+from projspec.utils import Enum, camel_to_snake
+
+registry = {}
 
 
 @dataclass
@@ -16,3 +18,12 @@ class BaseContent:
             for k, v in self.__dict__.items()
             if not k.startswith("_") and k not in ("proj", "artifacts")
         }
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        registry[camel_to_snake(cls.__name__)] = cls
+
+
+def get_content_cls(name: str) -> type[BaseContent]:
+    """Find a content class by snake-case name."""
+    return registry[name]
