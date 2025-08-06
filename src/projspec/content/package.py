@@ -27,3 +27,10 @@ class CondaRecipe(PythonPackage):
     """usually from a meta.yaml file"""
 
     meta: str
+
+
+@dataclass
+class NodePackage(BaseContent):
+    """Usually a package.json file"""
+
+    package_name: str
