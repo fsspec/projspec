@@ -56,10 +56,10 @@ class BaseArtifact:
         self._make(*args, **kwargs)
 
     def _make(self, *args, **kwargs):
-        subprocess.check_call(self.cmd, cwd=self.proj.url, **self.kw)
+        subprocess.check_call(self.cmd, cwd=self.proj.url, **kwargs)
 
     def remake(self, reqs=False):
-        """Recreate artifact and any runtime it depends on"""
+        """Recreate the artifact and any runtime it depends on"""
         if reqs:
             self.clean_req()
         self.clean()
@@ -82,12 +82,14 @@ class BaseArtifact:
 
     @classmethod
     def __init_subclass__(cls, **kwargs):
-        registry[camel_to_snake(cls.__name__)] = cls
+        sn = cls.snake_name()
+        if sn in registry:
+            raise RuntimeError()
+        registry[sn] = cls
 
-    def to_json(self):
-        out = self.__dict__.copy()
-        out["cls"] = camel_to_snake(self.__name__)
-        return out
+    @classmethod
+    def snake_name(cls):
+        return camel_to_snake(cls.__name__)
 
 
 def get_artifact_cls(name: str) -> type[BaseArtifact]:

@@ -34,8 +34,8 @@ class Project:
             fs, path = fsspec.url_to_fs(path, **(storage_options or {}))
         self.fs = fs
         self.url = path
-        self.specs = {}
-        self.children = {}
+        self.specs = AttrDict()
+        self.children = AttrDict()
         self.excludes = excludes or default_excludes
         self.resolve(walk=walk, types=types)
 
@@ -172,6 +172,10 @@ class Project:
             item in _ for _ in self.children.values()
         )
 
+    def to_dict(self) -> dict:
+        dic = AttrDict(specs=self.specs, children=self.children)
+        return dic.to_dict()
+
 
 class ProjectSpec:
     """A project specification
@@ -248,3 +252,7 @@ class ProjectSpec:
         if self.artifacts:
             base += f"\nArtifacts:\n{yaml.dump(self.artifacts.to_dict(), Dumper=IndentDumper).rstrip()}\n"
         return base
+
+    def to_dict(self) -> dict:
+        dic = AttrDict(contents=self.contents, artifacts=self.artifacts)
+        return dic.to_dict()

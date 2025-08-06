@@ -21,7 +21,14 @@ class BaseContent:
 
     @classmethod
     def __init_subclass__(cls, **kwargs):
-        registry[camel_to_snake(cls.__name__)] = cls
+        sn = cls.snake_name()
+        if sn in registry:
+            raise RuntimeError()
+        registry[sn] = cls
+
+    @classmethod
+    def snake_name(cls):
+        return camel_to_snake(cls.__name__)
 
 
 def get_content_cls(name: str) -> type[BaseContent]:

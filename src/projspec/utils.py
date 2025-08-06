@@ -24,6 +24,8 @@ class AttrDict(dict):
             if isinstance(data[0], dict):
                 super().__init__(data[0])
             elif isinstance(data[0], list):
+                if len(types) > 1:
+                    raise TypeError("Multiple types ina  list")
                 super().__init__(
                     {camel_to_snake(next(iter(types)).__name__): data[0]}
                 )
@@ -53,8 +55,10 @@ def to_dict(obj):
     from projspec.content import BaseContent
 
     if isinstance(obj, dict):
-        # includes AttrDict
-        return {k: to_dict(v) for k, v in obj.items()}
+        return {
+            k: v.to_dict() if hasattr(v, "to_dict") else to_dict(v)
+            for k, v in obj.items()
+        }
     if isinstance(obj, (bytes, str)):
         return obj
     if isinstance(obj, Iterable):
@@ -91,7 +95,7 @@ def _linked_local_path(path):
 
 
 class IsInstalled:
-    """Checks if we can call commands, as a function of current environment"""
+    """Checks if we can call commands, as a function of the current environment."""
 
     cache = {}
 
@@ -120,7 +124,8 @@ class IsInstalled:
         return self.cache[(self.env, cmd)]
 
     def __contains__(self, item):
-        # canonical use: `"python" in is_installed`
+        # canonical use:
+        #    "python" in is_installed`
         # shutil.which?
         return self.exists(item)
 
