@@ -8,10 +8,28 @@ from collections.abc import Iterable
 
 import yaml
 
+enum_registry = {}
+
 
 class Enum(enum.Enum):
     def __repr__(self):
         return self.name
+
+    def __init_subclass__(cls, **kwargs):
+        enum_registry[camel_to_snake(cls.__name__)] = cls
+
+    @classmethod
+    def snake_name(cls):
+        return camel_to_snake(cls.__name__)
+
+    def to_dict(self, compact=False):
+        if compact:
+            return self.name
+        return {"klass": ["enum", self.snake_name()], "value": self.value}
+
+
+def get_enum_class(name):
+    return enum_registry[name]
 
 
 class AttrDict(dict):
@@ -62,6 +80,8 @@ def to_dict(obj, compact=True):
         return obj
     if isinstance(obj, Iterable):
         return [to_dict(_, compact=compact) for _ in obj]
+    if hasattr(obj, "to_dict"):
+        return obj.to_dict(compact=compact)
     return str(obj)
 
 
@@ -81,6 +101,9 @@ def from_dict(dic, proj=None):
                 cls = get_content_cls(name)
             elif category == "artifact":
                 cls = get_artifact_cls(name)
+            elif category == "enum":
+                breakpoint()
+                cls = get_enum_class(name)
             else:
                 raise NotImplementedError
             obj = object.__new__(cls)
