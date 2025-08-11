@@ -12,15 +12,15 @@ class PyScript(ProjectSpec):
         # also you can just declare things to install as you go, which we won't be able to
         # guess.
         return not {"pyscript.toml", "pyscript.json"}.isdisjoint(
-            self.root.basenames
+            self.proj.basenames
         )
 
     def parse(self) -> None:
         try:
-            with self.root.fs.open(f"{self.root.url}/pyscript.toml", "rt") as f:
+            with self.proj.fs.open(f"{self.proj.url}/pyscript.toml", "rt") as f:
                 meta = toml.load(f)
         except FileNotFoundError:
-            with self.root.fs.open(f"{self.root.url}/pyscript.json", "rt") as f:
+            with self.proj.fs.open(f"{self.proj.url}/pyscript.json", "rt") as f:
                 meta = toml.load(f)
         cont = AttrDict()
         if "packages" in meta:

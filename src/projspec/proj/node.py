@@ -7,10 +7,10 @@ class Node(ProjectSpec):
     spec_doc = "https://docs.npmjs.com/cli/v11/configuring-npm/package-json"
 
     def match(self):
-        return "package.json" in self.root.basenames
+        return "package.json" in self.proj.basenames
 
     def parse(self):
         import json
 
-        with self.root.fs.open(f"{self.root.url}/package.json", "rt") as f:
+        with self.proj.fs.open(f"{self.proj.url}/package.json", "rt") as f:
             json.load(f)

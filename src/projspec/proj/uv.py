@@ -9,7 +9,7 @@ def _parse_conf(self: ProjectSpec, conf: dict):
     from projspec.artifact.python_env import LockFile, VirtualEnv
     from projspec.content.environment import Environment, Precision, Stack
 
-    meta = self.root.pyproject
+    meta = self.proj.pyproject
 
     envs = AttrDict()
     # TODO: uv allows dependencies with source=, which would show us where the
@@ -17,7 +17,7 @@ def _parse_conf(self: ProjectSpec, conf: dict):
     if "dependencies" in meta.get("project", {}):
         # conf key [tool.uv.pip] means optional-dependencies may be included here
         envs["default"] = Environment(
-            proj=self.root,
+            proj=self.proj,
             stack=Stack.PIP,
             precision=Precision.SPEC,
             packages=meta["project"]["dependencies"],
@@ -26,7 +26,7 @@ def _parse_conf(self: ProjectSpec, conf: dict):
     envs.update(
         {
             k: Environment(
-                proj=self.root,
+                proj=self.proj,
                 stack=Stack.PIP,
                 precision=Precision.SPEC,
                 packages=v,
@@ -39,7 +39,7 @@ def _parse_conf(self: ProjectSpec, conf: dict):
     )
     if "dev-dependencies" in conf:
         envs["dev"] = Environment(
-            proj=self.root,
+            proj=self.proj,
             stack=Stack.PIP,
             precision=Precision.SPEC,
             packages=conf["dev-dependencies"],
@@ -52,24 +52,24 @@ def _parse_conf(self: ProjectSpec, conf: dict):
 
     # TODO: process from defined commands
     self._artifacts = AttrDict(
-        lock=AttrDict(
+        lock_file=AttrDict(
             default=LockFile(
-                proj=self.root,
+                proj=self.proj,
                 cmd=["uv", "lock"],
-                fn=f"{self.root.url}/uv.lock",
+                fn=f"{self.proj.url}/uv.lock",
             )
         ),
-        venv=AttrDict(
+        virtual_env=AttrDict(
             default=VirtualEnv(
-                proj=self.root,
+                proj=self.proj,
                 cmd=["uv", "sync"],
-                fn=f"{self.root.url}/.venv",
+                fn=f"{self.proj.url}/.venv",
             )
         ),
     )
     if conf.get("package", True):
         self._artifacts["wheel"] = Wheel(
-            proj=self.root,
+            proj=self.proj,
             cmd=["uv", "build"],
         )
 
@@ -86,11 +86,11 @@ class UVScript(ProjectSpec):
 
     def match(self):
         # this is a file, not a directory
-        return self.root.url.endswith(("py", "pyw"))
+        return self.proj.url.endswith(("py", "pyw"))
 
     def parse(self):
         try:
-            with self.root.fs.open(self.root.url) as f:
+            with self.proj.fs.open(self.proj.url) as f:
                 txt = f.read().decode()
         except OSError as e:
             raise ValueError from e
@@ -99,7 +99,7 @@ class UVScript(ProjectSpec):
         _parse_conf(self, toml.loads(meta))
         # if URL/filesystem is local or http(s):
         # self.artifacts["process"] = Process(
-        #     proj=self.root, cmd=['uv', 'run', self.root.url]
+        #     proj=self.root, cmd=['uvx', self.root.url]
         # )
 
 
@@ -112,20 +112,20 @@ class UV(ProjectSpec):
 
     def match(self):
         if not {"uv.lock", "uv.toml", ".python-version"}.isdisjoint(
-            self.root.basenames
+            self.proj.basenames
         ):
             return True
-        if "uv" in self.root.pyproject.get("tools", {}):
+        if "uv" in self.proj.pyproject.get("tools", {}):
             return True
         if (
-            self.root.pyproject.get("build-system", {}).get("build-backend", "")
+            self.proj.pyproject.get("build-system", {}).get("build-backend", "")
             == "uv_build"
         ):
             return True
-        if ".venv" in self.root.basenames:
+        if ".venv" in self.proj.basenames:
             try:
-                with self.root.fs.open(
-                    f"{self.root.url}/.venv/pyvenv.cfg", "rt"
+                with self.proj.fs.open(
+                    f"{self.proj.url}/.venv/pyvenv.cfg", "rt"
                 ) as f:
                     txt = f.read()
                 return b"uv =" in txt
@@ -136,16 +136,16 @@ class UV(ProjectSpec):
     def parse(self):
         from projspec.content.environment import Environment, Precision, Stack
 
-        meta = self.root.pyproject
+        meta = self.proj.pyproject
         conf = meta.get("tools", {}).get("uv", {})
         try:
-            with self.root.fs.open(f"{self.root.url}/uv.toml", "rt") as f:
+            with self.proj.fs.open(f"{self.proj.url}/uv.toml", "rt") as f:
                 conf2 = toml.load(f)
         except (OSError, FileNotFoundError):
             conf2 = {}
         conf.update(conf2)
         try:
-            with self.root.fs.open(f"{self.root.url}/uv.lock", "rt") as f:
+            with self.proj.fs.open(f"{self.proj.url}/uv.lock", "rt") as f:
                 lock = toml.load(f)
         except (OSError, FileNotFoundError):
             lock = {}
@@ -161,9 +161,9 @@ class UV(ProjectSpec):
                 ]
             )
             self.contents.environment["lockfile"] = Environment(
-                proj=self.root,
+                proj=self.proj,
                 stack=Stack.PIP,
                 precision=Precision.LOCK,
                 packages=pkg,
-                artifacts={self._artifacts["venv"]["default"]},
+                artifacts={self._artifacts["virtual_env"]["default"]},
             )

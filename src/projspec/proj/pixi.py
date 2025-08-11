@@ -58,19 +58,19 @@ class Pixi(ProjectSpec):
     # https://pixi.sh/dev/reference/pixi_manifest/
 
     def match(self) -> bool:
-        meta = self.root.pyproject.get("tools", {}).get("pixi", {})
-        return bool(meta) or "pixi.toml" in self.root.basenames
+        meta = self.proj.pyproject.get("tools", {}).get("pixi", {})
+        return bool(meta) or "pixi.toml" in self.proj.basenames
 
     def parse(self) -> None:
         from projspec.artifact.installable import CondaPackage
         from projspec.artifact.python_env import CondaEnv, LockFile
         from projspec.content.environment import Environment, Precision, Stack
 
-        meta = self.root.pyproject.get("tools", {}).get("pixi", {})
-        if "pixi.toml" in self.root.basenames:
+        meta = self.proj.pyproject.get("tools", {}).get("pixi", {})
+        if "pixi.toml" in self.proj.basenames:
             try:
-                with self.root.fs.open(
-                    self.root.basenames["pixi.toml"], "rb"
+                with self.proj.fs.open(
+                    self.proj.basenames["pixi.toml"], "rb"
                 ) as f:
                     meta.update(toml.loads(f.read().decode()))
             except (OSError, ValueError, UnicodeDecodeError, FileNotFoundError):
@@ -110,36 +110,35 @@ class Pixi(ProjectSpec):
         if commands:
             conts["commands"] = commands
 
-        if "pixi.lock" in self.root.basenames:
+        if "pixi.lock" in self.proj.basenames:
             conts["environments"] = AttrDict()
-            arts["conda_envs"] = AttrDict()
-            with self.root.fs.open(self.root.basenames["pixi.lock"], "rb") as f:
+            arts["conda_env"] = AttrDict()
+            with self.proj.fs.open(self.proj.basenames["pixi.lock"], "rb") as f:
                 lock_envs = envs_from_lock(f)
             for env_name, details in lock_envs.items():
                 art = CondaEnv(
-                    proj=self.root,
-                    fn=f"{self.root.url}/.pixi/envs/{env_name}",
+                    proj=self.proj,
+                    fn=f"{self.proj.url}/.pixi/envs/{env_name}",
                     cmd=["pixi", "install", "-e", env_name],
                 )
-                arts["conda_envs"][env_name] = art
+                arts["conda_env"][env_name] = art
                 conts["environments"][env_name] = Environment(
-                    proj=self.root,
+                    proj=self.proj,
                     packages=details["packages"],
                     artifacts={art},
                     stack=Stack.CONDA,
                     precision=Precision.LOCK,
                     channels=details["channels"],
                 )
-        arts["lockfile"] = LockFile(
-            proj=self.root,
-            fn=f"{self.root.url}/pixi.lock",
+        arts["lock_file"] = LockFile(
+            proj=self.proj,
+            fn=f"{self.proj.url}/pixi.lock",
             cmd=["pixi", "lock"],
         )
 
         if pkg := meta.get("package", {}):
-            arts["conda"] = CondaPackage(
-                proj=self.root,
-                package=pkg,
+            arts["conda_package"] = CondaPackage(
+                proj=self.proj,
                 name=pkg["name"],
                 path=f"{pkg['name']}-{pkg['version']}*.conda",
                 cmd=["pixi", "build"],
@@ -180,25 +179,25 @@ def extract_feature(
         cmd = ["pixi", "run", name]
         if env:
             cmd.extend(["--environment", env])
-        art = Process(proj=pixi.root, cmd=cmd)
+        art = Process(proj=pixi.proj, cmd=cmd)
         procs[name] = art
         # tasks without a command are aliases
         cmd = task.get("cmd", "") if isinstance(task, dict) else task
         # NB: these may have dependencies on other tasks and envs, but pixi
         # manages those.
-        commands[name] = Command(proj=pixi.root, artifacts={art}, cmd=cmd)
+        commands[name] = Command(proj=pixi.proj, artifacts={art}, cmd=cmd)
     for platform, v in meta.get("target", {}).items():
         for name, task in v.get("tasks", {}).items():
             if env:
                 name = f"{name}.{env}"
             cmd = task["cmd"] if isinstance(task, dict) else task
-            commands[name] = Command(proj=pixi.root, artifacts=set(), cmd=cmd)
+            commands[name] = Command(proj=pixi.proj, artifacts=set(), cmd=cmd)
             if platform == this_platform():
                 # only commands on the current platform can be executed
                 cmd = ["pixi", "run", name]
                 if env:
                     cmd.extend(["--environment", env])
-                art = Process(proj=pixi.root, cmd=cmd)
+                art = Process(proj=pixi.proj, cmd=cmd)
                 procs[name] = art
                 commands[name].artifacts.add(art)
 

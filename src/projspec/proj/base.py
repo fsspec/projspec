@@ -9,7 +9,7 @@ import toml
 from projspec.utils import AttrDict, IndentDumper, camel_to_snake, flatten
 
 logger = logging.getLogger("projspec")
-registry = set()
+registry = {}
 default_excludes = {
     ".venv",  # venv, pipenv, uv
     ".pixi",
@@ -32,6 +32,9 @@ class Project:
     ):
         if fs is None:
             fs, path = fsspec.url_to_fs(path, **(storage_options or {}))
+        else:
+            storage_options = fs.storage_options
+        self.storage_options = storage_options or {}
         self.fs = fs
         self.url = path
         self.specs = AttrDict()
@@ -60,7 +63,8 @@ class Project:
         """
         fullpath = "/".join([self.url, subpath]) if subpath else self.url
         # sorting to ensure consistency
-        for cls in sorted(registry, key=str):
+        for name in sorted(registry):
+            cls = registry[name]
             try:
                 logger.debug("resolving %s as %s", fullpath, cls)
                 name = cls.__name__
@@ -172,9 +176,27 @@ class Project:
             item in _ for _ in self.children.values()
         )
 
-    def to_dict(self) -> dict:
-        dic = AttrDict(specs=self.specs, children=self.children)
-        return dic.to_dict()
+    def to_dict(self, compact=True) -> dict:
+        dic = AttrDict(
+            specs=self.specs,
+            children=self.children,
+            url=self.url,
+            storage_options=self.storage_options,
+        )
+        dic["klass"] = "project"
+        return dic.to_dict(compact=compact)
+
+    @staticmethod
+    def from_dict(dic):
+        from projspec.utils import from_dict
+
+        proj = object.__new__(Project)
+        proj.specs = from_dict(dic["specs"], proj)
+        proj.children = from_dict(dic["children"], proj)
+        proj.url = dic["url"]
+        proj.storage_options = dic["storage_options"]
+        proj.fs, _ = fsspec.url_to_fs(proj.url, **proj.storage_options)
+        return proj
 
 
 class ProjectSpec:
@@ -186,8 +208,8 @@ class ProjectSpec:
 
     spec_doc = ""  # URL to prose about this spec
 
-    def __init__(self, root: Project, subpath: str = ""):
-        self.root = root
+    def __init__(self, proj: Project, subpath: str = ""):
+        self.proj = proj
         self.subpath = subpath  # not used yet
         self._contents = AttrDict()
         self._artifacts = AttrDict()
@@ -198,9 +220,9 @@ class ProjectSpec:
     def path(self) -> str:
         """Location of this project spec"""
         return (
-            self.root.url + "/" + self.subpath
+            self.proj.url + "/" + self.subpath
             if self.subpath
-            else self.root.url
+            else self.proj.url
         )
 
     def match(self) -> bool:
@@ -241,7 +263,7 @@ class ProjectSpec:
 
     @classmethod
     def __init_subclass__(cls, **kwargs):
-        registry.add(cls)
+        registry[camel_to_snake(cls.__name__)] = cls
 
     def __repr__(self):
         import yaml
@@ -253,6 +275,20 @@ class ProjectSpec:
             base += f"\nArtifacts:\n{yaml.dump(self.artifacts.to_dict(), Dumper=IndentDumper).rstrip()}\n"
         return base
 
-    def to_dict(self) -> dict:
-        dic = AttrDict(contents=self.contents, artifacts=self.artifacts)
-        return dic.to_dict()
+    def to_dict(self, compact=True) -> dict:
+        dic = AttrDict(
+            _contents=self.contents,
+            _artifacts=self.artifacts,
+            subpath=self.subpath,
+            klass=["projspec", self.snake_name()],
+        )
+        return dic.to_dict(compact=compact)
+
+    @classmethod
+    def snake_name(cls) -> str:
+        """Convert a project name to snake-case"""
+        return camel_to_snake(cls.__name__)
+
+
+def get_projspec_class(name: str) -> type:
+    return registry[name]

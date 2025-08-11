@@ -46,26 +46,54 @@ class AttrDict(dict):
             return self[item]
         raise AttributeError(item)
 
-    def to_dict(self):
-        return to_dict(self)
+    def to_dict(self, compact=True):
+        return to_dict(self, compact=compact)
 
 
-def to_dict(obj):
-    from projspec.artifact import BaseArtifact
-    from projspec.content import BaseContent
-
+def to_dict(obj, compact=True):
     if isinstance(obj, dict):
         return {
-            k: v.to_dict() if hasattr(v, "to_dict") else to_dict(v)
+            k: v.to_dict(compact=compact)
+            if hasattr(v, "to_dict")
+            else to_dict(v, compact=compact)
             for k, v in obj.items()
         }
     if isinstance(obj, (bytes, str)):
         return obj
     if isinstance(obj, Iterable):
-        return [to_dict(_) for _ in obj]
-    if isinstance(obj, (BaseArtifact, BaseContent)):
-        return obj._repr2()
+        return [to_dict(_, compact=compact) for _ in obj]
     return str(obj)
+
+
+def from_dict(dic, proj=None):
+    from projspec.artifact import get_artifact_cls
+    from projspec.content import get_content_cls
+    from projspec.proj import Project, get_projspec_class
+
+    if isinstance(dic, dict):
+        if "klass" in dic:
+            if dic["klass"] == "project":
+                return Project.from_dict(dic)
+            category, name = dic.pop("klass")
+            if category == "projspec":
+                cls = get_projspec_class(name)
+            elif category == "content":
+                cls = get_content_cls(name)
+            elif category == "artifact":
+                cls = get_artifact_cls(name)
+            else:
+                raise NotImplementedError
+            obj = object.__new__(cls)
+            obj.proj = proj
+            obj.__dict__.update(
+                {k: from_dict(v, proj=proj) for k, v in dic.items()}
+            )
+            return obj
+        return AttrDict(**{k: from_dict(v, proj=proj) for k, v in dic.items()})
+    elif isinstance(dic, list):
+        return [from_dict(_, proj=proj) for _ in dic]
+    else:
+        return dic
 
 
 class IndentDumper(yaml.Dumper):

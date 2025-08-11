@@ -30,6 +30,21 @@ class BaseContent:
     def snake_name(cls):
         return camel_to_snake(cls.__name__)
 
+    def to_dict(self, compact=False):
+        if compact:
+            return self._repr2()
+        dic = {
+            k: getattr(self, k)
+            for k in self.__dataclass_fields__
+            if k not in ("proj", "artifacts")
+        }
+        dic["artifacts"] = []
+        dic["klass"] = ["content", self.snake_name()]
+        for k in list(dic):
+            if isinstance(dic[k], Enum):
+                dic[k] = dic[k].value
+        return dic
+
 
 def get_content_cls(name: str) -> type[BaseContent]:
     """Find a content class by snake-case name."""
