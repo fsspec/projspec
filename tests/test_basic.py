@@ -16,6 +16,15 @@ def test_basic():
     repr(proj)
 
 
+def test_contains():
+    from projspec.artifact.installable import Wheel
+
+    proj = projspec.Project(os.path.dirname(here), walk=True)
+    assert proj.python_library is not None
+    assert "python_library" in proj
+    assert proj.filter_by_type([Wheel])
+
+
 def test_serialise():
     proj = projspec.Project(os.path.dirname(here), walk=True)
     js = json.dumps(proj.to_dict(compact=False))
