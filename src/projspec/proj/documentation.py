@@ -9,7 +9,7 @@ class MDBook(ProjectSpec):
     )
 
     def match(self) -> bool:
-        return "book.toml" in self.root.basenames
+        return "book.toml" in self.proj.basenames
 
 
 class RTD(ProjectSpec):
@@ -19,7 +19,7 @@ class RTD(ProjectSpec):
 
     def match(self) -> bool:
         return any(
-            re.match("[.]?readthedocs.y[a]?ml", _) for _ in self.root.basenames
+            re.match("[.]?readthedocs.y[a]?ml", _) for _ in self.proj.basenames
         )
 
     def parse(self) -> None:

@@ -1,4 +1,4 @@
-from .base import Project, ProjectSpec
+from .base import Project, ProjectSpec, get_projspec_class
 from .conda_package import CondaRecipe, RattlerRecipe
 from .conda_project import CondaProject
 from .documentation import RTD, MDBook
@@ -8,9 +8,10 @@ from .poetry import Poetry
 from .pyscript import PyScript
 from .python_code import PythonCode, PythonLibrary
 from .rust import Rust, RustPython
-from .uv import UV
+from .uv import Uv
 
 __all__ = [
+    "get_projspec_class",
     "Project",
     "ProjectSpec",
     "CondaRecipe",
@@ -26,5 +27,5 @@ __all__ = [
     "RTD",
     "Rust",
     "RustPython",
-    "UV",
+    "Uv",
 ]

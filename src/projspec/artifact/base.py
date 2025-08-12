@@ -12,17 +12,9 @@ registry = {}
 
 
 class BaseArtifact:
-    def __init__(
-        self,
-        proj: Project,
-        requires: list | None = None,
-        cmd: list[str] | None = None,
-        **kw,
-    ):
+    def __init__(self, proj: Project, cmd: list[str] | None = None):
         self.proj = proj
-        self.requires = requires or []
         self.cmd = cmd
-        self.__dict__.update(kw)
         self.proc = None
 
     def _is_clean(self) -> bool:
@@ -58,16 +50,10 @@ class BaseArtifact:
     def _make(self, *args, **kwargs):
         subprocess.check_call(self.cmd, cwd=self.proj.url, **kwargs)
 
-    def remake(self, reqs=False):
+    def remake(self):
         """Recreate the artifact and any runtime it depends on"""
-        if reqs:
-            self.clean_req()
         self.clean()
         self.make()
-
-    def clean_req(self):
-        for req in self.requires:
-            req.clean()
 
     def clean(self):
         """Remove artifact"""
@@ -90,6 +76,22 @@ class BaseArtifact:
     @classmethod
     def snake_name(cls):
         return camel_to_snake(cls.__name__)
+
+    def to_dict(self, compact=True):
+        """Distil the instance to JSON compatible dict
+
+        compact: if True, will produce condensed output, perhaps justa  string.
+        """
+        if compact:
+            return self._repr2()
+        dic = {
+            k: v
+            for k, v in self.__dict__.items()
+            if not k.startswith("_") and k not in ("proj", "proc")
+        }
+        dic["klass"] = ["artifact", self.snake_name()]
+        dic["proc"] = None
+        return dic
 
 
 def get_artifact_cls(name: str) -> type[BaseArtifact]:

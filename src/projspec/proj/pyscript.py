@@ -1,7 +1,7 @@
 import toml
 
 from projspec.proj import ProjectSpec
-from projspec.utils import AttrDict
+from projspec.utils import AttrDict, PickleableTomlDecoder
 
 
 class PyScript(ProjectSpec):
@@ -12,16 +12,16 @@ class PyScript(ProjectSpec):
         # also you can just declare things to install as you go, which we won't be able to
         # guess.
         return not {"pyscript.toml", "pyscript.json"}.isdisjoint(
-            self.root.basenames
+            self.proj.basenames
         )
 
     def parse(self) -> None:
         try:
-            with self.root.fs.open(f"{self.root.url}/pyscript.toml", "rt") as f:
-                meta = toml.load(f)
+            with self.proj.fs.open(f"{self.proj.url}/pyscript.toml", "rt") as f:
+                meta = toml.load(f, decoder=PickleableTomlDecoder())
         except FileNotFoundError:
-            with self.root.fs.open(f"{self.root.url}/pyscript.json", "rt") as f:
-                meta = toml.load(f)
+            with self.proj.fs.open(f"{self.proj.url}/pyscript.json", "rt") as f:
+                meta = toml.load(f, decoder=PickleableTomlDecoder())
         cont = AttrDict()
         if "packages" in meta:
             cont["environment"] = AttrDict(default=meta["packages"])

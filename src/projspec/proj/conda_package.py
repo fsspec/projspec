@@ -12,7 +12,7 @@ class CondaRecipe(ProjectSpec):
 
     def match(self) -> bool:
         return not {"meta.yaml", "meta.yml", "conda.yaml"}.isdisjoint(
-            self.root.basenames
+            self.proj.basenames
         )
 
     def parse(self) -> None:
@@ -21,9 +21,9 @@ class CondaRecipe(ProjectSpec):
 
         meta = None
         for fn in ("meta.yaml", "meta.yml", "conda.yaml"):
-            if fn in self.root.basenames:
+            if fn in self.proj.basenames:
                 try:
-                    with self.root.fs.open(self.root.basenames[fn], "rb") as f:
+                    with self.proj.fs.open(self.proj.basenames[fn], "rb") as f:
                         meta0 = _yaml_no_jinja(f)
                     # TODO: multiple output recipe
                     if "package" in meta0:
@@ -38,14 +38,14 @@ class CondaRecipe(ProjectSpec):
                     pass
         if meta is None:
             raise ValueError
-        art = CondaPackage(proj=self.root, cmd=["conda-build", self.root.url])
-        self._artifacts = AttrDict(**{meta["package"]["name"]: art})
+        art = CondaPackage(proj=self.proj, cmd=["conda-build", self.proj.url])
+        self._artifacts = AttrDict(conda_package=art)
         # TODO: read envs from "outputs" like for Rattler, below?
         self._contents = AttrDict(
             environment=AttrDict(
                 {
                     k: Environment(
-                        proj=self.root,
+                        proj=self.proj,
                         artifacts={art},
                         packages=v,
                         stack=Stack.CONDA,
@@ -65,19 +65,19 @@ class RattlerRecipe(CondaRecipe):
     # conda recipes are also valid for rattler if they don't have complex jinja.
 
     def match(self) -> bool:
-        return "recipe.yaml" in self.root.basenames
+        return "recipe.yaml" in self.proj.basenames
 
     def parse(self) -> None:
         from projspec.artifact.installable import CondaPackage
         from projspec.content.environment import Environment, Precision, Stack
 
-        if "recipe.yaml" in self.root.basenames:
-            with self.root.fs.open(
-                self.root.basenames["recipe.yaml"], "rb"
+        if "recipe.yaml" in self.proj.basenames:
+            with self.proj.fs.open(
+                self.proj.basenames["recipe.yaml"], "rb"
             ) as f:
                 meta = _yaml_no_jinja(f)
-        elif "meta.yaml" in self.root.basenames:
-            with self.root.fs.open(self.root.basenames["meta.yaml"], "rb") as f:
+        elif "meta.yaml" in self.proj.basenames:
+            with self.proj.fs.open(self.proj.basenames["meta.yaml"], "rb") as f:
                 meta = _yaml_no_jinja(f)
         else:
             raise ValueError
@@ -86,9 +86,9 @@ class RattlerRecipe(CondaRecipe):
             "rattler-build",
             "build",
             "-r",
-            self.root.url,
+            self.proj.url,
             "--output-dir",
-            f"{self.root.url}/output",
+            f"{self.proj.url}/output",
         ]
         name = next(
             filter(
@@ -101,10 +101,10 @@ class RattlerRecipe(CondaRecipe):
         )
 
         path = (
-            f"{self.root.url}/output/{name}" if self.root.is_local() else None
+            f"{self.proj.url}/output/{name}" if self.proj.is_local() else None
         )
         art = CondaPackage(
-            proj=self.root,
+            proj=self.proj,
             cmd=cmd,
             path=path,
             name=name,
@@ -125,7 +125,7 @@ class RattlerRecipe(CondaRecipe):
                 environment=AttrDict(
                     {
                         k: Environment(
-                            proj=self.root,
+                            proj=self.proj,
                             artifacts={art},
                             packages=v,
                             stack=Stack.CONDA,
