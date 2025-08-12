@@ -1,7 +1,7 @@
 import toml
 
 from projspec.proj import ProjectSpec
-from projspec.utils import AttrDict
+from projspec.utils import AttrDict, PickleableTomlDecoder
 
 
 class PyScript(ProjectSpec):
@@ -18,10 +18,10 @@ class PyScript(ProjectSpec):
     def parse(self) -> None:
         try:
             with self.proj.fs.open(f"{self.proj.url}/pyscript.toml", "rt") as f:
-                meta = toml.load(f)
+                meta = toml.load(f, decoder=PickleableTomlDecoder())
         except FileNotFoundError:
             with self.proj.fs.open(f"{self.proj.url}/pyscript.json", "rt") as f:
-                meta = toml.load(f)
+                meta = toml.load(f, decoder=PickleableTomlDecoder())
         cont = AttrDict()
         if "packages" in meta:
             cont["environment"] = AttrDict(default=meta["packages"])

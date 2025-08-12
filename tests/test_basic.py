@@ -1,4 +1,6 @@
+import json
 import os.path
+import pickle
 
 import projspec
 
@@ -18,3 +20,13 @@ def test_serialise():
     proj = projspec.Project(os.path.dirname(here), walk=True)
     js = json.dumps(proj.to_dict(compact=False))
     json.loads(js)
+
+
+def test_jsonable():
+    proj = projspec.Project(os.path.dirname(here), walk=True)
+    json.dumps(proj.to_dict())
+
+
+def test_pickleable():
+    proj = projspec.Project(os.path.dirname(here), walk=True)
+    pickle.dumps(proj)

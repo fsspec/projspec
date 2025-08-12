@@ -1,7 +1,7 @@
 import toml
 
 from projspec.proj.base import ProjectSpec
-from projspec.utils import AttrDict
+from projspec.utils import AttrDict, PickleableTomlDecoder
 
 
 def _parse_conf(self: ProjectSpec, conf: dict):
@@ -74,7 +74,7 @@ def _parse_conf(self: ProjectSpec, conf: dict):
         )
 
 
-class UVScript(ProjectSpec):
+class UvScript(ProjectSpec):
     """Single-file project runnable by UV as a script
 
     Metadata are declared inline in the script header
@@ -96,14 +96,14 @@ class UVScript(ProjectSpec):
             raise ValueError from e
         lines = txt.split("# /// script\n", 1)[1].txt.split("# ///\n", 1)[0]
         meta = "\n".join(line[2:] for line in lines.split("\n"))
-        _parse_conf(self, toml.loads(meta))
+        _parse_conf(self, toml.loads(meta, decoder=PickleableTomlDecoder()))
         # if URL/filesystem is local or http(s):
         # self.artifacts["process"] = Process(
         #     proj=self.root, cmd=['uvx', self.root.url]
         # )
 
 
-class UV(ProjectSpec):
+class Uv(ProjectSpec):
     """UV-runnable project
 
     Note: uv can run any python project, but this tests for uv-specific
@@ -140,13 +140,13 @@ class UV(ProjectSpec):
         conf = meta.get("tools", {}).get("uv", {})
         try:
             with self.proj.fs.open(f"{self.proj.url}/uv.toml", "rt") as f:
-                conf2 = toml.load(f)
+                conf2 = toml.load(f, decoder=PickleableTomlDecoder())
         except (OSError, FileNotFoundError):
             conf2 = {}
         conf.update(conf2)
         try:
             with self.proj.fs.open(f"{self.proj.url}/uv.lock", "rt") as f:
-                lock = toml.load(f)
+                lock = toml.load(f, decoder=PickleableTomlDecoder())
         except (OSError, FileNotFoundError):
             lock = {}
         _parse_conf(self, conf)

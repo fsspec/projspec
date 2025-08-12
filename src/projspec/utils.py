@@ -6,14 +6,21 @@ import subprocess
 import sys
 from collections.abc import Iterable
 
+import toml
 import yaml
 
 enum_registry = {}
 
 
 class Enum(enum.Enum):
+    """Named enum values"""
+
+    # TODO: does this need explicit deser for JSON?
+
     def __repr__(self):
         return self.name
+
+    __str__ = __repr__
 
     def __init_subclass__(cls, **kwargs):
         enum_registry[camel_to_snake(cls.__name__)] = cls
@@ -26,6 +33,11 @@ class Enum(enum.Enum):
         if compact:
             return self.name
         return {"klass": ["enum", self.snake_name()], "value": self.value}
+
+    def __eq__(self, other):
+        if isinstance(other, int):
+            return self.value == other
+        return str(self) == str(other)
 
 
 def get_enum_class(name):
@@ -261,3 +273,11 @@ def sort_version_strings(versions: Iterable[str]) -> list[str]:
             return x
 
     return sorted(versions, key=lambda s: [int_or(_) for _ in s.split(".")])
+
+
+class PickleableTomlDecoder(toml.TomlDecoder):
+    """Allows TOML empty tables to be picklable"""
+
+    # https://github.com/uiri/toml/issues/362#issuecomment-842665836
+    def get_empty_inline_table(self):
+        return {}

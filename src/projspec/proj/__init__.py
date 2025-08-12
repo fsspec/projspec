@@ -8,7 +8,7 @@ from .poetry import Poetry
 from .pyscript import PyScript
 from .python_code import PythonCode, PythonLibrary
 from .rust import Rust, RustPython
-from .uv import UV
+from .uv import Uv
 
 __all__ = [
     "get_projspec_class",
@@ -27,5 +27,5 @@ __all__ = [
     "RTD",
     "Rust",
     "RustPython",
-    "UV",
+    "Uv",
 ]

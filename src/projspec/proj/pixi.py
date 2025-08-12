@@ -1,7 +1,7 @@
 import toml
 
 from projspec.proj import ProjectSpec
-from projspec.utils import AttrDict
+from projspec.utils import AttrDict, PickleableTomlDecoder
 
 # pixi supports extensions, e.g., ``pixi global install``,
 # which is how you get access to pixi-pack, for instance.
@@ -72,7 +72,11 @@ class Pixi(ProjectSpec):
                 with self.proj.fs.open(
                     self.proj.basenames["pixi.toml"], "rb"
                 ) as f:
-                    meta.update(toml.loads(f.read().decode()))
+                    meta.update(
+                        toml.loads(
+                            f.read().decode(), decoder=PickleableTomlDecoder()
+                        )
+                    )
             except (OSError, ValueError, UnicodeDecodeError, FileNotFoundError):
                 pass
         if not meta:

@@ -6,7 +6,13 @@ import fsspec
 import fsspec.implementations.local
 import toml
 
-from projspec.utils import AttrDict, IndentDumper, camel_to_snake, flatten
+from projspec.utils import (
+    AttrDict,
+    IndentDumper,
+    PickleableTomlDecoder,
+    camel_to_snake,
+    flatten,
+)
 
 logger = logging.getLogger("projspec")
 registry = {}
@@ -146,7 +152,7 @@ class Project:
         if "pyproject.toml" in self.basenames:
             try:
                 with self.fs.open(self.basenames["pyproject.toml"], "rt") as f:
-                    return toml.load(f)
+                    return toml.load(f, decoder=PickleableTomlDecoder)
             except (OSError, ValueError, TypeError):
                 # debug/warn?
                 pass

@@ -1,6 +1,7 @@
 import toml
 
 from projspec.proj.python_code import PythonLibrary
+from projspec.utils import PickleableTomlDecoder
 
 
 class Poetry(PythonLibrary):
@@ -37,7 +38,7 @@ class Poetry(PythonLibrary):
             with self.proj.fs.open(
                 f"{self.proj.url}/poetry.lock", mode="rt"
             ) as f:
-                pckg = toml.load(f)
+                pckg = toml.load(f, decoder=PickleableTomlDecoder())
             packages = [
                 f"{_['name']} =={_['version']}" for _ in pckg.get("package", [])
             ]

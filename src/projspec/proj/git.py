@@ -7,6 +7,8 @@ class GitRepo(ProjectSpec):
         return ".git" in self.proj.basenames
 
     def parse(self) -> None:
+        # Actually, it's faster to read the /git/config file, which also gives
+        # the remote URLs and such.
         cont = AttrDict()
         cont["remotes"] = [
             _.rsplit("/", 1)[-1]
