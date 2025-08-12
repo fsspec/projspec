@@ -266,11 +266,17 @@ def flatten(x: Iterable):
 
 
 def sort_version_strings(versions: Iterable[str]) -> list[str]:
+    """Sort typical python package version strings"""
+
     def int_or(x):
         try:
             return int(x)
         except ValueError:
-            return x
+            ma = re.search(r"(\d+)", x)
+            if ma:
+                return int(ma.group(1))
+            else:
+                return 0.001
 
     return sorted(versions, key=lambda s: [int_or(_) for _ in s.split(".")])
 
