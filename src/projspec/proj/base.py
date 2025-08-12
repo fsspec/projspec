@@ -152,7 +152,7 @@ class Project:
         if "pyproject.toml" in self.basenames:
             try:
                 with self.fs.open(self.basenames["pyproject.toml"], "rt") as f:
-                    return toml.load(f, decoder=PickleableTomlDecoder)
+                    return toml.load(f, decoder=PickleableTomlDecoder())
             except (OSError, ValueError, TypeError):
                 # debug/warn?
                 pass
