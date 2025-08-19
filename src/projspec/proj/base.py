@@ -196,7 +196,7 @@ class Project:
     def _repr_html_(self):
         from projspec.html import dict_to_html
 
-        return dict_to_html(self.to_dict(), title="Project")
+        return dict_to_html(self.to_dict(), title=self.url)
 
     @staticmethod
     def from_dict(dic):
