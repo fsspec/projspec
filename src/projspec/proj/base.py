@@ -189,8 +189,14 @@ class Project:
             url=self.url,
             storage_options=self.storage_options,
         )
-        dic["klass"] = "project"
+        if not compact:
+            dic["klass"] = "project"
         return dic.to_dict(compact=compact)
+
+    def _repr_html_(self):
+        from projspec.html import dict_to_html
+
+        return dict_to_html(self.to_dict(), title=self.url)
 
     @staticmethod
     def from_dict(dic):
@@ -285,9 +291,11 @@ class ProjectSpec:
         dic = AttrDict(
             _contents=self.contents,
             _artifacts=self.artifacts,
-            subpath=self.subpath,
-            klass=["projspec", self.snake_name()],
         )
+        if self.subpath:
+            dic["subpath"] = self.subpath
+        if not compact:
+            dic["klass"] = ["projspec", self.snake_name()]
         return dic.to_dict(compact=compact)
 
     @classmethod

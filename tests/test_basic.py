@@ -14,6 +14,7 @@ def test_basic():
     assert proj.artifacts
     assert proj.children
     repr(proj)
+    proj._repr_html_()
 
 
 def test_contains():
