@@ -202,6 +202,8 @@ class Project:
     def from_dict(dic):
         from projspec.utils import from_dict
 
+        if not dic.get("klass", "") == "project":
+            raise ValueError("Not a project dict")
         proj = object.__new__(Project)
         proj.specs = from_dict(dic["specs"], proj)
         proj.children = from_dict(dic["children"], proj)

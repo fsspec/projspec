@@ -2,6 +2,8 @@ import json
 import os.path
 import pickle
 
+import pytest
+
 import projspec.utils
 
 here = os.path.dirname(__file__)
@@ -15,6 +17,11 @@ def test_basic():
     assert proj.children
     repr(proj)
     proj._repr_html_()
+
+
+def test_errors():
+    with pytest.raises(ValueError):
+        projspec.Project.from_dict({})
 
 
 def test_contains():
