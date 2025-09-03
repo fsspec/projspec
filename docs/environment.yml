@@ -6,3 +6,4 @@ dependencies:
   - pyyaml
   - toml
   - numpydoc
+  - sphinx-design
