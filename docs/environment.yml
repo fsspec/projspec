@@ -5,3 +5,4 @@ dependencies:
   - python=3.12
   - pyyaml
   - toml
+  - numpydoc

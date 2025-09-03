@@ -17,3 +17,8 @@ Base Classes
    :members:
 .. autoclass:: projspec.proj.base.ProjectSpec
    :members:
+
+.. raw:: html
+
+    <script data-goatcounter="https://projspec.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
