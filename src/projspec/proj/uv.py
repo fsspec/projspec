@@ -154,12 +154,7 @@ class Uv(ProjectSpec):
         if lock:
             pkg = [f"python {lock['requires-python']}"]
             # TODO: check for source= packages as opposed to pip wheel installs
-            pkg.extend(
-                [
-                    f"{_['name']} =={_.get('version', '')}"
-                    for _ in lock["package"]
-                ]
-            )
+            pkg.extend([f"{_['name']}{_vers(_)}" for _ in lock["package"]])
             self.contents.environment["lockfile"] = Environment(
                 proj=self.proj,
                 stack=Stack.PIP,
@@ -167,3 +162,10 @@ class Uv(ProjectSpec):
                 packages=pkg,
                 artifacts={self._artifacts["virtual_env"]["default"]},
             )
+
+
+def _vers(s: dict) -> str:
+    # TODO: this may be useful elsewhere
+    if s.get("version"):
+        return f" =={s.get('version')}"
+    return ""
