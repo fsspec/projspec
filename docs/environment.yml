@@ -7,3 +7,4 @@ dependencies:
   - toml
   - numpydoc
   - sphinx-design
+  - sphinx_rtd_theme
