@@ -20,12 +20,13 @@ import projspec.proj
 @click.option(
     "--walk", is_flag=True, help="To descend into all child directories"
 )
+@click.option("--summary", is_flag=True, help="Show abbreviated output")
 @click.option(
     "--storage_options",
     default="",
     help="storage options dict for the given URL, as JSON",
 )
-def main(path, types, walk, storage_options):
+def main(path, types, walk, summary, storage_options):
     if types in {"ALL", ""}:
         types = None
     else:
@@ -37,7 +38,10 @@ def main(path, types, walk, storage_options):
     proj = projspec.Project(
         path, storage_options=storage_options, types=types, walk=walk
     )
-    print(proj)
+    if summary:
+        print(proj.text_summary())
+    else:
+        print(proj)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ enum_registry = {}
 
 
 class Enum(enum.Enum):
-    """Named enum values"""
+    """Named enum values, so that str(x) looks like the label."""
 
     # TODO: does this need explicit deser for JSON?
 
@@ -132,6 +132,8 @@ def from_dict(dic, proj=None):
 
 
 class IndentDumper(yaml.Dumper):
+    """Helper class to write YAML output with given prefix indent"""
+
     def __init__(self, stream, **kw):
         super().__init__(stream, **kw)
         self.increase_indent()
@@ -144,11 +146,13 @@ cam_patt = re.compile(r"(?<!^)(?=[A-Z])")
 
 
 def camel_to_snake(camel: str) -> str:
+    """CamelCase to snake_case converter"""
     # https://stackoverflow.com/a/1176023/3821154
     return re.sub(cam_patt, "_", camel).lower()
 
 
 def to_camel_case(snake_str: str) -> str:
+    """snake_case to camelCase converter"""
     # https://stackoverflow.com/a/19053800/3821154
     return "".join(x.capitalize() for x in snake_str.lower().split("_"))
 
@@ -158,7 +162,12 @@ def _linked_local_path(path):
 
 
 class IsInstalled:
-    """Checks if we can call commands, as a function of the current environment."""
+    """Checks if we can call commands, as a function of the current environment.
+
+    Typical usage:
+    >>> "python" in IsInstalled()
+    True
+    """
 
     cache = {}
 
@@ -187,8 +196,6 @@ class IsInstalled:
         return self.cache[(self.env, cmd)]
 
     def __contains__(self, item):
-        # canonical use:
-        #    "python" in is_installed`
         # shutil.which?
         return self.exists(item)
 

@@ -1,12 +1,16 @@
 ``projspec``: A common interface to code projects
 =================================================
 
+Welcome to projspec, the projects' project!
 
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
 
+   intro.rst
+   quickstart.rst
    api.rst
+   code-of-conduct.rst
 
 .. raw:: html
 
