@@ -13,6 +13,8 @@ consider particularly those of interest to python practitioners.
 Layout of a Project
 -------------------
 
+We present a structured view of what a project is, after parsing the various
+metadata available. You will always find some of the following components.
 
 Specs
 ~~~~~

@@ -119,6 +119,17 @@ class Project:
     def basenames(self):
         return {_.rsplit("/", 1)[-1]: _ for _ in self.filelist}
 
+    def text_summary(self) -> str:
+        """Only shows project types, not what they contain"""
+        txt = f"<Project '{self.fs.unstrip_protocol(self.url)}'>\n"
+        bits = [
+            f" {'/'}: {' '.join(type(_).__name__ for _ in self.specs.values())}"
+        ] + [
+            f" {k}: {' '.join(type(_).__name__ for _ in v.specs.values())}"
+            for k, v in self.children.items()
+        ]
+        return txt + "\n".join(bits)
+
     def __repr__(self):
         txt = "<Project '{}'>\n\n{}".format(
             self.fs.unstrip_protocol(self.url),
