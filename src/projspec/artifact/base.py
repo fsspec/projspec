@@ -100,6 +100,8 @@ def get_artifact_cls(name: str) -> type[BaseArtifact]:
 
 
 class FileArtifact(BaseArtifact):
+    """Specialised artifacts, where the output is one or more files"""
+
     def __init__(self, proj: Project, fn: str, **kw):
         self.fn = fn
         super().__init__(proj, **kw)
