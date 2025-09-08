@@ -5,25 +5,6 @@ from projspec.content import BaseContent
 
 @dataclass
 class PythonPackage(BaseContent):
+    """Importable python directory, i.e., containing an __init__.py file."""
+
     package_name: str
-
-
-@dataclass
-class Pyproject(PythonPackage):
-    """Usually a pyproject.toml file"""
-
-    meta: str
-
-
-@dataclass
-class Cargo(PythonPackage):
-    """Usually a Cargo.toml file"""
-
-    meta: str
-
-
-@dataclass
-class CondaRecipe(PythonPackage):
-    """usually from a meta.yaml file"""
-
-    meta: str

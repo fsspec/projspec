@@ -294,3 +294,13 @@ class PickleableTomlDecoder(toml.TomlDecoder):
     # https://github.com/uiri/toml/issues/362#issuecomment-842665836
     def get_empty_inline_table(self):
         return {}
+
+
+def spec_class_qnames():
+    """Useful for generating lists of classes for documentation"""
+    import projspec
+
+    return [
+        ".".join([cls.__module__, cls.__name__])
+        for cls in projspec.proj.base.registry.values()
+    ]

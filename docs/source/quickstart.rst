@@ -62,3 +62,8 @@ When displayed in a notebook, a Project will show its contents as expandable
 HTML:
 
 .. image:: img/tree.png
+
+.. raw:: html
+
+    <script data-goatcounter="https://projspec.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
