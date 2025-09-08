@@ -5,6 +5,12 @@ from projspec.utils import AttrDict, PickleableTomlDecoder
 
 
 class PyScript(ProjectSpec):
+    """PyScript is an open source platform for Python in the browser.
+
+    This spec is the canonical way to provide configuration, and included in new template
+    apps on pyscript.com.
+    """
+
     spec_doc = "https://docs.pyscript.net/2023.11.2/user-guide/configuration/"
 
     def match(self) -> bool:

@@ -24,3 +24,46 @@ do this for demonstration and testing purposes.
 
 You also see that some subdirectories have valid project specifications too:
 two types of recipes in recipe/  and python code under src/ .
+
+Programmatic Interface
+----------------------
+
+``Project`` objects are anchored to a particular path (local or remote), and
+expose information about the various project specs that match for that
+directory and their details. The simplest thing that one might do with a Project
+is display it, which is also the main functionality of the CLI, above.
+
+Extra functionality in python code includes the ability to examine the internals
+of a Project; here is a simple example, run in the projspec's repo root:
+
+.. code-block:: python
+
+   >>> import projspec
+   >>> proj = projspec.Project(".")
+   >>> "uv" in proj
+   True
+
+This asks the question: "can this directory be interpreted as UV project", and
+the answer is yes.
+
+To execute an action on a project, one might do something like
+
+.. code-block:: python
+
+   >>> proj.uv.artifacts.wheel.make()
+
+which will use ``uv`` to create a wheel artifact in dist/ , and the status of
+``proj.uv.artifacts.wheel`` will change from "clean" to "done".
+
+Notebook GUI
+------------
+
+When displayed in a notebook, a Project will show its contents as expandable
+HTML:
+
+.. image:: img/tree.png
+
+.. raw:: html
+
+    <script data-goatcounter="https://projspec.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>

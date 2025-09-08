@@ -4,6 +4,12 @@ from projspec.proj import ProjectSpec
 
 
 class MDBook(ProjectSpec):
+    """mdBook is a command line tool to create books with Markdown.
+
+    mdBook is used by the Rust programming language project, and The Rust Programming Language book
+    is an example.
+    """
+
     spec_doc = (
         "https://rust-lang.github.io/mdBook/format/configuration/index.html"
     )
@@ -13,6 +19,14 @@ class MDBook(ProjectSpec):
 
 
 class RTD(ProjectSpec):
+    """Documentation to be processes by ReadTheDocs
+
+    RTD is commonly used by open-source python projects and others. Documentation is
+    typically built automatically from github repos using sphinx.
+
+    General description of the platform: https://docs.readthedocs.com/platform/stable/
+    """
+
     spec_doc = (
         "https://docs.readthedocs.com/platform/stable/config-file/v2.html"
     )

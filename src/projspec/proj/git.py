@@ -3,11 +3,18 @@ from projspec.utils import AttrDict
 
 
 class GitRepo(ProjectSpec):
+    """A version controlled repository utilising git
+
+    git is a very common version control system for code projects.
+    """
+
+    spec_doc = "https://git-scm.com/docs/git-config#_configuration_file"
+
     def match(self) -> bool:
         return ".git" in self.proj.basenames
 
     def parse(self) -> None:
-        # Actually, it's faster to read the /git/config file, which also gives
+        # Actually, it's faster to read the /.git/config file, which also gives
         # the remote URLs and such.
         cont = AttrDict()
         cont["remotes"] = [

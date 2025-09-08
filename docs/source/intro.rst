@@ -75,3 +75,8 @@ It is possible for a single entity to be both a "contents" and "artifact" item. 
 example of a lockfile, again, fits this description, since it may be in the repo and
 represent a constrained environment, but also it is the product of running an action
 against a looser environment specification in the project.
+
+.. raw:: html
+
+    <script data-goatcounter="https://projspec.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>

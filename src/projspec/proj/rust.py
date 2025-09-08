@@ -2,6 +2,8 @@ from projspec.proj import ProjectSpec, PythonLibrary
 
 
 class Rust(ProjectSpec):
+    """A directory, which can build a binary executable or library with Cargo."""
+
     spec_doc = "https://doc.rust-lang.org/cargo/reference/manifest.html"
 
     def match(self) -> bool:
@@ -11,6 +13,11 @@ class Rust(ProjectSpec):
 
 
 class RustPython(Rust, PythonLibrary):
+    """A rust project designed for importing with python, perhaps with mixed rust/python code trees.
+
+    This version assumes the build tool is ``maturin``, which may not be the only possibility.
+    """
+
     spec_doc = "https://www.maturin.rs/config.html"
 
     def match(self) -> bool:
