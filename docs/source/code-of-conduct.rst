@@ -117,5 +117,5 @@ This CoC is modified from the one by `BeeWare`_, which in turn refers to
 the `Contributor Covenant`_ and the `Django`_ project.
 
 .. _BeeWare: https://beeware.org/community/behavior/code-of-conduct/
-.. _Contributor Covenant:https://www.contributor-covenant.org/version/1/3/0/code-of-conduct/
-.. _Django:https://www.djangoproject.com/conduct/reporting/
+.. _Contributor Covenant: https://www.contributor-covenant.org/version/1/3/0/code-of-conduct/
+.. _Django: https://www.djangoproject.com/conduct/reporting/
