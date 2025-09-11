@@ -26,6 +26,9 @@ default_excludes = {
 }
 
 
+class ParseFailed(ValueError): ...
+
+
 class Project:
     def __init__(
         self,
@@ -64,7 +67,7 @@ class Project:
         :param subpath: find specs at the given subpath
         :param walk: if None (default) only try subdirectories if root has
             no specs, and don't descend further. If True, recurse all directories;
-            if False don't descend at all.
+            if False, don't descend at all.
         :param types: names of types to allow while parsing. If empty or None, allow all
         """
         fullpath = "/".join([self.url, subpath]) if subpath else self.url
@@ -81,12 +84,11 @@ class Project:
                 inst = cls(self)
                 inst.parse()
                 self.specs[snake_name] = inst
-            except ValueError:
+            except ParseFailed:
                 logger.debug("failed")
             except Exception as e:
                 # we don't want to fail the parse completely
                 logger.exception("Failed to resolve spec %r", e)
-                continue
         if walk or (walk is None and not self.specs):
             for fileinfo in self.fs.ls(fullpath, detail=True):
                 if fileinfo["type"] == "directory":
@@ -239,7 +241,7 @@ class ProjectSpec:
         self._contents = AttrDict()
         self._artifacts = AttrDict()
         if not self.match():
-            raise ValueError(f"Not a {type(self).__name__}")
+            raise ParseFailed(f"Not a {type(self).__name__}")
 
     @property
     def path(self) -> str:
@@ -277,8 +279,7 @@ class ProjectSpec:
         return self._artifacts
 
     def parse(self) -> None:
-        # should raise ValueError if the project cannot be interpreted as this type
-        raise ValueError
+        raise ParseFailed
 
     def clean(self) -> None:
         """Remove any artifacts and runtimes produced by this project"""

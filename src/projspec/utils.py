@@ -247,7 +247,7 @@ def _yaml_no_jinja(fileobj):
             lines.append(line)
         else:
             lines.append(line)
-    return yaml.safe_load("\n".join(lines))
+    return yaml.load("\n".join(lines), Loader=yaml.CSafeLoader)
 
 
 def flatten(x: Iterable):

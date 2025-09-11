@@ -78,7 +78,7 @@ class CondaProject(ProjectSpec):
                 locks[env_name] = lock
                 if self.proj.fs.exists(lock_fname):
                     with self.proj.fs.open(lock_fname) as f:
-                        data = yaml.load(f, Loader=yaml.SafeLoader)
+                        data = yaml.load(f, Loader=yaml.CSafeLoader)
                         lpackages = list(
                             {
                                 f"{p['name']} =={p['version']}"

@@ -91,13 +91,19 @@ class PythonLibrary(ProjectSpec):
             conts["python_package"] = PythonPackage(
                 proj=self.proj, artifacts=set(), package_name=proj["name"]
             )
+            py = (
+                [f"python {proj['requires-python']}"]
+                if "requires-python" in proj
+                else []
+            )
+
             if "dependencies" in proj:
                 env["default"] = Environment(
                     proj=self.proj,
                     artifacts=set(),
                     precision=Precision.SPEC,
                     stack=Stack.PIP,
-                    packages=proj["dependencies"],
+                    packages=proj["dependencies"] + py,
                     channels=[],
                 )
             if "optional-dependencies" in proj:
@@ -107,7 +113,7 @@ class PythonLibrary(ProjectSpec):
                         artifacts=set(),
                         precision=Precision.SPEC,
                         stack=Stack.PIP,
-                        packages=deps,
+                        packages=deps + py,
                         channels=[],
                     )
             for x in ("scripts", "gui-scripts"):

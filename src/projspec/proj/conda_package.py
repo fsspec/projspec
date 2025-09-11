@@ -1,4 +1,4 @@
-from projspec.proj import ProjectSpec
+from projspec.proj import ParseFailed, ProjectSpec
 from projspec.utils import AttrDict, _yaml_no_jinja
 
 
@@ -37,7 +37,7 @@ class CondaRecipe(ProjectSpec):
                 except (OSError, ValueError, UnicodeDecodeError):
                     pass
         if meta is None:
-            raise ValueError
+            raise ParseFailed
         art = CondaPackage(proj=self.proj, cmd=["conda-build", self.proj.url])
         self._artifacts = AttrDict(conda_package=art)
         # TODO: read envs from "outputs" like for Rattler, below?
@@ -80,7 +80,7 @@ class RattlerRecipe(CondaRecipe):
             with self.proj.fs.open(self.proj.basenames["meta.yaml"], "rb") as f:
                 meta = _yaml_no_jinja(f)
         else:
-            raise ValueError
+            raise ParseFailed
 
         cmd = [
             "rattler-build",

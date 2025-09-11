@@ -1,4 +1,4 @@
-from .base import Project, ProjectSpec, get_projspec_class
+from .base import ParseFailed, Project, ProjectSpec, get_projspec_class
 from .conda_package import CondaRecipe, RattlerRecipe
 from .conda_project import CondaProject
 from .documentation import RTD, MDBook
@@ -12,6 +12,7 @@ from .uv import Uv
 
 __all__ = [
     "get_projspec_class",
+    "ParseFailed",
     "Project",
     "ProjectSpec",
     "CondaRecipe",
