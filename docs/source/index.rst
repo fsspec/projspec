@@ -3,6 +3,9 @@
 
 Welcome to projspec, the projects' project!
 
+The "into" defined this package's scope and sets some definitions. The "quickstart"
+shows some of the concrete things you can actually do.
+
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
