@@ -22,11 +22,13 @@ default_excludes = {
     "envs",  # conda-project
     "bld",
     ".git",
-    "distbuild",
+    "dist",
+    "build",
 }
 
 
-class ParseFailed(ValueError): ...
+class ParseFailed(ValueError):
+    """Exception raised when parsing fails: a directory does not meet the given spec."""
 
 
 class Project:
