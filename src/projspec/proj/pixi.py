@@ -1,6 +1,6 @@
 import toml
 
-from projspec.proj import ProjectSpec
+from projspec.proj import ParseFailed, ProjectSpec
 from projspec.utils import AttrDict, PickleableTomlDecoder
 
 # pixi supports extensions, e.g., ``pixi global install``,
@@ -80,7 +80,7 @@ class Pixi(ProjectSpec):
             except (OSError, ValueError, UnicodeDecodeError, FileNotFoundError):
                 pass
         if not meta:
-            raise ValueError
+            raise ParseFailed
 
         arts = AttrDict()
         conts = AttrDict()
