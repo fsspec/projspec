@@ -15,6 +15,12 @@ shows some of the concrete things you can actually do.
    api.rst
    code-of-conduct.rst
 
+
+These docs pages collect anonymous tracking data using goatcounter, and the
+dashboard is available to the public: https://projspec.goatcounter.com/ .
+
+
+
 .. raw:: html
 
     <script data-goatcounter="https://projspec.goatcounter.com/count"
