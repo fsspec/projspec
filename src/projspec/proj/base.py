@@ -231,8 +231,16 @@ class Project:
 class ProjectSpec:
     """A project specification
 
-    Also provides fallback from pyproject.toml standard layout without additional
-    runtime specification (uv, pixi, maturin, etc.).
+    Subclasses of this define particular project types, and if a project conforms to
+    the given type, then parsing it with the class will succeed and the contents and
+    artifacts will be populated.
+
+    Checking if a path _might_ meet a spec (with .match()) should be cheap, and
+    parsing (with .parse()) should normally only require reading a few text files of metadata.
+
+    Subclasses are automatically added to the registry on import, and any Project will
+    attempt to parse its given path with every class (which is why making .match() fast
+    is important).
     """
 
     spec_doc = ""  # URL to prose about this spec

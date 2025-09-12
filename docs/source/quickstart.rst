@@ -1,6 +1,22 @@
 Quickstart
 ==========
 
+
+Installation
+------------
+
+You can install from source, pip or conda or many other ways, since the
+code is pure-python.
+One of the following should work
+
+.. code-block::
+
+   $ python -m pip install projspec
+   $ conda install projspec -c conda-forge
+
+CLI
+---
+
 Having installed ``projspec``,
 run the following on this library's repo directory. You may wish to clone the
 repo from https://github.com/fsspec/projspec to follow along
@@ -62,6 +78,9 @@ When displayed in a notebook, a Project will show its contents as expandable
 HTML:
 
 .. image:: img/tree.png
+
+(this is currently purely informational - in the future it will feature links, pop-up
+documentation and artifact activation buttons.)
 
 .. raw:: html
 
