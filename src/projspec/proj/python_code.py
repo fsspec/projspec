@@ -19,20 +19,14 @@ class PythonCode(ProjectSpec):
      A package is executable if it contains a ``__main__.py`` file.
     """
 
-    spec_doc = (
-        "https://docs.python.org/3/reference/import.html#regular-packages"
-    )
+    spec_doc = "https://docs.python.org/3/reference/import.html#regular-packages"
 
     def match(self) -> bool:
         return "__init__.py" in self.proj.basenames
 
     def parse(self):
         arts = AttrDict()
-        exe = [
-            _
-            for _ in self.proj.filelist
-            if _.rsplit("/", 1)[-1] == "__main__.py"
-        ]
+        exe = [_ for _ in self.proj.filelist if _.rsplit("/", 1)[-1] == "__main__.py"]
         if exe:
             arts["process"] = AttrDict(
                 main=Process(proj=self.proj, cmd=["python", exe[0]])
@@ -60,14 +54,10 @@ class PythonLibrary(ProjectSpec):
     """
 
     # setup.py never had a spec
-    spec_doc = (
-        "https://packaging.python.org/en/latest/specifications/pyproject-toml/"
-    )
+    spec_doc = "https://packaging.python.org/en/latest/specifications/pyproject-toml/"
 
     def match(self) -> bool:
-        return not {"pyproject.toml", "setup.py"}.isdisjoint(
-            self.proj.basenames
-        )
+        return not {"pyproject.toml", "setup.py"}.isdisjoint(self.proj.basenames)
 
     def parse(self):
         arts = AttrDict()

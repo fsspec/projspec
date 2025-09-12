@@ -43,9 +43,7 @@ class Poetry(PythonLibrary):
             fn=f"{self.proj.url}/poetry.lock",
         )
         try:
-            with self.proj.fs.open(
-                f"{self.proj.url}/poetry.lock", mode="rt"
-            ) as f:
+            with self.proj.fs.open(f"{self.proj.url}/poetry.lock", mode="rt") as f:
                 pckg = toml.load(f, decoder=PickleableTomlDecoder())
             packages = [
                 f"{_['name']} =={_['version']}" for _ in pckg.get("package", [])

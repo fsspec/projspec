@@ -52,7 +52,7 @@ is display it, which is also the main functionality of the CLI, above.
 Extra functionality in python code includes the ability to examine the internals
 of a Project; here is a simple example, run in the projspec's repo root:
 
-.. code-block:: python
+.. code-block::
 
    >>> import projspec
    >>> proj = projspec.Project(".")
@@ -64,7 +64,7 @@ the answer is yes.
 
 To execute an action on a project, one might do something like
 
-.. code-block:: python
+.. code-block::
 
    >>> proj.uv.artifacts.wheel.make()
 

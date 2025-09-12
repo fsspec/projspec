@@ -32,9 +32,7 @@ def _parse_conf(self: ProjectSpec, conf: dict):
                 packages=v,
                 artifacts=set(),
             )
-            for k, v in conf.get("project", {})
-            .get("dependency-groups", {})
-            .items()
+            for k, v in conf.get("project", {}).get("dependency-groups", {}).items()
         }
     )
     if "dev-dependencies" in conf:
@@ -124,9 +122,7 @@ class Uv(ProjectSpec):
             return True
         if ".venv" in self.proj.basenames:
             try:
-                with self.proj.fs.open(
-                    f"{self.proj.url}/.venv/pyvenv.cfg", "rt"
-                ) as f:
+                with self.proj.fs.open(f"{self.proj.url}/.venv/pyvenv.cfg", "rt") as f:
                     txt = f.read()
                 return b"uv =" in txt
             except (OSError, FileNotFoundError):

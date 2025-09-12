@@ -32,9 +32,7 @@ def dict_to_html(data: dict, title="Data", open_level=2) -> str:
             )
             for i, item in enumerate(value):
                 if isinstance(item, dict):
-                    html.append(
-                        dict_to_html(item, f"{key}[{i}]", open_level - 1)
-                    )
+                    html.append(dict_to_html(item, f"{key}[{i}]", open_level - 1))
                 else:
                     html.append(f'<div style=" margin: 5px 0;"> {item}</div>')
             html.append("</details>")

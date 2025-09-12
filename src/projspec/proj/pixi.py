@@ -69,13 +69,9 @@ class Pixi(ProjectSpec):
         meta = self.proj.pyproject.get("tools", {}).get("pixi", {})
         if "pixi.toml" in self.proj.basenames:
             try:
-                with self.proj.fs.open(
-                    self.proj.basenames["pixi.toml"], "rb"
-                ) as f:
+                with self.proj.fs.open(self.proj.basenames["pixi.toml"], "rb") as f:
                     meta.update(
-                        toml.loads(
-                            f.read().decode(), decoder=PickleableTomlDecoder()
-                        )
+                        toml.loads(f.read().decode(), decoder=PickleableTomlDecoder())
                     )
             except (OSError, ValueError, UnicodeDecodeError, FileNotFoundError):
                 pass
@@ -97,15 +93,11 @@ class Pixi(ProjectSpec):
             for env_name, details in meta["environments"].items():
                 feat = {}
                 feats = set(
-                    details
-                    if isinstance(details, list)
-                    else details["features"]
+                    details if isinstance(details, list) else details["features"]
                 )
                 for feat_name in feats:
                     feat.update(meta["feature"][feat_name])
-                if isinstance(details, list) or not details.get(
-                    "no-default-feature"
-                ):
+                if isinstance(details, list) or not details.get("no-default-feature"):
                     feat.update(meta)
                 extract_feature(feat, procs, commands, self, env=env_name)
 
@@ -229,8 +221,7 @@ def envs_from_lock(infile) -> dict:
                 for entry in next(iter(env["packages"].values()))
             ],
             "channels": [
-                _ if isinstance(_, str) else _.get("url", "")
-                for _ in env["channels"]
+                _ if isinstance(_, str) else _.get("url", "") for _ in env["channels"]
             ]
             + env.get("indexes", []),
         }

@@ -3,12 +3,7 @@ import pytest
 from projspec.content import BaseContent
 from projspec.content.environment import Stack
 from projspec.content.metadata import DescriptiveMetadata
-from projspec.utils import (
-    AttrDict,
-    get_enum_class,
-    is_installed,
-    sort_version_strings,
-)
+from projspec.utils import AttrDict, get_enum_class, is_installed, sort_version_strings
 
 
 def test_is_installed():

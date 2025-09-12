@@ -17,9 +17,7 @@ import projspec.proj
     help='Type names to scan for (comma-separated list in camel or snake case); defaults to "ALL"',
 )
 @click.argument("path", default=".")
-@click.option(
-    "--walk", is_flag=True, help="To descend into all child directories"
-)
+@click.option("--walk", is_flag=True, help="To descend into all child directories")
 @click.option("--summary", is_flag=True, help="Show abbreviated output")
 @click.option(
     "--storage_options",
