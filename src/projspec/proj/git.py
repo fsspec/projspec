@@ -19,20 +19,14 @@ class GitRepo(ProjectSpec):
         cont = AttrDict()
         cont["remotes"] = [
             _.rsplit("/", 1)[-1]
-            for _ in self.proj.fs.ls(
-                f"{self.proj.url}/.git/refs/remotes", detail=False
-            )
+            for _ in self.proj.fs.ls(f"{self.proj.url}/.git/refs/remotes", detail=False)
         ]
         cont["tags"] = [
             _.rsplit("/", 1)[-1]
-            for _ in self.proj.fs.ls(
-                f"{self.proj.url}/.git/refs/tags", detail=False
-            )
+            for _ in self.proj.fs.ls(f"{self.proj.url}/.git/refs/tags", detail=False)
         ]
         cont["branches"] = [
             _.rsplit("/", 1)[-1]
-            for _ in self.proj.fs.ls(
-                f"{self.proj.url}/.git/refs/heads", detail=False
-            )
+            for _ in self.proj.fs.ls(f"{self.proj.url}/.git/refs/heads", detail=False)
         ]
         self._contents = cont

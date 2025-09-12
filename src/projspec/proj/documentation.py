@@ -13,9 +13,7 @@ class MDBook(ProjectSpec):
     # to get generated docs output for a rust lib, use `rustdoc`
     # https://doc.rust-lang.org/rustdoc/what-is-rustdoc.html
 
-    spec_doc = (
-        "https://rust-lang.github.io/mdBook/format/configuration/index.html"
-    )
+    spec_doc = "https://rust-lang.github.io/mdBook/format/configuration/index.html"
 
     def match(self) -> bool:
         return "book.toml" in self.proj.basenames
@@ -30,14 +28,10 @@ class RTD(ProjectSpec):
     General description of the platform: https://docs.readthedocs.com/platform/stable/
     """
 
-    spec_doc = (
-        "https://docs.readthedocs.com/platform/stable/config-file/v2.html"
-    )
+    spec_doc = "https://docs.readthedocs.com/platform/stable/config-file/v2.html"
 
     def match(self) -> bool:
-        return any(
-            re.match("[.]?readthedocs.y[a]?ml", _) for _ in self.proj.basenames
-        )
+        return any(re.match("[.]?readthedocs.y[a]?ml", _) for _ in self.proj.basenames)
 
     def parse(self) -> None:
         # supports mkdocs and sphinx builders

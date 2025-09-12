@@ -37,9 +37,7 @@ class BaseArtifact:
 
     def make(self, *args, **kwargs):
         """Create the artifact and any runtime it depends on"""
-        if not isinstance(
-            self.proj.fs, fsspec.implementations.local.LocalFileSystem
-        ):
+        if not isinstance(self.proj.fs, fsspec.implementations.local.LocalFileSystem):
             # Later, will implement download-and-make, although some tools
             # can already do this themselves.
             raise RuntimeError("Can't run local command on remote project")

@@ -17,9 +17,7 @@ class PyScript(ProjectSpec):
         # actually, config can be specified by a local path in the repo, but this is rare;
         # also you can just declare things to install as you go, which we won't be able to
         # guess.
-        return not {"pyscript.toml", "pyscript.json"}.isdisjoint(
-            self.proj.basenames
-        )
+        return not {"pyscript.toml", "pyscript.json"}.isdisjoint(self.proj.basenames)
 
     def parse(self) -> None:
         try:

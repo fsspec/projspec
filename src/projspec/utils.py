@@ -56,9 +56,7 @@ class AttrDict(dict):
             elif isinstance(data[0], list):
                 if len(types) > 1:
                     raise TypeError("Multiple types ina  list")
-                super().__init__(
-                    {camel_to_snake(next(iter(types)).__name__): data[0]}
-                )
+                super().__init__({camel_to_snake(next(iter(types)).__name__): data[0]})
             elif isinstance(data[0], dict):
                 super().__init__(data[0])
             else:
@@ -66,9 +64,7 @@ class AttrDict(dict):
         else:
             dic = True
         if dic:
-            super().__init__(
-                {camel_to_snake(type(v).__name__): v for v in data}
-            )
+            super().__init__({camel_to_snake(type(v).__name__): v for v in data})
         self.update(kw)
 
     def __getattr__(self, item):
@@ -83,9 +79,11 @@ class AttrDict(dict):
 def to_dict(obj, compact=True):
     if isinstance(obj, dict):
         return {
-            k: v.to_dict(compact=compact)
-            if hasattr(v, "to_dict")
-            else to_dict(v, compact=compact)
+            k: (
+                v.to_dict(compact=compact)
+                if hasattr(v, "to_dict")
+                else to_dict(v, compact=compact)
+            )
             for k, v in obj.items()
         }
     if isinstance(obj, (bytes, str)):
@@ -114,15 +112,12 @@ def from_dict(dic, proj=None):
             elif category == "artifact":
                 cls = get_artifact_cls(name)
             elif category == "enum":
-                breakpoint()
                 cls = get_enum_class(name)
             else:
                 raise NotImplementedError
             obj = object.__new__(cls)
             obj.proj = proj
-            obj.__dict__.update(
-                {k: from_dict(v, proj=proj) for k, v in dic.items()}
-            )
+            obj.__dict__.update({k: from_dict(v, proj=proj) for k, v in dic.items()})
             return obj
         return AttrDict(**{k: from_dict(v, proj=proj) for k, v in dic.items()})
     elif isinstance(dic, list):

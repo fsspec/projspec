@@ -193,9 +193,7 @@ class Project:
 
     def __contains__(self, item) -> bool:
         """Is the given project type supported ANYWHERE in this directory?"""
-        return item in self.specs or any(
-            item in _ for _ in self.children.values()
-        )
+        return item in self.specs or any(item in _ for _ in self.children.values())
 
     def to_dict(self, compact=True) -> dict:
         dic = AttrDict(
@@ -256,11 +254,7 @@ class ProjectSpec:
     @property
     def path(self) -> str:
         """Location of this project spec"""
-        return (
-            self.proj.url + "/" + self.subpath
-            if self.subpath
-            else self.proj.url
-        )
+        return self.proj.url + "/" + self.subpath if self.subpath else self.proj.url
 
     def match(self) -> bool:
         """Whether the given path might be interpreted as this type of project"""

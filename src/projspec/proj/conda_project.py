@@ -50,11 +50,7 @@ class CondaProject(ProjectSpec):
                     with self.proj.fs.open(f"{self.proj.url}/{fname}") as f:
                         env = _yaml_no_jinja(f)
                         channels.extend(
-                            [
-                                _
-                                for _ in env.get("channels", [])
-                                if _ not in channels
-                            ]
+                            [_ for _ in env.get("channels", []) if _ not in channels]
                         )
                         packages.extend(
                             [

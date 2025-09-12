@@ -72,9 +72,7 @@ class RattlerRecipe(CondaRecipe):
         from projspec.content.environment import Environment, Precision, Stack
 
         if "recipe.yaml" in self.proj.basenames:
-            with self.proj.fs.open(
-                self.proj.basenames["recipe.yaml"], "rb"
-            ) as f:
+            with self.proj.fs.open(self.proj.basenames["recipe.yaml"], "rb") as f:
                 meta = _yaml_no_jinja(f)
         elif "meta.yaml" in self.proj.basenames:
             with self.proj.fs.open(self.proj.basenames["meta.yaml"], "rb") as f:
@@ -93,16 +91,11 @@ class RattlerRecipe(CondaRecipe):
         name = next(
             filter(
                 bool,
-                (
-                    meta.get(_, {}).get("name")
-                    for _ in ("context", "recipe", "package")
-                ),
+                (meta.get(_, {}).get("name") for _ in ("context", "recipe", "package")),
             )
         )
 
-        path = (
-            f"{self.proj.url}/output/{name}" if self.proj.is_local() else None
-        )
+        path = f"{self.proj.url}/output/{name}" if self.proj.is_local() else None
         art = CondaPackage(
             proj=self.proj,
             cmd=cmd,
@@ -115,10 +108,7 @@ class RattlerRecipe(CondaRecipe):
             req = next(
                 filter(
                     bool,
-                    (
-                        _.get("requirements")
-                        for _ in [meta] + meta.get("outputs", [])
-                    ),
+                    (_.get("requirements") for _ in [meta] + meta.get("outputs", [])),
                 )
             )
             self._contents = AttrDict(
