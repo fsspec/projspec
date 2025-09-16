@@ -103,3 +103,11 @@ To run the tests:
 .. code-block:: shell
 
    $ pytest -v --cov projspec
+
+
+Adding docs
+-----------
+
+Docstrings, prose text and examples/tutorials are eagerly accepted! We, as coders, often
+are late to fully document our work, and all contributions are welcome. Separate instructions
+can be found in the docs/README.md file.
