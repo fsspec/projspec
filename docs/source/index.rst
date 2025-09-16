@@ -13,6 +13,7 @@ shows some of the concrete things you can actually do.
    intro.rst
    quickstart.rst
    api.rst
+   contributing.rst
    code-of-conduct.rst
 
 
