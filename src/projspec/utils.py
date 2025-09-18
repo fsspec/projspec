@@ -160,8 +160,9 @@ class IsInstalled:
     """Checks if we can call commands, as a function of the current environment.
 
     Typical usage:
-    >>> "python" in IsInstalled()
-    True
+
+       >>> "python" in IsInstalled()
+       True
     """
 
     cache = {}
