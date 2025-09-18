@@ -126,8 +126,38 @@ Base Classes
 User Classes
 ~~~~~~~~~~~~
 
+.. autosummary::
+   artifact.installable.Wheel
+   artifact.installable.CondaPackage
+   artifact.process.Process
+   artifact.python_env.CondaEnv
+   artifact.python_env.VirtualEnv
+   artifact.python_env.EnvPack
+   artifact.python_env.LockFile
+
+.. autoclass:: projspec.artifact.installable.Wheel
+.. autoclass:: projspec.artifact.installable.CondaPackage
+.. autoclass:: projspec.artifact.process.Process
+.. autoclass:: projspec.artifact.python_env.CondaEnv
+.. autoclass:: projspec.artifact.python_env.VirtualEnv
+.. autoclass:: projspec.artifact.python_env.EnvPack
+.. autoclass:: projspec.artifact.python_env.LockFile
+
+
 Utilities
 ---------
+
+.. autosummary::
+   utils.Enum
+   utils.AttrDict
+   utils.IsInstalled
+
+.. autoclass:: projspec.utils.Enum
+   :members:
+.. autoclass:: projspec.utils.AttrDict
+   :members:
+.. autoclass:: projspec.utils.IsInstalled
+   :members:
 
 .. raw:: html
 

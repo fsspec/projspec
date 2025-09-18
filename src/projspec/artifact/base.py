@@ -101,7 +101,8 @@ class FileArtifact(BaseArtifact):
     """Specialised artifacts, where the output is one or more files"""
 
     # TODO: account for outputs to a directory/glob pattern, so we can
-    #   apply to wheel; or unknown output location, e.g., conda-build.
+    #   apply to wheel; or unknown output location, e.g., conda-build
+    #   to be filled out later.
 
     def __init__(self, proj: Project, fn: str, **kw):
         self.fn = fn
