@@ -151,8 +151,12 @@ class IsInstalled:
     """Checks if we can call commands, as a function of the current environment.
 
     Typical usage:
-    >>> "python" in IsInstalled()
-    True
+
+        >>> "python" in IsInstalled()
+        True
+
+    Results are cached by command and python executable, so that in the
+    future we may be able to persist these for future sessions.
     """
 
     cache = {}
@@ -162,6 +166,11 @@ class IsInstalled:
         self.env = _linked_local_path(sys.executable)
 
     def exists(self, cmd: str, refresh=False):
+        """Test if command can be called, by starting a subprocess
+
+        This is more costly what some PATH lookup (i.e., what ``which()`` does), but also
+        more rigorous.
+        """
         if refresh or (self.env, cmd) not in self.cache:
             try:
                 p = subprocess.Popen(
@@ -182,6 +191,7 @@ class IsInstalled:
         return self.cache[(self.env, cmd)]
 
     def __contains__(self, item):
+        """Allows syntax shortcut of ``"command" in ...``"""
         # shutil.which?
         return self.exists(item)
 
