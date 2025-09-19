@@ -3,7 +3,7 @@ import pytest
 from projspec.content import BaseContent
 from projspec.content.environment import Stack
 from projspec.content.metadata import DescriptiveMetadata
-from projspec.utils import AttrDict, get_enum_class, is_installed, sort_version_strings
+from projspec.utils import AttrDict, get_cls, is_installed, sort_version_strings
 
 
 def test_is_installed():
@@ -40,7 +40,7 @@ def test_enum():
     assert st == "PIP"
     assert st == 1
     assert st.snake_name() == "stack"
-    cls = get_enum_class(st.snake_name())
+    cls = get_cls("Stack", "enum")
     assert isinstance(st, cls)
     assert st.to_dict()["klass"] == ["enum", "stack"]
 

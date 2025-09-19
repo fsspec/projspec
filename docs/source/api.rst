@@ -141,11 +141,14 @@ Utilities
 .. autosummary::
    utils.AttrDict
    utils.Enum
+   utils.IsInstalled
    utils.get_cls
 
 .. autoclass:: projspec.utils.AttrDict
 .. autoclass:: projspec.utils.Enum
 .. autofunction:: projspec.utils.get_cls
+.. autoclass:: projspec.utils.IsInstalled
+   :members:
 
 .. raw:: html
 
