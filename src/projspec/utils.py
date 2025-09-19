@@ -77,6 +77,7 @@ class AttrDict(dict):
 
 
 def to_dict(obj, compact=True):
+    """Make entity into JSON-serialisable dict representation"""
     if isinstance(obj, dict):
         return {
             k: (
@@ -96,25 +97,15 @@ def to_dict(obj, compact=True):
 
 
 def from_dict(dic, proj=None):
-    from projspec.artifact import get_artifact_cls
-    from projspec.content import get_content_cls
-    from projspec.proj import Project, get_projspec_class
+    """Rehydrate the result of to_dict into projspec instances"""
+    from projspec import Project
 
     if isinstance(dic, dict):
         if "klass" in dic:
             if dic["klass"] == "project":
                 return Project.from_dict(dic)
             category, name = dic.pop("klass")
-            if category == "projspec":
-                cls = get_projspec_class(name)
-            elif category == "content":
-                cls = get_content_cls(name)
-            elif category == "artifact":
-                cls = get_artifact_cls(name)
-            elif category == "enum":
-                cls = get_enum_class(name)
-            else:
-                raise NotImplementedError
+            cls = get_cls(name, category)
             obj = object.__new__(cls)
             obj.proj = proj
             obj.__dict__.update({k: from_dict(v, proj=proj) for k, v in dic.items()})
@@ -291,11 +282,43 @@ class PickleableTomlDecoder(toml.TomlDecoder):
         return {}
 
 
-def spec_class_qnames():
-    """Useful for generating lists of classes for documentation"""
+def get_get_cls(registry="proj"):
     import projspec
 
-    return [
-        ".".join([cls.__module__, cls.__name__])
-        for cls in projspec.proj.base.registry.values()
-    ]
+    reg_map = {
+        "projspec": projspec.proj.base.registry,
+        "content": projspec.content.base.registry,
+        "artifact": projspec.artifact.base.registry,
+        "enum": enum_registry,
+    }
+    return reg_map[registry]
+
+
+def get_cls(name, registry="proj"):
+    """Find class by name and type
+
+    name: str
+        Class name in camel case (the typical real name) or snake equivalent
+    registry: projspec|content|artifact|enum
+        Category of class to find
+    """
+    return get_get_cls(registry)[camel_to_snake(name)]
+
+
+def spec_class_qnames(registry="proj"):
+    """Useful for generating lists of classes for documentation"""
+    reg = get_get_cls(registry)
+    for s in sorted(
+        (
+            ".".join([cls.__module__, cls.__name__]).removeprefix("projspec.")
+            for cls in reg.values()
+        )
+    ):
+        print("   ", s),
+    for s in sorted(
+        (
+            ".. autoclass:: " + ".".join([cls.__module__, cls.__name__])
+            for cls in reg.values()
+        )
+    ):
+        print(s)

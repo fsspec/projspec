@@ -34,7 +34,7 @@ class CondaEnv(FileArtifact):
 class VirtualEnv(FileArtifact):
     """Path to a project virtual environment
 
-    Some tools like pipenv put these environments in a global location
+    Some tools like pipenv put these environments in a global location.
     """
 
 

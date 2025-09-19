@@ -44,8 +44,3 @@ class BaseContent:
             if isinstance(dic[k], Enum):
                 dic[k] = dic[k].value
         return dic
-
-
-def get_content_cls(name: str) -> type[BaseContent]:
-    """Find a content class by snake-case name."""
-    return registry[name]

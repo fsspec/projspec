@@ -1,4 +1,4 @@
-from projspec.proj.base import ParseFailed, Project, ProjectSpec, get_projspec_class
+from projspec.proj.base import ParseFailed, Project, ProjectSpec
 from projspec.proj.conda_package import CondaRecipe, RattlerRecipe
 from projspec.proj.conda_project import CondaProject
 from projspec.proj.documentation import RTD, MDBook
@@ -11,7 +11,6 @@ from projspec.proj.rust import Rust, RustPython
 from projspec.proj.uv import Uv
 
 __all__ = [
-    "get_projspec_class",
     "ParseFailed",
     "Project",
     "ProjectSpec",
