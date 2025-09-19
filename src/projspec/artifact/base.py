@@ -92,7 +92,7 @@ class BaseArtifact:
         return dic
 
 
-def get_artifact_cls(name: str) -> type[BaseArtifact]:
+def get_cls(name: str) -> type[BaseArtifact]:
     """Find an artifact class by snake-case name."""
     return registry[name]
 

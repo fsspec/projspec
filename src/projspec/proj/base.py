@@ -320,7 +320,3 @@ class ProjectSpec:
     def snake_name(cls) -> str:
         """Convert a project name to snake-case"""
         return camel_to_snake(cls.__name__)
-
-
-def get_projspec_class(name: str) -> type:
-    return registry[name]

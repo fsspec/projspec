@@ -6,16 +6,16 @@ from projspec.utils import Enum
 
 
 class Stack(Enum):
-    """The type of environment"""
+    """The type of environment by packaging tech"""
 
     PIP = auto()
     CONDA = auto()
 
 
 class Precision(Enum):
-    """Type of environment definition"""
+    """Type of environment definition by the amount of precision"""
 
-    # TODO: categories may be refined
+    # TODO: categories may be refined, e.g., whether items include architecture or hash
     SPEC = auto()
     LOCK = auto()
 

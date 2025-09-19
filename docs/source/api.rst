@@ -22,11 +22,6 @@ Base Classes
 .. autoclass:: projspec.proj.base.ProjectSpec
    :members:
 
-.. raw:: html
-
-    <script data-goatcounter="https://projspec.goatcounter.com/count"
-        async src="//gc.zgo.at/count.js"></script>
-
 User Classes
 ~~~~~~~~~~~~
 
@@ -76,33 +71,31 @@ Base Classes
 
 .. autosummary::
    content.base.BaseContent
-   content.base.get_content_cls
 
 .. autoclass:: projspec.content.base.BaseContent
    :members:
-.. autofunction:: projspec.content.base.get_content_cls
 
 User Classes
 ~~~~~~~~~~~~
 
 .. autosummary::
-   content.data.FrictionlessData
-   content.data.IntakeCatalog
-   content.env_var.EnvironmentVariables
-   content.environment.Environment
-   content.executable.Command
-   content.license.License
-   content.metadata.DescriptiveMetadata
-   content.package.PythonPackage
+    content.data.FrictionlessData
+    content.data.IntakeCatalog
+    content.env_var.EnvironmentVariables
+    content.environment.Environment
+    content.executable.Command
+    content.license.License
+    content.metadata.DescriptiveMetadata
+    content.package.PythonPackage
 
-.. autofunction:: projspec.content.data.FrictionlessData
-.. autofunction:: projspec.content.data.IntakeCatalog
-.. autofunction:: projspec.content.env_var.EnvironmentVariables
-.. autofunction:: projspec.content.environment.Environment
-.. autofunction:: projspec.content.executable.Command
-.. autofunction:: projspec.content.license.License
-.. autofunction:: projspec.content.metadata.DescriptiveMetadata
-.. autofunction:: projspec.content.package.PythonPackage
+.. autoclass:: projspec.content.data.FrictionlessData
+.. autoclass:: projspec.content.data.IntakeCatalog
+.. autoclass:: projspec.content.env_var.EnvironmentVariables
+.. autoclass:: projspec.content.environment.Environment
+.. autoclass:: projspec.content.executable.Command
+.. autoclass:: projspec.content.license.License
+.. autoclass:: projspec.content.metadata.DescriptiveMetadata
+.. autoclass:: projspec.content.package.PythonPackage
 
 Artifacts
 ---------
@@ -115,19 +108,44 @@ Base Classes
 .. autosummary::
    artifact.base.BaseArtifact
    artifact.base.FileArtifact
-   artifact.base.get_artifact_cls
 
 .. autoclass:: projspec.artifact.base.BaseArtifact
    :members:
 .. autoclass:: projspec.artifact.base.FileArtifact
    :members:
-.. autofunction:: projspec.artifact.base.get_artifact_cls
 
 User Classes
 ~~~~~~~~~~~~
 
+.. autosummary::
+    artifact.installable.CondaPackage
+    artifact.installable.Wheel
+    artifact.process.Process
+    artifact.python_env.CondaEnv
+    artifact.python_env.EnvPack
+    artifact.python_env.LockFile
+    artifact.python_env.VirtualEnv
+
+.. autoclass:: projspec.artifact.installable.CondaPackage
+.. autoclass:: projspec.artifact.installable.Wheel
+.. autoclass:: projspec.artifact.process.Process
+.. autoclass:: projspec.artifact.python_env.CondaEnv
+.. autoclass:: projspec.artifact.python_env.EnvPack
+.. autoclass:: projspec.artifact.python_env.LockFile
+.. autoclass:: projspec.artifact.python_env.VirtualEnv
+
+
 Utilities
 ---------
+
+.. autosummary::
+   utils.AttrDict
+   utils.Enum
+   utils.get_cls
+
+.. autoclass:: projspec.utils.AttrDict
+.. autoclass:: projspec.utils.Enum
+.. autofunction:: projspec.utils.get_cls
 
 .. raw:: html
 
