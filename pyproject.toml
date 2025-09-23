@@ -38,6 +38,9 @@ projspec = "projspec.__main__:main"
 [tool.poetry.extras]
 po_test = ["pytest"]
 
+[tool.poetry.group.deep.dependencies]
+unknown = "*"
+
 [tool.poetry]
 # poetry can't resolve hatch's dynamic versioning but needs a value.
 version="0.0.1"

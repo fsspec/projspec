@@ -154,10 +154,10 @@ class PythonLibrary(ProjectSpec):
 
 
 def _resolve_groups(dep) -> dict[str, list[str]]:
-    # simplified version of
+    # A simplified version of
     # https://packaging.python.org/en/latest/specifications/dependency-groups/
     #   #reference-implementation
-    # only resolves groups in order
+    # only resolves groups in order.
     out = {}
     for name, deps in dep.items():
         out[name] = []
