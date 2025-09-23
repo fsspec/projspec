@@ -1,7 +1,8 @@
+from copy import deepcopy
 import toml
 
 from projspec.proj.python_code import PythonLibrary
-from projspec.utils import PickleableTomlDecoder
+from projspec.utils import PickleableTomlDecoder, deep_get, deep_set
 
 
 class Poetry(PythonLibrary):
@@ -28,9 +29,25 @@ class Poetry(PythonLibrary):
         from projspec.artifact.python_env import LockFile
         from projspec.content.environment import Environment, Precision, Stack
 
-        # Basic details same as a python library.
-        # A bunch of settings in `tool.poetry` are still allowed, if deprecated.
-        super().parse()
+        # Basic details same as a python library, but older config can be in
+        # tools.poetry.*
+        orig = deepcopy(self.proj.pyproject)
+        try:
+            # would be better to factor out the code in the superclass!
+            alt = self.proj.pyproject
+            dep = deep_get(alt, "tool.poetry.dependencies")
+            if dep:
+                deep_set(alt, "project.dependencies", _table_to_list(dep))
+            for k, v in deep_get(alt, "tool.poetry.group", {}).items():
+                if "dependencies" in v:
+                    deep_set(
+                        alt, ["dependency-groups", k], _table_to_list(v["dependencies"])
+                    )
+
+            super().parse()
+        finally:
+            self.proj.pyproject.clear()
+            self.proj.pyproject.update(orig)
         cmds = {}
         for cmd in self._contents.get("command", []):
             cmds[cmd] = Process(proj=self.proj, cmd=["poetry", "run", cmd])
@@ -59,3 +76,7 @@ class Poetry(PythonLibrary):
         except (OSError, UnicodeDecodeError):
             pass
         self.artifacts["wheel"].cmd = ["poetry", "build"]
+
+
+def _table_to_list(t: dict) -> list:
+    return [f"{k} {v}" for k, v in t.items()]

@@ -51,6 +51,7 @@ class Project:
         self.specs = AttrDict()
         self.children = AttrDict()
         self.excludes = excludes or default_excludes
+        self._pyproject = None
         self.resolve(walk=walk, types=types)
 
     def is_local(self) -> bool:

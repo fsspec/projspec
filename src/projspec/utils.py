@@ -268,6 +268,26 @@ def flatten(x: Iterable):
     return out
 
 
+def deep_get(data: dict, path: str | list[str], default=None):
+    """Fetch data from a nested dictionary at a given path."""
+    if isinstance(path, str):
+        path = path.split(".")
+    for part in path:
+        if part not in data:
+            return default
+        data = data[part]
+    return data
+
+
+def deep_set(data: dict, path: str | list[str], thing) -> None:
+    """Set data in a nested dictionary at a given path."""
+    if isinstance(path, str):
+        path = path.split(".")
+    for part in path[:-1]:
+        data = data.setdefault(part, {})
+    data[path[-1]] = thing
+
+
 def sort_version_strings(versions: Iterable[str]) -> list[str]:
     """Sort typical python package version strings"""
 
