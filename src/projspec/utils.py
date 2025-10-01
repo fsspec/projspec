@@ -75,6 +75,9 @@ class AttrDict(dict):
     def to_dict(self, compact=True):
         return to_dict(self, compact=compact)
 
+    def __dir__(self):
+        return sorted(list(super().__dir__()) + list(self))
+
 
 def to_dict(obj, compact=True):
     """Make entity into JSON-serialisable dict representation"""
