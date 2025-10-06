@@ -72,6 +72,9 @@ class CondaProject(ProjectSpec):
                     fn=lock_fname,
                 )
                 locks[env_name] = lock
+
+                # TODO: process data.metadata.souces[:] if it exists - it means the packages
+                #  are defined in another file in the project
                 if self.proj.fs.exists(lock_fname):
                     with self.proj.fs.open(lock_fname) as f:
                         data = yaml.load(f, Loader=yaml.CSafeLoader)

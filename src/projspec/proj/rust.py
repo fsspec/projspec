@@ -10,6 +10,8 @@ class Rust(ProjectSpec):
         return "Cargo.toml" in self.proj.basenames
 
     # this builds a (static) library or an executable, or both.
+    def parse(self):
+        pass
 
 
 class RustPython(Rust, PythonLibrary):

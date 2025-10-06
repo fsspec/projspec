@@ -20,11 +20,14 @@ import projspec.proj
 @click.option("--walk", is_flag=True, help="To descend into all child directories")
 @click.option("--summary", is_flag=True, help="Show abbreviated output")
 @click.option(
+    "--make", help="(Re)Create the first artifact found matching this type name"
+)
+@click.option(
     "--storage_options",
     default="",
     help="storage options dict for the given URL, as JSON",
 )
-def main(path, types, walk, summary, storage_options):
+def main(path, types, walk, summary, make, storage_options):
     if types in {"ALL", ""}:
         types = None
     else:
@@ -36,7 +39,15 @@ def main(path, types, walk, summary, storage_options):
     proj = projspec.Project(
         path, storage_options=storage_options, types=types, walk=walk
     )
-    if summary:
+    if make:
+        art: projspec.artifact.BaseArtifact
+        for art in proj.artifacts:
+            if art.snake_name() == projspec.utils.camel_to_snake(make):
+                print("Launching:", art)
+                art.remake()
+                return
+        print("No such artifact found")
+    elif summary:
         print(proj.text_summary())
     else:
         print(proj)
