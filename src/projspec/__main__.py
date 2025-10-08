@@ -16,6 +16,11 @@ import projspec.proj
     default="ALL",
     help='Type names to scan for (comma-separated list in camel or snake case); defaults to "ALL"',
 )
+@click.option(
+    "--xtypes",
+    default="NONE",
+    help="List of spec types to ignore (comma-separated list in camel or snake case)",
+)
 @click.argument("path", default=".")
 @click.option("--walk", is_flag=True, help="To descend into all child directories")
 @click.option("--summary", is_flag=True, help="Show abbreviated output")
@@ -27,17 +32,21 @@ import projspec.proj
     default="",
     help="storage options dict for the given URL, as JSON",
 )
-def main(path, types, walk, summary, make, storage_options):
+def main(path, types, xtypes, walk, summary, make, storage_options):
     if types in {"ALL", ""}:
         types = None
     else:
         types = types.split(",")
+    if xtypes in {"NONE", ""}:
+        xtypes = None
+    else:
+        xtypes = xtypes.split(",")
     if storage_options:
         storage_options = json.loads(storage_options)
     else:
         storage_options = None
     proj = projspec.Project(
-        path, storage_options=storage_options, types=types, walk=walk
+        path, storage_options=storage_options, types=types, xtypes=xtypes, walk=walk
     )
     if make:
         art: projspec.artifact.BaseArtifact

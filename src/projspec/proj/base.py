@@ -17,13 +17,11 @@ from projspec.utils import (
 logger = logging.getLogger("projspec")
 registry = {}
 default_excludes = {
-    ".venv",  # venv, pipenv, uv
-    ".pixi",
-    "envs",  # conda-project
     "bld",
-    ".git",
-    "dist",
     "build",
+    "dist",
+    "env",
+    "envs",  # conda-project
 }
 
 
@@ -39,8 +37,21 @@ class Project:
         fs: fsspec.AbstractFileSystem | None = None,
         walk: bool | None = None,
         types: set[str] | None = None,
+        xtypes: set[str] | None = None,
         excludes: set[str] | None = None,
     ):
+        """
+
+        :param path: URL location of the project directory root
+        :param storage_options: any arguments to pass to fsspec to access the files
+        :param fs: if given, use this fsspec-compatible filesystem
+        :param walk: if True, unconditionally descend into child directories and attempt
+            to parse them. If False, never descend. If None (default), descend only in
+            the case that the root did not many any project type.
+        :param types: only allow specs whose names are included.
+        :param xtypes: disallow specs whose names are in this set
+        :param excludes: directory names to ignore. If None, uses default_excludes.
+        """
         if fs is None:
             fs, path = fsspec.url_to_fs(path, **(storage_options or {}))
         else:
@@ -52,7 +63,7 @@ class Project:
         self.children = AttrDict()
         self.excludes = excludes or default_excludes
         self._pyproject = None
-        self.resolve(walk=walk, types=types)
+        self.resolve(walk=walk, types=types, xtypes=xtypes)
 
     def is_local(self) -> bool:
         """Did we read this from the local filesystem"""
@@ -64,6 +75,7 @@ class Project:
         subpath: str = "",
         walk: bool | None = None,
         types: set[str] | None = None,
+        xtypes: set[str] | None = None,
     ) -> None:
         """Fill out project specs in this directory
 
@@ -81,8 +93,10 @@ class Project:
                 logger.debug("resolving %s as %s", fullpath, cls)
                 name = cls.__name__
                 snake_name = camel_to_snake(cls.__name__)
-                if types and name not in types and snake_name not in types:
-                    # TODO: allow partial matches here
+                if (types and {name, snake_name}.isdisjoint(types)) or {
+                    name,
+                    snake_name,
+                }.intersection(xtypes or set()):
                     continue
                 inst = cls(self)
                 inst.parse()
@@ -95,8 +109,13 @@ class Project:
         if walk or (walk is None and not self.specs):
             for fileinfo in self.fs.ls(fullpath, detail=True):
                 if fileinfo["type"] == "directory":
+                    # TODO: some types (like python packages) are recursive; so we should
+                    #  separate out the parse and children steps, and only descend to
+                    #  children if no recursive types match
+                    # Alternatively: allow walk to be an integer, indicating the depth
+                    #  of search.
                     basename = fileinfo["name"].rsplit("/", 1)[-1]
-                    if basename in self.excludes:
+                    if basename in self.excludes or basename.startswith("."):
                         continue
                     sub = f"{subpath}/{basename}"
                     proj2 = Project(
@@ -104,6 +123,7 @@ class Project:
                         fs=self.fs,
                         walk=walk or False,
                         types=types,
+                        xtypes=xtypes,
                         excludes=self.excludes,
                     )
                     if proj2.specs:
@@ -321,3 +341,16 @@ class ProjectSpec:
     def snake_name(cls) -> str:
         """Convert a project name to snake-case"""
         return camel_to_snake(cls.__name__)
+
+
+class ProjectExtra(ProjectSpec):
+    """A special subcategory of project types with content but no structure.
+
+    Subclasses of this are special, in that they are not free-standing projects, but add
+    contents onto the root project. Examples include data catalog specification, linters
+    and Ci/CD, that may be run against the root project without using a project-oriented
+    tool.
+
+    These classes do not appear in a Project's .specs, but do contribute .contents or
+    .artifacts. They are still referenced when filtering spec types by name.
+    """
