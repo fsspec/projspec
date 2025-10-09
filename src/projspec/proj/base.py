@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Iterable
+from itertools import chain
 from functools import cached_property
 
 import fsspec
@@ -61,6 +62,8 @@ class Project:
         self.url = path
         self.specs = AttrDict()
         self.children = AttrDict()
+        self.contents = AttrDict()
+        self.artifacts = AttrDict()
         self.excludes = excludes or default_excludes
         self._pyproject = None
         self.resolve(walk=walk, types=types, xtypes=xtypes)
@@ -90,7 +93,6 @@ class Project:
         for name in sorted(registry):
             cls = registry[name]
             try:
-                logger.debug("resolving %s as %s", fullpath, cls)
                 name = cls.__name__
                 snake_name = camel_to_snake(cls.__name__)
                 if (types and {name, snake_name}.isdisjoint(types)) or {
@@ -98,9 +100,14 @@ class Project:
                     snake_name,
                 }.intersection(xtypes or set()):
                     continue
+                logger.debug("resolving %s as %s", fullpath, cls)
                 inst = cls(self)
                 inst.parse()
-                self.specs[snake_name] = inst
+                if isinstance(inst, ProjectExtra):
+                    self.contents.update(inst.contents)
+                    self.artifacts.update(inst.artifacts)
+                else:
+                    self.specs[snake_name] = inst
             except ParseFailed:
                 logger.debug("failed")
             except Exception as e:
@@ -148,7 +155,7 @@ class Project:
         """Only shows project types, not what they contain"""
         txt = f"<Project '{self.fs.unstrip_protocol(self.url)}'>\n"
         bits = [
-            f" {'/'}: {' '.join(type(_).__name__ for _ in self.specs.values())}"
+            f" {'/'}: {' '.join(type(_).__name__ for _ in chain(self.specs.values(), self.contents.values(), self.artifacts.values()))}"
         ] + [
             f" {k}: {' '.join(type(_).__name__ for _ in v.specs.values())}"
             for k, v in self.children.items()
@@ -160,6 +167,12 @@ class Project:
             self.fs.unstrip_protocol(self.url),
             "\n\n".join(str(_) for _ in self.specs.values()),
         )
+        if self.contents:
+            ch = "\n".join([f" {k}: {v}" for k, v in self.contents.items()])
+            txt += f"\nContents:\n{ch}"
+        if self.artifacts:
+            ch = "\n".join([f" {k}: {v}" for k, v in self.artifacts.items()])
+            txt += f"\nArtifacts:\n{ch}"
         if self.children:
             ch = "\n".join(
                 [
@@ -194,23 +207,32 @@ class Project:
                 pass
         return {}
 
-    @property
-    def artifacts(self) -> set:
+    def all_artifacts(self, names=None) -> list:
         """A flat list of all the artifact objects nested in this project."""
-        arts = set()
+        arts = set(self.artifacts.values())
         for spec in self.specs.values():
             arts.update(flatten(spec.artifacts))
         for child in self.children.values():
             arts.update(child.artifacts)
+        if names:
+            if isinstance(names, str):
+                names = {names}
+            arts = [
+                a
+                for a in arts
+                if any(a.snake_name() == camel_to_snake(n) for n in names)
+            ]
+        else:
+            arts = list(arts)
         return arts
 
-    def filter_by_type(self, types: Iterable[type]) -> bool:
+    def has_artifact_type(self, types: Iterable[type]) -> bool:
         """Answers 'does this project support outputting the given artifact type'
 
         This is an experimental example of filtering through projects
         """
         types = tuple(types)
-        return any(isinstance(_, types) for _ in self.artifacts)
+        return any(isinstance(_, types) for _ in self.all_artifacts())
 
     def __contains__(self, item) -> bool:
         """Is the given project type supported ANYWHERE in this directory?"""
@@ -222,6 +244,8 @@ class Project:
             children=self.children,
             url=self.url,
             storage_options=self.storage_options,
+            artifacts=self.artifacts,
+            contents=self.contents,
         )
         if not compact:
             dic["klass"] = "project"
@@ -346,11 +370,13 @@ class ProjectSpec:
 class ProjectExtra(ProjectSpec):
     """A special subcategory of project types with content but no structure.
 
-    Subclasses of this are special, in that they are not free-standing projects, but add
+    Subclasses of this are special: they are not free standing projects, but add
     contents onto the root project. Examples include data catalog specification, linters
-    and Ci/CD, that may be run against the root project without using a project-oriented
+    and CI/CD, that may be run against the root project without using a project-oriented
     tool.
 
     These classes do not appear in a Project's .specs, but do contribute .contents or
     .artifacts. They are still referenced when filtering spec types by name.
+
+    Commonly, subclasses are tied 1-1 to a particular content/artifact class.
     """

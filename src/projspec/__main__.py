@@ -50,7 +50,7 @@ def main(path, types, xtypes, walk, summary, make, storage_options):
     )
     if make:
         art: projspec.artifact.BaseArtifact
-        for art in proj.artifacts:
+        for art in proj.all_artifacts():
             if art.snake_name() == projspec.utils.camel_to_snake(make):
                 print("Launching:", art)
                 art.remake()

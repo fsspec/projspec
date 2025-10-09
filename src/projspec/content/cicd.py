@@ -4,7 +4,7 @@ from projspec.content import BaseContent
 
 
 class GithubAction(BaseContent):
-    """Run prescription that runs in github on push/merge"""
+    """A run prescription that runs in github on push/merge"""
 
     # TODO: we probably want to extract out the jobs and runs, maybe the steps.
     #  It may be interesting to provide links to the browser or API to view

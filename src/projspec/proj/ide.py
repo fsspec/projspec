@@ -11,6 +11,9 @@ class NvidiaAIWorkbench(ProjectSpec):
     def match(self) -> bool:
         return self.proj.fs.exists(f"{self.proj.url}/.project/spec.yaml")
 
+    def parse(self) -> None:
+        ...
+
 
 class JetbrainsIDE(ProjectSpec):
     def match(self) -> bool:
@@ -25,9 +28,15 @@ class VSCode(ProjectSpec):
     def match(self) -> bool:
         return self.proj.fs.exists(f"{self.proj.url}/.vscode/settings.json")
 
+    def parse(self) -> None:
+        ...
+
 
 class Zed(ProjectSpec):
     spec_doc = "https://zed.dev/docs/configuring-zed#settings"
 
     def match(self) -> bool:
         return self.proj.fs.exists(f"{self.proj.url}/.zed/settings.json")
+
+    def parse(self) -> None:
+        ...

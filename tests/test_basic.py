@@ -9,7 +9,7 @@ import projspec.utils
 def test_basic(proj):
     spec = proj.specs["python_library"]
     assert "wheel" in spec.artifacts
-    assert proj.artifacts
+    assert proj.all_artifacts()
     assert proj.children
     repr(proj)
     proj._repr_html_()
@@ -25,7 +25,7 @@ def test_contains(proj):
 
     assert proj.python_library is not None
     assert "python_library" in proj
-    assert proj.filter_by_type([Wheel])
+    assert proj.has_artifact_type([Wheel])
 
 
 def test_serialise(proj):
