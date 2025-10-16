@@ -112,8 +112,10 @@ class Node(ProjectSpec):
 class Yarn(Node):
     """A node project that uses `yarn` for building"""
 
+    spec_doc = "https://yarnpkg.com/configuration/yarnrc"
+
     def match(self):
-        return "yarn.lock" in self.proj.basenames
+        return ".yarnrc.yml" in self.proj.basenames
 
     def parse(self):
         from projspec.content.environment import Environment, Stack, Precision
