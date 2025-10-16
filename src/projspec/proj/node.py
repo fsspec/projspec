@@ -1,3 +1,5 @@
+import re
+
 from projspec.proj.base import ProjectSpec
 from projspec.content.package import NodePackage
 from projspec.artifact.process import Process
@@ -16,14 +18,15 @@ class Node(ProjectSpec):
     def match(self):
         return "package.json" in self.proj.basenames
 
-    def parse(self):
-        from projspec.content.environment import NodeEnvironment, Stack
+    def parse0(self):
+        from projspec.content.environment import Environment, Stack
         from projspec.artifact.python_env import LockFile
 
         import json
 
         with self.proj.fs.open(f"{self.proj.url}/package.json", "rt") as f:
             pkg_json = json.load(f)
+        self.meta = pkg_json
 
         # Metadata
         name = pkg_json.get("name")
@@ -79,31 +82,25 @@ class Node(ProjectSpec):
         # yarn.lock
         # TBD: indicate precision?
         if "package-lock.json" in self.proj.basenames:
-            arts["package-lock"] = LockFile(
+            arts["lock_file"] = LockFile(
                 proj=self.proj,
                 artifacts={},
                 cmd=["npm", "install"],
                 fn=self.proj.basenames["package-lock.json"],
             )
-            conts["environments"] = NodeEnvironment(
+            conts.setdefault("environment", {})["node"] = Environment(
                 proj=self.proj,
                 artifacts=set(),
                 stack=Stack.NPM,
                 packages=dependencies,
-                dev_packages=dev_dependencies,
+                precision=None,
             )
-        if "yarn.lock" in self.proj.basenames:
-            arts["yarn"] = LockFile(
-                proj=self.proj,
-                cmd=["yarn", "install"],
-                fn=self.proj.basenames["yarn.lock"],
-            )
-            conts["environments"] = NodeEnvironment(
+            conts.setdefault("environment", {})["node_dev"] = Environment(
                 proj=self.proj,
                 artifacts=set(),
-                stack=Stack.YARN,
-                packages=dependencies,
-                dev_packages=dev_dependencies,
+                stack=Stack.NPM,
+                packages=dev_dependencies,
+                precision=None,
             )
 
         conts["node_package"] = node_package = (
@@ -112,3 +109,48 @@ class Node(ProjectSpec):
         conts["command"] = (cmd,)
         self._artifacts = arts
         self._contents = conts
+
+
+class Yarn(Node):
+    def match(self):
+        return "yarn.lock" in self.proj.basenames
+
+    def parse(self):
+        from projspec.content.environment import Environment, Stack, Precision
+        from projspec.artifact.python_env import LockFile
+
+        super().parse0()
+
+        with self.proj.fs.open(f"{self.proj.url}/yarn.lock", "rt") as f:
+            txt = f.read()
+        hits = re.findall(r'resolution: "(.*?)"', txt, flags=re.MULTILINE)
+
+        self.artifacts["lock_file"] = LockFile(
+            proj=self.proj,
+            cmd=["yarn", "install"],
+            fn=self.proj.basenames["yarn.lock"],
+        )
+        self.contents.setdefault("environment", {})["yarn_lock"] = Environment(
+            proj=self.proj,
+            artifacts=set(),
+            stack=Stack.NPM,
+            packages=hits,
+            precision=Precision.LOCK,
+        )
+
+
+class JLabExtension(Yarn):
+    # TODO: this should match even if yarn.lock is missing, so long as package.json
+    #  does exist, and uses jlpm to build
+
+    def parse(self):
+        from projspec.artifact.python_env import LockFile
+
+        super().parse()
+        if not self.meta["scripts"]["build"].startswith("jlpm"):
+            raise ValueError
+        self.artifacts["lock_file"] = LockFile(
+            proj=self.proj,
+            cmd=["jlpm", "install"],
+            fn=self.proj.basenames["yarn.lock"],
+        )

@@ -11,7 +11,6 @@ class Stack(Enum):
     PIP = auto()
     CONDA = auto()
     NPM = auto()
-    YARN = auto()
 
 
 class Precision(Enum):
@@ -40,22 +39,4 @@ class Environment(BaseContent):
         }
         if not self.channels:
             out.pop("channels", None)
-        return out
-
-
-@dataclass
-class NodeEnvironment(BaseContent):
-    """Definition of a Node.js environment"""
-
-    stack: Stack  # e.g., Stack.NPM, Stack.YARN
-    packages: dict[str, str]  # {package: version spec}
-    dev_packages: dict[str, str] = field(default_factory=dict)
-
-    def _repr2(self):
-        out = {
-            "stack": self.stack.name,
-            "packages": self.packages,
-        }
-        if self.dev_packages:
-            out["dev_packages"] = self.dev_packages
         return out
