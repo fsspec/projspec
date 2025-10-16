@@ -5,32 +5,20 @@ from projspec.content import BaseContent
 
 @dataclass
 class PythonPackage(BaseContent):
+    """Importable python directory, i.e., containing an __init__.py file."""
+
     package_name: str
 
 
 @dataclass
-class Pyproject(PythonPackage):
-    """Usually a pyproject.toml file"""
+class RustModule(BaseContent):
+    """Usually a directory with a Cargo.toml file"""
 
-    meta: str
-
-
-@dataclass
-class Cargo(PythonPackage):
-    """Usually a Cargo.toml file"""
-
-    meta: str
-
-
-@dataclass
-class CondaRecipe(PythonPackage):
-    """usually from a meta.yaml file"""
-
-    meta: str
+    name: str
 
 
 @dataclass
 class NodePackage(BaseContent):
-    """Usually a package.json file"""
+    """Buildable nodeJS source"""
 
-    package_name: str
+    name: str

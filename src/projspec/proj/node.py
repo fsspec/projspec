@@ -14,7 +14,7 @@ class Node(ProjectSpec):
     spec_doc = "https://docs.npmjs.com/cli/v11/configuring-npm/package-json"
 
     def match(self):
-        return "package.json" in self.root.basenames
+        return "package.json" in self.proj.basenames
 
     def parse(self):
         from projspec.content.environment import NodeEnvironment, Stack
@@ -22,7 +22,7 @@ class Node(ProjectSpec):
 
         import json
 
-        with self.root.fs.open(f"{self.root.url}/package.json", "rt") as f:
+        with self.proj.fs.open(f"{self.proj.url}/package.json", "rt") as f:
             pkg_json = json.load(f)
 
         # Metadata
@@ -32,10 +32,10 @@ class Node(ProjectSpec):
         # Dependencies
         dependencies = pkg_json.get("dependencies")
         dev_dependencies = pkg_json.get("devDependencies")
-        # Entry points for runtime execution- CLI
+        # Entry points for runtime execution: CLI
         scripts = pkg_json.get("scripts", {})
         bin = pkg_json.get("bin")
-        # Entry points for importable code- library
+        # Entry points for importable code: library
         main = pkg_json.get("main")
         module = pkg_json.get("module")
         # TBD: exports?
@@ -57,30 +57,58 @@ class Node(ProjectSpec):
         conts = AttrDict()
         cmd = AttrDict()
         for name, path in bin_entry.items():
-            cmd[name] = Command(proj=self.root, artifacts={}, cmd=["node", f"{self.root.url}/{path}"])
+            cmd[name] = Command(
+                proj=self.proj, cmd=["node", f"{self.proj.url}/{path}"], artifacts=set()
+            )
 
         # Artifacts
         arts = AttrDict()
         for script_name, script_cmd in scripts.items():
             if script_name == "build":
-                arts["build"] = Process(proj=self.root, artifacts={}, cmd=[package_manager_name, "run", script_name])
+                arts["build"] = Process(
+                    proj=self.proj, cmd=[package_manager_name, "run", script_name]
+                )
             else:
-                cmd[script_name] = Command(proj=self.root, artifacts={}, cmd=[package_manager_name, "run", script_name])
+                cmd[script_name] = Command(
+                    proj=self.proj,
+                    cmd=[package_manager_name, "run", script_name],
+                    artifacts=set(),
+                )
 
         # package-lock.json
         # yarn.lock
         # TBD: indicate precision?
-        if "package-lock.json" in self.root.basenames:
-            arts["package-lock"] = LockFile(proj=self.root, artifacts={}, cmd=["npm", "install"])
-            conts["environments"] = NodeEnvironment(proj=self.root, artifacts={}, stack=Stack.NPM, packages=dependencies, dev_packages=dev_dependencies)
-        if "yarn.lock" in self.root.basenames:
-            arts["yarn"] = LockFile(proj=self.root, artifacts={}, cmd=["yarn", "install"])
-            conts["environments"] = NodeEnvironment(proj=self.root, artifacts={}, stack=Stack.YARN, packages=dependencies, dev_packages=dev_dependencies)
+        if "package-lock.json" in self.proj.basenames:
+            arts["package-lock"] = LockFile(
+                proj=self.proj,
+                artifacts={},
+                cmd=["npm", "install"],
+                fn=self.proj.basenames["package-lock.json"],
+            )
+            conts["environments"] = NodeEnvironment(
+                proj=self.proj,
+                artifacts=set(),
+                stack=Stack.NPM,
+                packages=dependencies,
+                dev_packages=dev_dependencies,
+            )
+        if "yarn.lock" in self.proj.basenames:
+            arts["yarn"] = LockFile(
+                proj=self.proj,
+                cmd=["yarn", "install"],
+                fn=self.proj.basenames["yarn.lock"],
+            )
+            conts["environments"] = NodeEnvironment(
+                proj=self.proj,
+                artifacts=set(),
+                stack=Stack.YARN,
+                packages=dependencies,
+                dev_packages=dev_dependencies,
+            )
 
-        out = AttrDict(
-            NodePackage(proj=self.root, artifacts=set(), package_name=name, version=version, description=description, dependencies=dependencies, dev_dependencies=dev_dependencies, scripts=scripts, bin=bin, main=main, module=module),
-            command=cmd,
-            environments=conts.get("environments", None)
+        conts["node_package"] = node_package = (
+            NodePackage(name=name, proj=self.proj, artifacts=set()),
         )
+        conts["command"] = (cmd,)
         self._artifacts = arts
-        self._contents = out
+        self._contents = conts

@@ -1,50 +1,107 @@
 import toml
 
-from projspec.proj.base import ProjectSpec
-from projspec.utils import AttrDict
-
-# UV also allows dependencies (and other metadata)
-# to be declared inside scripts, which means you can have one-file projects.
-# https://docs.astral.sh/uv/guides/scripts/#declaring-script-dependencies
-# example:
-# /// script
-# # dependencies = [
-# #   "requests<3",
-# #   "rich",
-# # ]
-# # ///
+from projspec.proj.base import ParseFailed, ProjectSpec
+from projspec.utils import AttrDict, PickleableTomlDecoder
 
 
-class UVScript(ProjectSpec):
+def _parse_conf(self: ProjectSpec, conf: dict):
+    from projspec.artifact.installable import Wheel
+    from projspec.artifact.python_env import LockFile, VirtualEnv
+    from projspec.content.environment import Environment, Precision, Stack
+
+    meta = self.proj.pyproject
+
+    envs = AttrDict()
+    # TODO: uv allows dependencies with source=, which would show us where the
+    #  sub-packages in a project are
+    if "dependencies" in meta.get("project", {}):
+        # conf key [tool.uv.pip] means optional-dependencies may be included here
+        envs["default"] = Environment(
+            proj=self.proj,
+            stack=Stack.PIP,
+            precision=Precision.SPEC,
+            packages=meta["project"]["dependencies"],
+            artifacts=set(),
+        )
+    envs.update(
+        {
+            k: Environment(
+                proj=self.proj,
+                stack=Stack.PIP,
+                precision=Precision.SPEC,
+                packages=v,
+                artifacts=set(),
+            )
+            for k, v in conf.get("project", {}).get("dependency-groups", {}).items()
+        }
+    )
+    if "dev-dependencies" in conf:
+        envs["dev"] = Environment(
+            proj=self.proj,
+            stack=Stack.PIP,
+            precision=Precision.SPEC,
+            packages=conf["dev-dependencies"],
+            artifacts=set(),
+        )
+
+    self._contents = AttrDict()
+    if envs:
+        self._contents["environment"] = envs
+
+    # TODO: process from defined commands
+    self._artifacts = AttrDict(
+        lock_file=AttrDict(
+            default=LockFile(
+                proj=self.proj,
+                cmd=["uv", "lock"],
+                fn=f"{self.proj.url}/uv.lock",
+            )
+        ),
+        virtual_env=AttrDict(
+            default=VirtualEnv(
+                proj=self.proj,
+                cmd=["uv", "sync"],
+                fn=f"{self.proj.url}/.venv",
+            )
+        ),
+    )
+    if conf.get("package", True):
+        self._artifacts["wheel"] = Wheel(
+            proj=self.proj,
+            cmd=["uv", "build"],
+        )
+
+
+class UvScript(ProjectSpec):
     """Single-file project runnable by UV as a script
 
     Metadata are declared inline in the script header
     See https://docs.astral.sh/uv/guides/scripts/#declaring-script-dependencies
 
-    Note that UV explicitly allows running these directly from HTTP URLs.
     """
 
     spec_doc = "https://docs.astral.sh/uv/reference/settings/"
 
     def match(self):
         # this is a file, not a directory
-        return self.root.url.endswith(("py", "pyw"))
+        return self.proj.url.endswith(("py", "pyw"))
 
     def parse(self):
         try:
-            with self.root.fs.open(self.root.url) as f:
+            with self.proj.fs.open(self.proj.url) as f:
                 txt = f.read().decode()
         except OSError as e:
-            raise ValueError from e
+            raise ParseFailed from e
         lines = txt.split("# /// script\n", 1)[1].txt.split("# ///\n", 1)[0]
         meta = "\n".join(line[2:] for line in lines.split("\n"))
-        toml.loads(meta)
-        # TODO: once we have the meta, we can reuse UVProject
-        #
-        # Apparently, uv.lock may or may not be in the same directory.
+        _parse_conf(self, toml.loads(meta, decoder=PickleableTomlDecoder()))
+        # if URL/filesystem is local or http(s):
+        # self.artifacts["process"] = Process(
+        #     proj=self.root, cmd=['uvx', self.root.url]
+        # )
 
 
-class UV(ProjectSpec):
+class Uv(ProjectSpec):
     """UV-runnable project
 
     Note: uv can run any python project, but this tests for uv-specific
@@ -53,21 +110,19 @@ class UV(ProjectSpec):
 
     def match(self):
         if not {"uv.lock", "uv.toml", ".python-version"}.isdisjoint(
-            self.root.basenames
+            self.proj.basenames
         ):
             return True
-        if "uv" in self.root.pyproject.get("tools", {}):
+        if "uv" in self.proj.pyproject.get("tools", {}):
             return True
         if (
-            self.root.pyproject.get("build-system", {}).get("build-backend", "")
+            self.proj.pyproject.get("build-system", {}).get("build-backend", "")
             == "uv_build"
         ):
             return True
-        if ".venv" in self.root.basenames:
+        if ".venv" in self.proj.basenames:
             try:
-                with self.root.fs.open(
-                    f"{self.root.url}/.venv/pyvenv.cfg", "rt"
-                ) as f:
+                with self.proj.fs.open(f"{self.proj.url}/.venv/pyvenv.cfg", "rt") as f:
                     txt = f.read()
                 return b"uv =" in txt
             except (OSError, FileNotFoundError):
@@ -75,99 +130,38 @@ class UV(ProjectSpec):
         return False
 
     def parse(self):
-        from projspec.artifact.installable import Wheel
-        from projspec.artifact.python_env import LockFile, VirtualEnv
         from projspec.content.environment import Environment, Precision, Stack
 
-        meta = self.root.pyproject
+        meta = self.proj.pyproject
         conf = meta.get("tools", {}).get("uv", {})
         try:
-            with self.root.fs.open(f"{self.root.url}/uv.toml", "rt") as f:
-                conf2 = toml.load(f)
+            with self.proj.fs.open(f"{self.proj.url}/uv.toml", "rt") as f:
+                conf2 = toml.load(f, decoder=PickleableTomlDecoder())
         except (OSError, FileNotFoundError):
             conf2 = {}
         conf.update(conf2)
         try:
-            with self.root.fs.open(f"{self.root.url}/uv.lock", "rt") as f:
-                lock = toml.load(f)
+            with self.proj.fs.open(f"{self.proj.url}/uv.lock", "rt") as f:
+                lock = toml.load(f, decoder=PickleableTomlDecoder())
         except (OSError, FileNotFoundError):
             lock = {}
-
-        envs = AttrDict()
-        # TODO: uv allows dependencies with source=, which would show us where the
-        #  sub-packages in a project are
-        if "dependencies" in meta.get("project", {}):
-            # conf key [tool.uv.pip] means optional-dependencies may be included here
-            envs["default"] = Environment(
-                proj=self.root,
-                stack=Stack.PIP,
-                precision=Precision.SPEC,
-                packages=meta["project"]["dependencies"],
-                artifacts=set(),
-            )
-        envs.update(
-            {
-                k: Environment(
-                    proj=self.root,
-                    stack=Stack.PIP,
-                    precision=Precision.SPEC,
-                    packages=v,
-                    artifacts=set(),
-                )
-                for k, v in conf.get("project", {})
-                .get("dependency-groups", {})
-                .items()
-            }
-        )
-        if "dev-dependencies" in conf:
-            envs["dev"] = Environment(
-                proj=self.root,
-                stack=Stack.PIP,
-                precision=Precision.SPEC,
-                packages=conf["dev-dependencies"],
-                artifacts=set(),
-            )
-
-        self._contents = AttrDict()
-        if envs:
-            self._contents["environment"] = envs
-
-        # TODO: process from defined commands
-        self._artifacts = AttrDict(
-            lock=AttrDict(
-                default=LockFile(
-                    proj=self.root,
-                    cmd=["uv", "lock"],
-                    fn=f"{self.root.url}/uv.lock",
-                )
-            ),
-            venv=AttrDict(
-                default=VirtualEnv(
-                    proj=self.root,
-                    cmd=["uv", "sync"],
-                    fn=f"{self.root.url}/.venv",
-                )
-            ),
-        )
-        if conf.get("package", True):
-            self._artifacts["wheel"] = Wheel(
-                proj=self.root,
-                cmd=["uv", "build"],
-            )
+        _parse_conf(self, conf)
 
         if lock:
             pkg = [f"python {lock['requires-python']}"]
             # TODO: check for source= packages as opposed to pip wheel installs
-            pkg.extend(
-                [
-                    f"{_['name']} =={_.get('version', '')}"
-                    for _ in lock["package"]
-                ]
-            )
-            envs["lockfile"] = Environment(
-                proj=self.root,
+            pkg.extend([f"{_['name']}{_vers(_)}" for _ in lock["package"]])
+            self.contents.environment["lockfile"] = Environment(
+                proj=self.proj,
                 stack=Stack.PIP,
                 precision=Precision.LOCK,
                 packages=pkg,
-                artifacts={self._artifacts["venv"]["default"]},
+                artifacts={self._artifacts["virtual_env"]["default"]},
             )
+
+
+def _vers(s: dict) -> str:
+    # TODO: this may be useful elsewhere
+    if s.get("version"):
+        return f" =={s.get('version')}"
+    return ""

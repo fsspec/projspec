@@ -5,6 +5,7 @@ dask-worker-space
 __pycache__/
 *.py[cod]
 *$py.class
+.benchmarks/
 
 # C extensions
 *.so

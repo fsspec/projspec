@@ -2,7 +2,9 @@ from dataclasses import dataclass, field
 
 from projspec.artifact import BaseArtifact
 from projspec.proj.base import Project
-from projspec.utils import Enum
+from projspec.utils import Enum, camel_to_snake
+
+registry = {}
 
 
 @dataclass
@@ -16,3 +18,29 @@ class BaseContent:
             for k, v in self.__dict__.items()
             if not k.startswith("_") and k not in ("proj", "artifacts")
         }
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        sn = cls.snake_name()
+        if sn in registry:
+            raise RuntimeError()
+        registry[sn] = cls
+
+    @classmethod
+    def snake_name(cls):
+        return camel_to_snake(cls.__name__)
+
+    def to_dict(self, compact=False):
+        if compact:
+            return self._repr2()
+        dic = {
+            k: getattr(self, k)
+            for k in self.__dataclass_fields__
+            if k not in ("proj", "artifacts")
+        }
+        dic["artifacts"] = []
+        dic["klass"] = ["content", self.snake_name()]
+        for k in list(dic):
+            if isinstance(dic[k], Enum):
+                dic[k] = dic[k].value
+        return dic

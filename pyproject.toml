@@ -23,7 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "fsspec>=2025.5.1",
+    "fsspec >=2025.5.1",
     "pyyaml",
     "toml",
     "click"
@@ -37,6 +37,9 @@ projspec = "projspec.__main__:main"
 
 [tool.poetry.extras]
 po_test = ["pytest"]
+
+[tool.poetry.group.deep.dependencies]
+unknown = "*"
 
 [tool.poetry]
 # poetry can't resolve hatch's dynamic versioning but needs a value.
@@ -73,7 +76,6 @@ select = [
     "PLC",
     "PLE",
     "PLR1722",
-    "PLR1736",
     "PLW1501",
     "PLW1510",
     "PLW3301",
@@ -85,7 +87,6 @@ select = [
     "PYI",
     "RUF006",
     "RUF015",
-    "RUF024",
     "SIM",
     "SLOT",
     "SIM101",

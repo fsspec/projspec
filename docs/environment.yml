@@ -1,0 +1,10 @@
+name: projspec
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pyyaml
+  - toml
+  - numpydoc
+  - sphinx-design
+  - sphinx_rtd_theme

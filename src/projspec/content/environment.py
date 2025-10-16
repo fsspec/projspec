@@ -6,7 +6,7 @@ from projspec.utils import Enum
 
 
 class Stack(Enum):
-    """The type of environment"""
+    """The type of environment by packaging tech"""
 
     PIP = auto()
     CONDA = auto()
@@ -15,9 +15,9 @@ class Stack(Enum):
 
 
 class Precision(Enum):
-    """Type of environment definition"""
+    """Type of environment definition by the amount of precision"""
 
-    # TODO: categories may be refined
+    # TODO: categories may be refined, e.g., whether items include architecture or hash
     SPEC = auto()
     LOCK = auto()
 
@@ -41,6 +41,7 @@ class Environment(BaseContent):
         if not self.channels:
             out.pop("channels", None)
         return out
+
 
 @dataclass
 class NodeEnvironment(BaseContent):

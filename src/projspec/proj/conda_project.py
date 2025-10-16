@@ -8,6 +8,8 @@ from projspec.utils import AttrDict, _yaml_no_jinja
 
 
 class CondaProject(ProjectSpec):
+    """Tool for encapsulating, running, and reproducing projects with conda environments."""
+
     # not a spec, but a howto:
     spec_doc = "https://conda-incubator.github.io/conda-project/tutorial.html"
 
@@ -18,7 +20,7 @@ class CondaProject(ProjectSpec):
         #  ever see a .condarc otherwise?
 
         return not {"conda-project.yml", "conda-meta.yaml"}.isdisjoint(
-            self.root.basenames
+            self.proj.basenames
         )
 
     def parse(self) -> None:
@@ -28,10 +30,10 @@ class CondaProject(ProjectSpec):
         from projspec.content.executable import Command
 
         try:
-            with self.root.fs.open(f"{self.root.url}/conda-project.yml") as f:
+            with self.proj.fs.open(f"{self.proj.url}/conda-project.yml") as f:
                 meta = _yaml_no_jinja(f)
         except FileNotFoundError:
-            with self.root.fs.open(f"{self.root.url}/conda-project.yaml") as f:
+            with self.proj.fs.open(f"{self.proj.url}/conda-project.yaml") as f:
                 meta = _yaml_no_jinja(f)
 
         envs = AttrDict()
@@ -45,14 +47,10 @@ class CondaProject(ProjectSpec):
                 channels = []
                 packages = []
                 for fname in fnames:
-                    with self.root.fs.open(f"{self.root.url}/{fname}") as f:
+                    with self.proj.fs.open(f"{self.proj.url}/{fname}") as f:
                         env = _yaml_no_jinja(f)
                         channels.extend(
-                            [
-                                _
-                                for _ in env.get("channels", [])
-                                if _ not in channels
-                            ]
+                            [_ for _ in env.get("channels", []) if _ not in channels]
                         )
                         packages.extend(
                             [
@@ -62,21 +60,24 @@ class CondaProject(ProjectSpec):
                             ]
                         )
                 runtime = CondaEnv(
-                    proj=self.root,
+                    proj=self.proj,
                     cmd=["conda", "project", "prepare", env_name],
-                    fn=f"{self.root.url}/./envs/{env_name}/",
+                    fn=f"{self.proj.url}/./envs/{env_name}/",
                 )
                 runtimes[env_name] = runtime
-                lock_fname = f"{self.root.url}/conda-lock.{env_name}.yml"
+                lock_fname = f"{self.proj.url}/conda-lock.{env_name}.yml"
                 lock = LockFile(
-                    proj=self.root,
+                    proj=self.proj,
                     cmd=["conda", "project", "lock", env_name],
                     fn=lock_fname,
                 )
                 locks[env_name] = lock
-                if self.root.fs.exists(lock_fname):
-                    with self.root.fs.open(lock_fname) as f:
-                        data = yaml.load(f, Loader=yaml.SafeLoader)
+
+                # TODO: process data.metadata.souces[:] if it exists - it means the packages
+                #  are defined in another file in the project
+                if self.proj.fs.exists(lock_fname):
+                    with self.proj.fs.open(lock_fname) as f:
+                        data = yaml.load(f, Loader=yaml.CSafeLoader)
                         lpackages = list(
                             {
                                 f"{p['name']} =={p['version']}"
@@ -84,7 +85,7 @@ class CondaProject(ProjectSpec):
                             }
                         )
                     envs[f"{env_name}.lock"] = Environment(
-                        proj=self.root,
+                        proj=self.proj,
                         channels=[],
                         packages=lpackages,
                         stack=Stack.CONDA,
@@ -92,7 +93,7 @@ class CondaProject(ProjectSpec):
                         artifacts={runtime},
                     )
                 env = Environment(
-                    proj=self.root,
+                    proj=self.proj,
                     channels=channels,
                     packages=packages,
                     stack=Stack.CONDA,
@@ -105,14 +106,14 @@ class CondaProject(ProjectSpec):
 
         for name, cmd in meta.get("commands", {}).items():
             prc = Process(
-                proj=self.root,
+                proj=self.proj,
                 cmd=["conda", "project", "run", name],
             )
             procs[name] = prc
-            cmds[name] = Command(proj=self.root, cmd=cmd, artifacts={prc})
+            cmds[name] = Command(proj=self.proj, cmd=cmd, artifacts={prc})
 
-        cont = AttrDict(envs=envs, commands=cmds)
-        arts = AttrDict(lock=locks, conda_env=runtimes, process=procs)
+        cont = AttrDict(environment=envs, command=cmds)
+        arts = AttrDict(lock_file=locks, conda_env=runtimes, process=procs)
 
         self._contents = cont
         self._artifacts = arts

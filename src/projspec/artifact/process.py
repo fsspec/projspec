@@ -4,7 +4,7 @@ from projspec.artifact import BaseArtifact
 
 
 class Process(BaseArtifact):
-    """A simple process where we know nothing about what it does
+    """A simple process where we know nothing about what it does, only if it's running.
 
     Can include batch jobs and long-running services.
     """
