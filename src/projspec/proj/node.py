@@ -8,7 +8,7 @@ from projspec.utils import AttrDict
 
 
 class Node(ProjectSpec):
-    """Node.js project
+    """Node.js project, managed by NPM
 
     This is a project that contains a package.json file.
     """
@@ -19,7 +19,7 @@ class Node(ProjectSpec):
         return "package.json" in self.proj.basenames
 
     def parse0(self):
-        from projspec.content.environment import Environment, Stack
+        from projspec.content.environment import Environment, Stack, Precision
         from projspec.artifact.python_env import LockFile
 
         import json
@@ -78,9 +78,6 @@ class Node(ProjectSpec):
                     artifacts=set(),
                 )
 
-        # package-lock.json
-        # yarn.lock
-        # TBD: indicate precision?
         if "package-lock.json" in self.proj.basenames:
             arts["lock_file"] = LockFile(
                 proj=self.proj,
@@ -88,20 +85,21 @@ class Node(ProjectSpec):
                 cmd=["npm", "install"],
                 fn=self.proj.basenames["package-lock.json"],
             )
-            conts.setdefault("environment", {})["node"] = Environment(
-                proj=self.proj,
-                artifacts=set(),
-                stack=Stack.NPM,
-                packages=dependencies,
-                precision=None,
-            )
-            conts.setdefault("environment", {})["node_dev"] = Environment(
-                proj=self.proj,
-                artifacts=set(),
-                stack=Stack.NPM,
-                packages=dev_dependencies,
-                precision=None,
-            )
+            # TODO: load lockfile and make environment
+        conts.setdefault("environment", {})["node"] = Environment(
+            proj=self.proj,
+            artifacts=set(),
+            stack=Stack.NPM,
+            packages=dependencies,
+            precision=Precision.SPEC,
+        )
+        conts.setdefault("environment", {})["node_dev"] = Environment(
+            proj=self.proj,
+            artifacts=set(),
+            stack=Stack.NPM,
+            packages=dev_dependencies,  # + dependencies?
+            precision=Precision.SPEC,
+        )
 
         conts["node_package"] = node_package = (
             NodePackage(name=name, proj=self.proj, artifacts=set()),
@@ -112,6 +110,8 @@ class Node(ProjectSpec):
 
 
 class Yarn(Node):
+    """A node project that uses `yarn` for building"""
+
     def match(self):
         return "yarn.lock" in self.proj.basenames
 
@@ -140,6 +140,12 @@ class Yarn(Node):
 
 
 class JLabExtension(Yarn):
+    """A node variant specific to JLab
+
+    https://jupyterlab.readthedocs.io/en/latest/developer/contributing.html
+      #installing-node-js-and-jlpm
+    """
+
     # TODO: this should match even if yarn.lock is missing, so long as package.json
     #  does exist, and uses jlpm to build
 
