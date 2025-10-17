@@ -18,6 +18,7 @@ from projspec.utils import (
 logger = logging.getLogger("projspec")
 registry = {}
 default_excludes = {
+    # add more here
     "bld",
     "build",
     "dist",
@@ -64,12 +65,13 @@ class Project:
         self.children = AttrDict()
         self.contents = AttrDict()
         self.artifacts = AttrDict()
+        # read and respect .gitignore? for exclude directories?
         self.excludes = excludes or default_excludes
         self._pyproject = None
         self.resolve(walk=walk, types=types, xtypes=xtypes)
 
     def is_local(self) -> bool:
-        """Did we read this from the local filesystem"""
+        """Did we read this from the local filesystem?"""
         # see also fsspec.utils.can_be_local for more flexibility with caching.
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
@@ -108,7 +110,7 @@ class Project:
                     self.artifacts.update(inst.artifacts)
                 else:
                     self.specs[snake_name] = inst
-            except ParseFailed:
+            except ValueError:
                 logger.debug("failed")
             except Exception as e:
                 # we don't want to fail the parse completely

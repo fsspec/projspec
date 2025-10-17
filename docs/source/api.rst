@@ -145,12 +145,14 @@ Utilities
    utils.Enum
    utils.IsInstalled
    utils.get_cls
+   proj.base.ParseFailed
 
 .. autoclass:: projspec.utils.AttrDict
 .. autoclass:: projspec.utils.Enum
 .. autofunction:: projspec.utils.get_cls
 .. autoclass:: projspec.utils.IsInstalled
    :members:
+.. autoclass:: projspec.proj.base.ParseFailed
 
 .. raw:: html
 

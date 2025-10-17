@@ -122,7 +122,10 @@ by parsers, each subclasses of :class:`projspec.proj.base.ProjectSpec`.
 All subclasses are added to the registry on import, and when constructing a
 :class:`projspec.proj.base.Project`, each of these classes attempts to parse the
 target directory. Any specs that succeed in parsing will populate the `Project`'s
-`.specs` dictionary.
+`.specs` dictionary. **Important**: imports should be deferred until parsing,
+there should be no module-level imports besides builtins and existing
+dependencies of ``projspec``. We do not want to
+add bloat to our dependencies. Most metadata should be parsable with json, yaml and toml.
 
 .. note::
 
@@ -144,7 +147,8 @@ Only two methods need to be implemented:
   simple-typed values might suffice, for example the tags in a git repo are just strings
   without further details.
 
-  ``parse()`` should raise ``ValueError`` if parsing fails, which will cause the
+  ``parse()`` should raise :class:`projspec.proj.base.ParseFailed` if
+  parsing fails, which will cause the
   corresponding project spec type not to show up in the enclosing ``Project`` instance.
 
   This typically involves reading some metadata file, and constructing the instances. The
