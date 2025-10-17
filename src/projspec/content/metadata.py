@@ -1,8 +1,9 @@
-from dataclasses import field
+from dataclasses import dataclass, field
 
 from projspec.content import BaseContent
 
 
+@dataclass
 class DescriptiveMetadata(BaseContent):
     """Miscellaneous descriptive information"""
 

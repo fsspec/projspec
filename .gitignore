@@ -122,10 +122,7 @@ ENV/
 # vi*
 *.swp
 
-build/
 downstream/*
-
-.idea/
 
 # pixi environments
 .pixi

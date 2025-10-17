@@ -20,6 +20,7 @@ class Node(ProjectSpec):
 
     def parse0(self):
         from projspec.content.environment import Environment, Stack, Precision
+        from projspec.content.metadata import DescriptiveMetadata
         from projspec.artifact.python_env import LockFile
 
         import json
@@ -57,7 +58,22 @@ class Node(ProjectSpec):
             bin_entry = bin
 
         # Contents
-        conts = AttrDict()
+        conts = AttrDict(
+            {
+                "descriptive_metadata": DescriptiveMetadata(
+                    proj=self.proj,
+                    meta={
+                        "name": name,
+                        "version": version,
+                        "description": description,
+                        "main": main,
+                        "module": module,
+                    },
+                    artifacts=set(),
+                ),
+            },
+        )
+
         cmd = AttrDict()
         for name, path in bin_entry.items():
             cmd[name] = Command(
@@ -101,7 +117,7 @@ class Node(ProjectSpec):
             precision=Precision.SPEC,
         )
 
-        conts["node_package"] = node_package = (
+        conts["node_package"] = (
             NodePackage(name=name, proj=self.proj, artifacts=set()),
         )
         conts["command"] = (cmd,)
