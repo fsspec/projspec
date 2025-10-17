@@ -2,6 +2,8 @@
 """Simple example executable for this library"""
 
 import json
+import pydoc
+import sys
 
 import click
 
@@ -28,15 +30,31 @@ import projspec.proj
     "--make", help="(Re)Create the first artifact found matching this type name"
 )
 @click.option(
+    "--info",
+    help="Give information about a names entity type (spec, contents or artifact)",
+)
+@click.option(
     "--storage_options",
     default="",
     help="storage options dict for the given URL, as JSON",
 )
-def main(path, types, xtypes, walk, summary, make, storage_options):
+def main(path, types, xtypes, walk, summary, make, info, storage_options):
     if types in {"ALL", ""}:
         types = None
     else:
         types = types.split(",")
+    if info:
+        info = projspec.utils.camel_to_snake(info)
+        cls = (
+            projspec.proj.base.registry.get(info)
+            or projspec.content.base.registry.get(info)
+            or projspec.artifact.base.registry.get(info)
+        )
+        if cls:
+            pydoc.doc(cls, output=sys.stdout)
+        else:
+            print("Name not found")
+        return
     if xtypes in {"NONE", ""}:
         xtypes = None
     else:

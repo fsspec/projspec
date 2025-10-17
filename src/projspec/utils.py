@@ -160,6 +160,8 @@ class IsInstalled:
 
     Results are cached by command and python executable, so that in the
     future we may be able to persist these for future sessions.
+
+    An instance of this class is created at import: ``projspec.utils.is_installed``.
     """
 
     cache = {}

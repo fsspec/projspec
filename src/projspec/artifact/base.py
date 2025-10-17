@@ -12,6 +12,12 @@ registry = {}
 
 
 class BaseArtifact:
+    """A thing that a project can o or make
+
+    Artifacts are the "actions" of a project spec. Most typically, they involve
+    calling the external tool associated with the project type in a subprocess.
+    """
+
     def __init__(self, proj: Project, cmd: list[str] | None = None):
         self.proj = proj
         self.cmd = cmd
@@ -98,7 +104,10 @@ def get_cls(name: str) -> type[BaseArtifact]:
 
 
 class FileArtifact(BaseArtifact):
-    """Specialised artifacts, where the output is one or more files"""
+    """Specialised artifacts, where the output is one or more files
+
+    Ideally, we can know beforehand the path expected for the output.
+    """
 
     # TODO: account for outputs to a directory/glob pattern, so we can
     #   apply to wheel; or unknown output location, e.g., conda-build.

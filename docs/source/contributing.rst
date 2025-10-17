@@ -111,3 +111,56 @@ Adding docs
 Docstrings, prose text and examples/tutorials are eagerly accepted! We, as coders, often
 are late to fully document our work, and all contributions are welcome. Separate instructions
 can be found in the docs/README.md file.
+
+Adding a parser
+===============
+
+The main job of ``projspec`` is to interpret project metadat files into the component
+"content" and "artifact" classes a project contains, for a given spec. This job is done
+by parsers, each subclasses of :class:`projspec.proj.base.ProjectSpec`.
+
+All subclasses are added to the registry on import, and when constructing a
+:class:`projspec.proj.base.Project`, each of these classes attempts to parse the
+target directory. Any specs that succeed in parsing will populate the `Project`'s
+`.specs` dictionary.
+
+.. note::
+
+   ``projspec`` will eventually have a config system to be able to import ProjectSpec
+   subclasses from other packages. For now, any new parsers added in this repo should also
+   be imported in the package ``__init__.py`` file, so that they will appear in the registry.
+
+Only two methods need to be implemented:
+
+* ``.match()``, which answers whether this directory *might* be interpretable as the given
+  project type. If returning ``True``, the ``.parse()`` method will be attempted. The check
+  here should be constant time and fast. Most typically it will depend on the existence of
+  some known file in the directory root or entries in the pyproject metadata
+  (``.filelist``, ``.basenames`` and ``.pyproject`` are sll cached attributes of ``self.proj``).
+
+* ``.parse()``, which populates the ``._contents`` and ``._artifacts`` attributes with
+  instances of subclasses of :class:`projspec.content.base.BaseContent` and
+  :class:`projspec.artifact.base.BaseArtifact`, respectively. In a minority of cases,
+  simple-typed values might suffice, for example the tags in a git repo are just strings
+  without further details.
+
+  ``parse()`` should raise ``ValueError`` if parsing fails, which will cause the
+  corresponding project spec type not to show up in the enclosing ``Project`` instance.
+
+  This typically involves reading some metadata file, and constructing the instances. The
+  attributes are instances of ``projspec.utils.AttrDict``, which behaves like a dict for
+  assignment. The convention is, that keynames should be the "snake name" version of the
+  class, and the values are either a single instance, a list of instances, or a dict of
+  named instance. An example of the latter might be named environments:
+
+.. code-block:: python
+
+   {"environment": {"default": Environment()}}
+
+Sometimes, new Content and Artifact classes will be required too.
+
+The special case of :class:`projspec.proj.base.ProjectExtra` exists for specs where the
+content/artifact is part of the overall project, but doesn't really make sense as a project
+by itself. For instance, a Dockerfile will make use of the files in a directory to
+create a docker image (an Artifact of the project), but in most cases that does not make
+the directory a "Docker project".

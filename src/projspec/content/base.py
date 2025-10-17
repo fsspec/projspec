@@ -9,6 +9,14 @@ registry = {}
 
 @dataclass
 class BaseContent:
+    """A descriptive piece of information declared in a project
+
+    Content classes tell you something fundamental about a project, but do
+    not have any other functionality than to allow introspection. We use
+    dataclasses to define what information a given Content subclass should
+    provide.
+    """
+
     proj: Project = field(repr=False)
     artifacts: set[BaseArtifact] = field(repr=False)
 
