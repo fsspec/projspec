@@ -19,6 +19,9 @@ class JetbrainsIDE(ProjectSpec):
     def match(self) -> bool:
         return self.proj.fs.exists(f"{self.proj.url}/.idea")
 
+    def parse(self) -> None:
+        ...
+
 
 class VSCode(ProjectSpec):
     spec_doc = (

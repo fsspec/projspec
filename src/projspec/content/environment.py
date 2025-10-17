@@ -10,6 +10,7 @@ class Stack(Enum):
 
     PIP = auto()
     CONDA = auto()
+    NPM = auto()
 
 
 class Precision(Enum):
