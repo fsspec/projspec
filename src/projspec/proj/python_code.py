@@ -150,6 +150,8 @@ class PythonLibrary(ProjectSpec):
         if env:
             conts["environment"] = env
             # + venv artifact
+
+        # TODO: pick keys to add to DescriptiveMetadata
         self._contents = conts
 
 

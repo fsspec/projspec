@@ -151,7 +151,7 @@ class Uv(ProjectSpec):
             pkg = [f"python {lock['requires-python']}"]
             # TODO: check for source= packages as opposed to pip wheel installs
             pkg.extend([f"{_['name']}{_vers(_)}" for _ in lock["package"]])
-            self.contents.environment["lockfile"] = Environment(
+            self._contents.setdefault("environment", {})["lockfile"] = Environment(
                 proj=self.proj,
                 stack=Stack.PIP,
                 precision=Precision.LOCK,

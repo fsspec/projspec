@@ -1,3 +1,4 @@
+import toml
 from projspec.proj import ProjectSpec, PythonLibrary
 
 
@@ -9,9 +10,15 @@ class Rust(ProjectSpec):
     def match(self) -> bool:
         return "Cargo.toml" in self.proj.basenames
 
-    # this builds a (static) library or an executable, or both.
     def parse(self):
-        pass
+        from projspec.content.metadata import DescriptiveMetadata
+
+        with self.proj.fs.open(f"{self.proj.url}/Cargo.toml", "rt") as f:
+            meta = toml.load(f)
+        self.contents["desciptive_metadata"] = DescriptiveMetadata(
+            proj=self.proj, meta=meta["package"], artifacts=set()
+        )
+        1
 
 
 class RustPython(Rust, PythonLibrary):
@@ -25,6 +32,8 @@ class RustPython(Rust, PythonLibrary):
     def match(self) -> bool:
         # The second condition here is not necessarily required, it is enough to
         # have a python package directory with the same name as the rust library.
+
+        # You can also have metadata.maturin in the Cargo.toml
         return (
             Rust.match(self)
             and "maturin" in self.proj.pyproject.get("tool", {})

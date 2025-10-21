@@ -99,7 +99,7 @@ class RattlerRecipe(CondaRecipe):
         art = CondaPackage(
             proj=self.proj,
             cmd=cmd,
-            path=path,
+            fn=path,
             name=name,
         )
 

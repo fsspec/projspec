@@ -73,8 +73,6 @@ class BaseArtifact:
     @classmethod
     def __init_subclass__(cls, **kwargs):
         sn = cls.snake_name()
-        if sn in registry:
-            raise RuntimeError()
         registry[sn] = cls
 
     @classmethod
@@ -117,7 +115,7 @@ class FileArtifact(BaseArtifact):
         super().__init__(proj, **kw)
 
     def _is_done(self) -> bool:
-        return self.proj.fs.exists(self.fn)
+        return self.proj.fs.glob(self.fn)
 
     def _is_clean(self) -> bool:
-        return not self.proj.fs.exists(self.fn)
+        return not self.proj.fs.glob(self.fn)

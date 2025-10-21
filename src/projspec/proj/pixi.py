@@ -136,7 +136,7 @@ class Pixi(ProjectSpec):
             arts["conda_package"] = CondaPackage(
                 proj=self.proj,
                 name=pkg["name"],
-                path=f"{pkg['name']}-{pkg['version']}*.conda",
+                fn=f"{pkg['name']}-{pkg['version']}*.conda",
                 cmd=["pixi", "build"],
             )
 

@@ -36,7 +36,7 @@ class RTD(ProjectSpec):
     def parse(self) -> None:
         # supports mkdocs and sphinx builders
         # build env usually in `python.install[*].requirements`, which can
-        # point to a requirements.txt or conda.environment for conda env.
+        # point to a requirements.txt or environment.yaml for conda env.
 
         # Artifact of HTML output. Classically with `make html` (in docs/ unless otherwise
         # specified), and the output goes into docs/build/html unless the conf.py file says different.

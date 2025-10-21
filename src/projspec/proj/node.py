@@ -124,6 +124,9 @@ class Node(ProjectSpec):
         self._artifacts = arts
         self._contents = conts
 
+    def parse(self):
+        self.parse0()
+
 
 class Yarn(Node):
     """A node project that uses `yarn` for building"""

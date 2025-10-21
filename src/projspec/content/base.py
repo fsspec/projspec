@@ -30,8 +30,6 @@ class BaseContent:
     @classmethod
     def __init_subclass__(cls, **kwargs):
         sn = cls.snake_name()
-        if sn in registry:
-            raise RuntimeError()
         registry[sn] = cls
 
     @classmethod
