@@ -65,3 +65,4 @@ class CondaPackage(FileArtifact):
     def clean(self):
         if self.fn is not None:
             self.proj.fs.rm(self.fn)
+            self.fn = None

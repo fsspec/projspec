@@ -41,6 +41,7 @@ class CondaRecipe(ProjectSpec):
         art = CondaPackage(proj=self.proj, cmd=["conda-build", self.proj.url])
         self._artifacts = AttrDict(conda_package=art)
         # TODO: read envs from "outputs" like for Rattler, below?
+        #  or use ``conda render`` to "lock" a templated recipe
         self._contents = AttrDict(
             environment=AttrDict(
                 {
