@@ -1,6 +1,6 @@
 import re
 
-from projspec.proj.base import ProjectSpec
+from projspec.proj.base import ProjectSpec, ParseFailed
 from projspec.content.package import NodePackage
 from projspec.artifact.process import Process
 from projspec.content.executable import Command
@@ -161,23 +161,33 @@ class Yarn(Node):
 
 
 class JLabExtension(Yarn):
-    """A node variant specific to JLab
+    """A node variant specific to Jupyter-Lab
 
     https://jupyterlab.readthedocs.io/en/latest/developer/contributing.html
       #installing-node-js-and-jlpm
+
+    These projects have at least a front-end component, but build to python
+    wheels for distribution. A running jupyter-lab process might be considered
+    an output.
+
+    Some jlab projects will also have python components (i.e., server extensions
+    https://jupyter-server.readthedocs.io/en/latest/developers/extensions.html).
     """
 
-    # TODO: this should match even if yarn.lock is missing, so long as package.json
-    #  does exist, and uses jlpm to build
+    # TODO: we may add a jupyter server extension python project type in the
+    #  future, defined by a JSON server config file.
+
+    def match(self):
+        return "package.json" in self.proj.basenames and bool(self.proj.pyproject)
 
     def parse(self):
         from projspec.artifact.python_env import LockFile
 
         super().parse()
         if not self.meta["scripts"]["build"].startswith("jlpm"):
-            raise ValueError
+            raise ParseFailed("JLab extensions build with jlpm")
         self.artifacts["lock_file"] = LockFile(
             proj=self.proj,
             cmd=["jlpm", "install"],
-            fn=self.proj.basenames["yarn.lock"],
+            fn=f"{self.proj.url}/yarn.lock",
         )
