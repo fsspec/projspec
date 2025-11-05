@@ -20,7 +20,8 @@ def dict_to_html(data: dict, title="Data", open_level=2) -> str:
     open = "open" if open_level > 0 else "closed"
 
     html = [
-        f'<details {open} style="margin-left: 20px; margin-bottom: 10px;"><summary style="cursor: pointer; color: #2c5aa0; padding: 5px;"><strong>{title}</strong></summary>'
+        f'<details {open} style="margin-left: 20px; margin-bottom: 10px;"><summary style="cursor: pointer;'
+        f' color: #2c5aa0; padding: 5px;"><strong>{title}</strong></summary>'
     ]
 
     for key, value in data.items():
@@ -28,7 +29,8 @@ def dict_to_html(data: dict, title="Data", open_level=2) -> str:
             html.append(dict_to_html(value, key, open_level - 1))
         elif isinstance(value, (list, tuple)):
             html.append(
-                f'<details style="margin-left: 20px; margin-bottom: 10px;"><summary style="cursor: pointer; color: #2c5aa0; padding: 5px;"><strong>{key}</strong></summary>'
+                f'<details style="margin-left: 20px; margin-bottom: 10px;"><summary style="cursor: pointer;'
+                f' color: #2c5aa0; padding: 5px;"><strong>{key}</strong></summary>'
             )
             for i, item in enumerate(value):
                 if isinstance(item, dict):

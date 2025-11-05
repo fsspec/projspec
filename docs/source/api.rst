@@ -31,6 +31,7 @@ User Classes
     proj.conda_package.CondaRecipe
     proj.conda_package.RattlerRecipe
     proj.conda_project.CondaProject
+    artifact.container.Docker
     proj.documentation.MDBook
     proj.documentation.RTD
     proj.git.GitRepo
@@ -48,6 +49,7 @@ User Classes
 .. autoclass:: projspec.proj.conda_package.CondaRecipe
 .. autoclass:: projspec.proj.conda_package.RattlerRecipe
 .. autoclass:: projspec.proj.conda_project.CondaProject
+.. autoclass:: projspec.artifact.container.Docker
 .. autoclass:: projspec.proj.documentation.MDBook
 .. autoclass:: projspec.proj.documentation.RTD
 .. autoclass:: projspec.proj.git.GitRepo
