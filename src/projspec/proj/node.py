@@ -142,8 +142,11 @@ class Yarn(Node):
 
         super().parse0()
 
-        with self.proj.fs.open(f"{self.proj.url}/yarn.lock", "rt") as f:
-            txt = f.read()
+        try:
+            with self.proj.fs.open(f"{self.proj.url}/yarn.lock", "rt") as f:
+                txt = f.read()
+        except FileNotFoundError:
+            raise ParseFailed
         hits = re.findall(r'resolution: "(.*?)"', txt, flags=re.MULTILINE)
 
         self.artifacts["lock_file"] = LockFile(

@@ -216,6 +216,7 @@ class Project:
             arts.update(flatten(spec.artifacts))
         for child in self.children.values():
             arts.update(child.artifacts)
+        arts.update(self.artifacts.values())
         if names:
             if isinstance(names, str):
                 names = {names}
@@ -235,6 +236,34 @@ class Project:
         """
         types = tuple(types)
         return any(isinstance(_, types) for _ in self.all_artifacts())
+
+    def all_contents(self, names=None) -> list:
+        """A flat list of all the content objects nested in this project."""
+        cont = set(self.contents.values())
+        for spec in self.specs.values():
+            cont.update(flatten(spec.contents))
+        for child in self.children.values():
+            cont.update(child.contents)
+        cont.update(self.contents.values())
+        if names:
+            if isinstance(names, str):
+                names = {names}
+            cont = [
+                a
+                for a in cont
+                if any(a.snake_name() == camel_to_snake(n) for n in names)
+            ]
+        else:
+            cont = list(cont)
+        return cont
+
+    def has_content_type(self, types: Iterable[type]) -> bool:
+        """Answers 'does this project support outputting the given content type'
+
+        This is an experimental example of filtering through projects
+        """
+        types = tuple(types)
+        return any(isinstance(_, types) for _ in self.all_contents())
 
     def __contains__(self, item) -> bool:
         """Is the given project type supported ANYWHERE in this directory?"""

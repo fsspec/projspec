@@ -26,7 +26,8 @@ dependencies = [
     "fsspec >=2025.5.1",
     "pyyaml",
     "toml",
-    "click"
+    "click",
+    "jinja2"
 ]
 
 [project.optional-dependencies]
