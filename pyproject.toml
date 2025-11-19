@@ -26,15 +26,18 @@ dependencies = [
     "fsspec >=2025.5.1",
     "pyyaml",
     "toml",
+    "fsspec",
     "click",
     "jinja2"
 ]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov"]
+qt = ["pyqt>5,<6", "pyqtwebengin>5,<6"]
 
 [project.scripts]
 projspec = "projspec.__main__:main"
+projspec-qt = "projspec.qtapp.main:main"
 
 [tool.poetry.extras]
 po_test = ["pytest"]

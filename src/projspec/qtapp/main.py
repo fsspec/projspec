@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -7,18 +8,28 @@ from PyQt5.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
-    QLabel,
+    QStyle,
     QHBoxLayout,
-    QDialog,
+    QDockWidget,
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import Qt, QUuid, QUrl
-from PyQt5.QtGui import QIcon
+from PyQt5.QtCore import Qt, pyqtSignal  # just Signal in PySide
+
+from projspec.library import library
 
 
 class FileBrowserWindow(QMainWindow):
+    """A mini filesystem browser with project information
+
+    The right-hand pane will populate with an HTML view of the selected item,
+    if that item is a directory and can be interpreted as any project type.
+    """
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.library = Library()
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.library)
+
         self.setWindowTitle("Projspec Browser")
         self.setGeometry(100, 100, 950, 600)
 
@@ -35,6 +46,7 @@ class FileBrowserWindow(QMainWindow):
         self.detail = QWebEngineView(self)
         # self.detail.load(QUrl("https://qt-project.org/"))
         self.detail.setFixedWidth(600)
+        self.library.project_selected.connect(self.detail.setHtml)
 
         # Create central widget and layout
         central_widget = QWidget(self)
@@ -84,19 +96,28 @@ class FileBrowserWindow(QMainWindow):
                 child_item.setText(0, item.name)
                 child_item.setData(0, Qt.ItemDataRole.UserRole, str(item))
 
+                style = app.style()
                 if item.is_dir():
+                    # TODO: change icon if it is in the library
                     child_item.setText(1, "Folder")
                     child_item.setText(2, "")
                     # Add dummy child to make it expandable
                     dummy = QTreeWidgetItem(child_item)
                     dummy.setText(0, "Loading...")
+                    if str(item) in library.entries:
+                        child_item.setIcon(
+                            0, style.standardIcon(QStyle.SP_FileDialogInfoView)
+                        )
+                    else:
+                        child_item.setIcon(0, style.standardIcon(QStyle.SP_DirIcon))
                 else:
                     child_item.setText(1, "File")
                     try:
                         size = item.stat().st_size
-                        child_item.setText(2, self.format_size(size))
+                        child_item.setText(2, format_size(size))
                     except:
                         child_item.setText(2, "")
+                    child_item.setIcon(0, style.standardIcon(QStyle.SP_FileIcon))
 
         except PermissionError:
             error_item = QTreeWidgetItem(parent_item)
@@ -122,28 +143,66 @@ class FileBrowserWindow(QMainWindow):
                 self.add_children(item, path)
                 self.statusBar().showMessage(f"Loaded: {path}")
 
-    def on_item_changed(self, item):
+    def on_item_changed(self, item: QTreeWidgetItem):
         import projspec
 
         if item.text(1) == "Folder":
-            proj = projspec.Project(item.data(0, Qt.ItemDataRole.UserRole), walk=False)
+            path = item.data(0, Qt.ItemDataRole.UserRole)
+            proj = projspec.Project(path, walk=False)
             if proj.specs:
-                print(proj.text_summary())
-                html = f"<!DOCTYPE html><html><body>{proj._repr_html_()}</body></html>"
-                self.detail.setHtml(html)
+                style = app.style()
+                item.setIcon(0, style.standardIcon(QStyle.SP_FileDialogInfoView))
+                body = f"<!DOCTYPE html><html><body>{proj._repr_html_()}</body></html>"
+                library.add_entry(path, proj)
             else:
-                self.detail.setHtml("<!DOCTYPE html><html><body></body></html>")
+                body = ""
+            self.library.refresh()  # only on new item?
+            self.detail.setHtml(f"<!DOCTYPE html><html><body>{body}</body></html>")
 
-    def format_size(self, size):
-        """Format file size in human-readable format"""
-        for unit in ["B", "KB", "MB", "GB", "TB"]:
-            if size < 1024.0:
-                return f"{size:.1f} {unit}"
-            size /= 1024.0
-        return f"{size:.1f} PB"
+
+def format_size(self, size):
+    """Format file size in human-readable format"""
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if size < 1024.0:
+            return f"{size:.1f} {unit}"
+        size /= 1024.0
+    return f"{size:.1f} PB"
+
+
+class Library(QDockWidget):
+    """Shows all scanned projects and allows filtering by various criteria"""
+
+    project_selected = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Project Library")
+
+        self.list = QTreeWidget(self)
+        self.list.setHeaderLabels(["Path", "Types"])
+        self.list.itemClicked.connect(self.on_selection_changed)
+        self.list.setColumnWidth(0, 300)
+        self.setWidget(self.list)
+
+        self.refresh()
+
+    def on_selection_changed(self, item: QTreeWidgetItem):
+        path = item.text(0)
+        proj = library.entries[path]
+        body = f"<!DOCTYPE html><html><body>{proj._repr_html_()}</body></html>"
+        self.project_selected.emit(body)
+
+    def refresh(self):
+        # any refresh reopens the pane if it was closed
+        self.list.clear()
+        for path in sorted(library.entries):
+            data = library.entries[path]
+            self.list.addTopLevelItem(QTreeWidgetItem([path, " ".join(data.specs)]))
+        self.show()
 
 
 def main():
+    global app
     app = QApplication(sys.argv)
     window = FileBrowserWindow()
     window.show()

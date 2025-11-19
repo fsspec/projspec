@@ -32,6 +32,12 @@ class ParseFailed(ValueError):
 
 
 class Project:
+    """Top level representation of a project directory
+
+    This holds any parsed project metadata specs, top level contents and artifacts and
+    any project details from nested child directories.
+    """
+
     def __init__(
         self,
         path: str,
@@ -270,14 +276,17 @@ class Project:
         return item in self.specs or any(item in _ for _ in self.children.values())
 
     def to_dict(self, compact=True) -> dict:
-        dic = AttrDict(
-            specs=self.specs,
-            children=self.children,
-            url=self.url,
-            storage_options=self.storage_options,
-            artifacts=self.artifacts,
-            contents=self.contents,
-        )
+        try:
+            dic = AttrDict(
+                specs=self.specs,
+                children=self.children,
+                url=self.url,
+                storage_options=self.storage_options,
+                artifacts=self.artifacts,
+                contents=self.contents,
+            )
+        except AttributeError:
+            print(list(self.__dict__.keys()))
         if not compact:
             dic["klass"] = "project"
         return dic.to_dict(compact=compact)
@@ -296,6 +305,8 @@ class Project:
         proj = object.__new__(Project)
         proj.specs = from_dict(dic["specs"], proj)
         proj.children = from_dict(dic["children"], proj)
+        proj.contents = from_dict(dic["contents"], proj)
+        proj.artifacts = from_dict(dic["artifacts"], proj)
         proj.url = dic["url"]
         proj.storage_options = dic["storage_options"]
         proj.fs, _ = fsspec.url_to_fs(proj.url, **proj.storage_options)
@@ -386,8 +397,7 @@ class ProjectSpec:
             _contents=self.contents,
             _artifacts=self.artifacts,
         )
-        if self.subpath:
-            dic["subpath"] = self.subpath
+        dic["subpath"] = self.subpath
         if not compact:
             dic["klass"] = ["projspec", self.snake_name()]
         return dic.to_dict(compact=compact)
