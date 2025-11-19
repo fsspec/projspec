@@ -24,4 +24,5 @@ load_conf()
 
 
 def get_conf(name: str):
+    """Fetch the value of the given conf parameter from the current config or defaults"""
     return conf.get(name, defaults[name])
