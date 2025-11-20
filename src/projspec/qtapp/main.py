@@ -1,11 +1,12 @@
+import os.path
 import sys
 from pathlib import Path
 
+import fsspec
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
     QPushButton,
-    QToolTip,
     QComboBox,
     QMainWindow,
     QTreeWidget,
@@ -15,7 +16,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
     QDockWidget,
-    QSizePolicy,
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import Qt, pyqtSignal  # just Signal in PySide
@@ -31,9 +31,13 @@ class FileBrowserWindow(QMainWindow):
     if that item is a directory and can be interpreted as any project type.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, path=None, storage_options=None, parent=None):
         super().__init__(parent)
         self.library = Library()
+        if path is None:
+            # implicitly local
+            path = os.path.expanduser("~")
+        self.fs, self.path = fsspec.url_to_fs(path, **(storage_options or {}))
         self.addDockWidget(Qt.BottomDockWidgetArea, self.library)
 
         self.setWindowTitle("Projspec Browser")
@@ -41,8 +45,8 @@ class FileBrowserWindow(QMainWindow):
 
         # Create tree widget
         self.tree = QTreeWidget(self)
-        self.tree.setHeaderLabels(["Name", "Type", "Size"])
-        self.tree.setColumnWidth(0, 400)
+        self.tree.setHeaderLabels(["Name", "Size"])
+        self.tree.setColumnWidth(0, 300)
         self.tree.setColumnWidth(1, 50)
 
         # Connect signals
@@ -71,14 +75,11 @@ class FileBrowserWindow(QMainWindow):
 
     def populate_tree(self):
         """Populate the tree with the user's home directory"""
-        home_path = Path.home()
         root_item = QTreeWidgetItem(self.tree)
-        root_item.setText(0, home_path.name or str(home_path))
-        root_item.setText(1, "Folder")
-        root_item.setData(0, Qt.ItemDataRole.UserRole, str(home_path))
+        root_item.setText(0, self.path)
 
         # Add a dummy child to make it expandable
-        self.add_children(root_item, home_path)
+        self.add_children(root_item, self.path)
 
         # Expand the root
         root_item.setExpanded(True)
@@ -86,43 +87,34 @@ class FileBrowserWindow(QMainWindow):
     def add_children(self, parent_item, path):
         """Add child items for a directory"""
         try:
-            path_obj = Path(path)
-
             # Get all items in directory
-            items = sorted(
-                path_obj.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())
-            )
+            details = self.fs.ls(path, detail=True)
+            items = sorted(details, key=lambda x: (x["type"], x["name"].lower()))
 
             for item in items:
                 # Skip hidden files (optional)
-                if item.name.startswith("."):
+                name = item["name"].rsplit("/", 1)[-1]
+                if name.startswith("."):
                     continue
 
                 child_item = QTreeWidgetItem(parent_item)
-                child_item.setText(0, item.name)
-                child_item.setData(0, Qt.ItemDataRole.UserRole, str(item))
+                child_item.setText(0, name)
+                child_item.setData(0, Qt.ItemDataRole.UserRole, item)
 
                 style = app.style()
-                if item.is_dir():
+                if item["type"] == "directory":
                     # TODO: change icon if it is in the library
-                    child_item.setText(1, "Folder")
-                    child_item.setText(2, "")
                     # Add dummy child to make it expandable
                     dummy = QTreeWidgetItem(child_item)
                     dummy.setText(0, "Loading...")
-                    if str(item) in library.entries:
+                    if item["name"] in library.entries:
                         child_item.setIcon(
                             0, style.standardIcon(QStyle.SP_FileDialogInfoView)
                         )
                     else:
                         child_item.setIcon(0, style.standardIcon(QStyle.SP_DirIcon))
                 else:
-                    child_item.setText(1, "File")
-                    try:
-                        size = item.stat().st_size
-                        child_item.setText(2, format_size(size))
-                    except:
-                        child_item.setText(2, "")
+                    child_item.setText(1, format_size(item["size"]))
                     child_item.setIcon(0, style.standardIcon(QStyle.SP_FileIcon))
 
         except PermissionError:
@@ -140,11 +132,7 @@ class FileBrowserWindow(QMainWindow):
         if item.childCount() == 1 and item.child(0).text(0) == "Loading...":
             # Remove dummy child
             item.removeChild(item.child(0))
-
-            # Get path from item data
-            path = item.data(0, Qt.ItemDataRole.UserRole)
-
-            # Add real children
+            path = item.data(0, Qt.ItemDataRole.UserRole)["name"]
             if path:
                 self.add_children(item, path)
                 self.statusBar().showMessage(f"Loaded: {path}")
@@ -152,8 +140,9 @@ class FileBrowserWindow(QMainWindow):
     def on_item_changed(self, item: QTreeWidgetItem):
         import projspec
 
-        if item.text(1) == "Folder":
-            path = item.data(0, Qt.ItemDataRole.UserRole)
+        detail = item.data(0, Qt.ItemDataRole.UserRole)
+        if detail["type"] == "directory":
+            path = detail["name"]
             proj = projspec.Project(path, walk=False)
             if proj.specs:
                 style = app.style()
@@ -166,8 +155,10 @@ class FileBrowserWindow(QMainWindow):
             self.detail.setHtml(f"<!DOCTYPE html><html><body>{body}</body></html>")
 
 
-def format_size(self, size):
+def format_size(size: None | int) -> str:
     """Format file size in human-readable format"""
+    if size is None:
+        return ""
     for unit in ["B", "KB", "MB", "GB", "TB"]:
         if size < 1024.0:
             return f"{size:.1f} {unit}"
@@ -267,7 +258,7 @@ class SearchItem(QWidget):
 class SearchDialog(QDialog):
     """Set search criteria"""
 
-    def __init__(self, parent=None, start=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         right = QVBoxLayout()
         ok = QPushButton("OK")
@@ -285,9 +276,6 @@ class SearchDialog(QDialog):
         mini_layout.addStretch(0)
 
         self.layout = QVBoxLayout()
-        search = SearchItem(self)
-        search.removed.connect(self._on_search_removed)
-        self.layout.addWidget(search)
         self.layout.addLayout(mini_layout)
         self.layout.addStretch(0)
 
