@@ -3,18 +3,25 @@ from pathlib import Path
 
 from PyQt5.QtWidgets import (
     QApplication,
+    QDialog,
+    QPushButton,
+    QToolTip,
+    QComboBox,
     QMainWindow,
     QTreeWidget,
     QTreeWidgetItem,
     QWidget,
     QStyle,
     QHBoxLayout,
+    QVBoxLayout,
     QDockWidget,
+    QSizePolicy,
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import Qt, pyqtSignal  # just Signal in PySide
 
 from projspec.library import library
+import projspec
 
 
 class FileBrowserWindow(QMainWindow):
@@ -176,14 +183,36 @@ class Library(QDockWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Project Library")
+        self.widget = QWidget(self)
 
-        self.list = QTreeWidget(self)
+        # search control
+        swidget = QWidget(self.widget)
+        upper_layout = QHBoxLayout()
+        search = QPushButton("🔍")
+        search.clicked.connect(self.on_search_clicked)
+        clear = QPushButton("🧹")
+        upper_layout.addWidget(search)
+        upper_layout.addWidget(clear)
+        upper_layout.addStretch()
+        swidget.setLayout(upper_layout)
+
+        # main list
+        self.list = QTreeWidget(self.widget)
         self.list.setHeaderLabels(["Path", "Types"])
         self.list.itemClicked.connect(self.on_selection_changed)
         self.list.setColumnWidth(0, 300)
-        self.setWidget(self.list)
+
+        # main layout
+        layout = QVBoxLayout(self.widget)
+        layout.addWidget(self.list)
+        layout.addWidget(swidget)
+        self.setWidget(self.widget)
 
         self.refresh()
+
+    def on_search_clicked(self):
+        dia = SearchDialog(self)
+        out = dia.exec_()
 
     def on_selection_changed(self, item: QTreeWidgetItem):
         path = item.text(0)
@@ -198,6 +227,82 @@ class Library(QDockWidget):
             data = library.entries[path]
             self.list.addTopLevelItem(QTreeWidgetItem([path, " ".join(data.specs)]))
         self.show()
+
+
+class SearchItem(QWidget):
+    """A single search criterion"""
+
+    removed = pyqtSignal(QWidget)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout()
+        self.which = QComboBox(parent=self)
+        self.which.addItems(["..", "spec", "artifact", "content"])
+        self.which.currentTextChanged.connect(self.on_which_changed)
+        layout.addWidget(self.which)
+
+        self.select = QComboBox(parent=self)
+        layout.addWidget(self.select)
+
+        self.x = QPushButton("❌")
+        self.x.clicked.connect(self.on_x_clicked)
+        layout.addWidget(self.x)
+        self.setLayout(layout)
+
+    def on_x_clicked(self, _):
+        self.removed.emit(self)
+
+    def on_which_changed(self, text):
+        self.select.clear()
+        self.select.addItem("..")
+        if text == "spec":
+            self.select.addItems([str(_) for _ in projspec.proj.base.registry])
+        elif text == "artifact":
+            self.select.addItems([str(_) for _ in projspec.artifact.base.registry])
+        elif text == "content":
+            self.select.addItems([str(_) for _ in projspec.content.base.registry])
+
+
+class SearchDialog(QDialog):
+    """Set search criteria"""
+
+    def __init__(self, parent=None, start=None):
+        super().__init__(parent)
+        right = QVBoxLayout()
+        ok = QPushButton("OK")
+        ok.clicked.connect(self.accept)
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.reject)
+        right.addWidget(ok)
+        right.addWidget(cancel)
+        right.addStretch(0)
+
+        mini_layout = QHBoxLayout()
+        add = QPushButton("+")
+        add.clicked.connect(self.on_add)
+        mini_layout.addWidget(add)
+        mini_layout.addStretch(0)
+
+        self.layout = QVBoxLayout()
+        search = SearchItem(self)
+        search.removed.connect(self._on_search_removed)
+        self.layout.addWidget(search)
+        self.layout.addLayout(mini_layout)
+        self.layout.addStretch(0)
+
+        all_layout = QHBoxLayout(self)
+        all_layout.addLayout(self.layout, 1)
+        all_layout.addLayout(right)
+        self.setLayout(all_layout)
+
+    def on_add(self):
+        search = SearchItem(self)
+        search.removed.connect(self._on_search_removed)
+        self.layout.insertWidget(0, search)
+
+    def _on_search_removed(self, search_widget):
+        self.layout.removeWidget(search_widget)
 
 
 def main():
