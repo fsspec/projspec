@@ -6,7 +6,6 @@ from PyQt5.QtWidgets import (
     QMainWindow,
     QTreeWidget,
     QTreeWidgetItem,
-    QVBoxLayout,
     QWidget,
     QStyle,
     QHBoxLayout,
