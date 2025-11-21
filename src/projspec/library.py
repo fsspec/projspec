@@ -52,6 +52,23 @@ class ProjectLibrary:
         with fsspec.open(self.path, "w") as f:
             json.dump(data, f)
 
+    def filter(self, filters: list[tuple[str, str]]) -> dict[str, Project]:
+        return {k: v for k, v in self.entries.items() if _match(v, filters)}
+
+
+# move to Project definition?
+def _match(proj: Project, filters: list[tuple[str, str | tuple[str]]]) -> bool:
+    # TODO: this is all AND, but you can get OR by passing a tuple of values
+    for cat, value in filters:
+        # TODO: make categories an enum
+        if cat == "spec" and value not in proj:
+            return False
+        if cat == "artifact" and not proj.all_artifacts(value):
+            return False
+        if cat == "content" and not proj.all_contents(value):
+            return False
+    return True
+
 
 library = ProjectLibrary()
 library.load()

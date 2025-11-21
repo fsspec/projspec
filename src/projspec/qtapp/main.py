@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
     QDockWidget,
+    QLineEdit,
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import Qt, pyqtSignal  # just Signal in PySide
@@ -31,23 +32,28 @@ class FileBrowserWindow(QMainWindow):
     if that item is a directory and can be interpreted as any project type.
     """
 
-    def __init__(self, path=None, storage_options=None, parent=None):
+    def __init__(self, path=None, parent=None):
         super().__init__(parent)
         self.library = Library()
         if path is None:
             # implicitly local
             path = os.path.expanduser("~")
-        self.fs, self.path = fsspec.url_to_fs(path, **(storage_options or {}))
+        self.fs, self.path = fsspec.url_to_fs(path)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.library)
 
         self.setWindowTitle("Projspec Browser")
         self.setGeometry(100, 100, 950, 600)
 
+        left = QVBoxLayout()
         # Create tree widget
+        self.path_text = QLineEdit(path)
+        self.path_text.returnPressed.connect(self.path_set)
         self.tree = QTreeWidget(self)
         self.tree.setHeaderLabels(["Name", "Size"])
         self.tree.setColumnWidth(0, 300)
         self.tree.setColumnWidth(1, 50)
+        left.addWidget(self.path_text)
+        left.addWidget(self.tree)
 
         # Connect signals
         self.tree.itemExpanded.connect(self.on_item_expanded)
@@ -63,7 +69,7 @@ class FileBrowserWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
         layout = QHBoxLayout(central_widget)
-        layout.addWidget(self.tree)
+        layout.addLayout(left)
         layout.addWidget(self.detail)
         central_widget.setLayout(layout)
 
@@ -73,8 +79,14 @@ class FileBrowserWindow(QMainWindow):
         # Populate with home directory
         self.populate_tree()
 
+    def path_set(self):
+        self.fs, _ = fsspec.url_to_fs(self.path_text.text())
+        self.path = self.path_text.text()
+        self.populate_tree()
+
     def populate_tree(self):
         """Populate the tree with the user's home directory"""
+        self.tree.clear()
         root_item = QTreeWidgetItem(self.tree)
         root_item.setText(0, self.path)
 
@@ -143,7 +155,7 @@ class FileBrowserWindow(QMainWindow):
         detail = item.data(0, Qt.ItemDataRole.UserRole)
         if detail["type"] == "directory":
             path = detail["name"]
-            proj = projspec.Project(path, walk=False)
+            proj = projspec.Project(path, walk=False, fs=self.fs)
             if proj.specs:
                 style = app.style()
                 item.setIcon(0, style.standardIcon(QStyle.SP_FileDialogInfoView))
@@ -216,25 +228,11 @@ class Library(QDockWidget):
     def refresh(self):
         # any refresh reopens the pane if it was closed
         self.list.clear()
-
-        # TODO: this snippet could live in projspec.library
-        for path in sorted(library.entries):
-            data = library.entries[path]
-            good = True
-
-            # TODO: this is an all() kind of operation if we make the condition a function
-            for cat, value in self.dia.search_criteria:
-                if cat == "spec" and value not in data.specs:
-                    good = False
-                    break
-                if cat == "artifact" and not data.all_artifacts(value):
-                    good = False
-                    break
-                if cat == "content" and value not in data.all_contents(value):
-                    good = False
-                    break
-            if good:
-                self.list.addTopLevelItem(QTreeWidgetItem([path, " ".join(data.specs)]))
+        data = library.filter(self.dia.search_criteria)
+        for path in sorted(data):
+            self.list.addTopLevelItem(
+                QTreeWidgetItem([path, " ".join(library.entries[path].specs)])
+            )
         self.show()
 
 

@@ -24,3 +24,19 @@ def test_library(tmp_path):
 
     assert not os.path.exists(fn)
     assert not library.entries
+
+
+def test_filter(tmp_path):
+    fn = str(tmp_path / "library")
+    library = ProjectLibrary(None, auto_save=False)
+    proj = Project(root)
+    library.add_entry(root, proj)
+
+    # empty filter
+    assert library.filter([])
+
+    # filter hit
+    assert library.filter([("spec", "python_library")])
+
+    # miss
+    assert not library.filter([("spec", "xx")])
