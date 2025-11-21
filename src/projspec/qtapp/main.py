@@ -198,12 +198,14 @@ class Library(QDockWidget):
         layout.addWidget(self.list)
         layout.addWidget(swidget)
         self.setWidget(self.widget)
+        self.dia = SearchDialog(self)
+        self.dia.accepted.connect(self.refresh)
+        clear.clicked.connect(self.dia.clear)
 
         self.refresh()
 
     def on_search_clicked(self):
-        dia = SearchDialog(self)
-        out = dia.exec_()
+        self.dia.exec_()
 
     def on_selection_changed(self, item: QTreeWidgetItem):
         path = item.text(0)
@@ -216,7 +218,19 @@ class Library(QDockWidget):
         self.list.clear()
         for path in sorted(library.entries):
             data = library.entries[path]
-            self.list.addTopLevelItem(QTreeWidgetItem([path, " ".join(data.specs)]))
+            good = True
+            for cat, value in self.dia.search_criteria:
+                if cat == "spec" and value not in data.specs:
+                    good = False
+                    break
+                if cat == "artifact" and not data.all_artifacts(value):
+                    good = False
+                    break
+                if cat == "content" and value not in data.all_contents(value):
+                    good = False
+                    break
+            if good:
+                self.list.addTopLevelItem(QTreeWidgetItem([path, " ".join(data.specs)]))
         self.show()
 
 
@@ -231,15 +245,21 @@ class SearchItem(QWidget):
         self.which = QComboBox(parent=self)
         self.which.addItems(["..", "spec", "artifact", "content"])
         self.which.currentTextChanged.connect(self.on_which_changed)
-        layout.addWidget(self.which)
+        layout.addWidget(self.which, 1)
 
         self.select = QComboBox(parent=self)
-        layout.addWidget(self.select)
+        self.select.addItem("..")
+        layout.addWidget(self.select, 1)
 
         self.x = QPushButton("❌")
         self.x.clicked.connect(self.on_x_clicked)
         layout.addWidget(self.x)
         self.setLayout(layout)
+
+    @property
+    def criterion(self):
+        sel = self.select.currentText()
+        return (self.which.currentText(), sel) if sel != ".." else None
 
     def on_x_clicked(self, _):
         self.removed.emit(self)
@@ -260,6 +280,8 @@ class SearchDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.criteria = []
+
         right = QVBoxLayout()
         ok = QPushButton("OK")
         ok.clicked.connect(self.accept)
@@ -288,9 +310,21 @@ class SearchDialog(QDialog):
         search = SearchItem(self)
         search.removed.connect(self._on_search_removed)
         self.layout.insertWidget(0, search)
+        self.criteria.append(search)
+
+    @property
+    def search_criteria(self):
+        return [_.criterion for _ in self.criteria if _.criterion is not None]
+
+    def clear(self):
+        for item in self.criteria:
+            self.layout.removeWidget(item)
+        self.criteria = []
+        self.accepted.emit()
 
     def _on_search_removed(self, search_widget):
         self.layout.removeWidget(search_widget)
+        self.criteria.remove(search_widget)
 
 
 def main():

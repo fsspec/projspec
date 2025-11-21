@@ -20,7 +20,7 @@ class ProjectLibrary:
     def __init__(self, library_path: str | None = None, auto_save: bool = True):
         self.path = library_path or get_conf("library_path")
         self.load()
-        self.entries = {}
+        self.entries: dict[str, Project] = {}
         self.auto_save = auto_save
 
     def load(self):

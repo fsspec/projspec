@@ -215,7 +215,7 @@ class Project:
                 pass
         return {}
 
-    def all_artifacts(self, names=None) -> list:
+    def all_artifacts(self, names: str | None = None) -> list:
         """A flat list of all the artifact objects nested in this project."""
         arts = set(self.artifacts.values())
         for spec in self.specs.values():
