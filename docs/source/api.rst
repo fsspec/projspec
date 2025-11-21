@@ -143,18 +143,22 @@ Utilities
 ---------
 
 .. autosummary::
+   library.ProjectLibrary
    utils.AttrDict
    utils.Enum
    utils.IsInstalled
    utils.get_cls
    proj.base.ParseFailed
+   config.get_conf
 
+.. autoclass:: library.ProjectLibrary
 .. autoclass:: projspec.utils.AttrDict
 .. autoclass:: projspec.utils.Enum
 .. autofunction:: projspec.utils.get_cls
 .. autoclass:: projspec.utils.IsInstalled
    :members:
 .. autoclass:: projspec.proj.base.ParseFailed
+.. autofunction:: config.get_conf
 
 .. raw:: html
 

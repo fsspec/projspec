@@ -16,9 +16,8 @@ class Rust(ProjectSpec):
         with self.proj.fs.open(f"{self.proj.url}/Cargo.toml", "rt") as f:
             meta = toml.load(f)
         self.contents["desciptive_metadata"] = DescriptiveMetadata(
-            proj=self.proj, meta=meta["package"], artifacts=set()
+            proj=self.proj, meta=meta.get("package"), artifacts=set()
         )
-        1
 
 
 class RustPython(Rust, PythonLibrary):

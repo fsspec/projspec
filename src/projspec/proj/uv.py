@@ -124,7 +124,7 @@ class Uv(ProjectSpec):
             try:
                 with self.proj.fs.open(f"{self.proj.url}/.venv/pyvenv.cfg", "rt") as f:
                     txt = f.read()
-                return b"uv =" in txt
+                return "uv =" in txt
             except (OSError, FileNotFoundError):
                 pass
         return False
