@@ -216,9 +216,13 @@ class Library(QDockWidget):
     def refresh(self):
         # any refresh reopens the pane if it was closed
         self.list.clear()
+
+        # TODO: this snippet could live in projspec.library
         for path in sorted(library.entries):
             data = library.entries[path]
             good = True
+
+            # TODO: this is an all() kind of operation if we make the condition a function
             for cat, value in self.dia.search_criteria:
                 if cat == "spec" and value not in data.specs:
                     good = False
