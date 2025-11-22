@@ -38,7 +38,9 @@ class CondaRecipe(ProjectSpec):
                     pass
         if meta is None:
             raise ParseFailed
-        art = CondaPackage(proj=self.proj, cmd=["conda-build", self.proj.url])
+        art = CondaPackage(
+            proj=self.proj, cmd=["conda-build", f"{self.proj.url}/*.conda"]
+        )
         self._artifacts = AttrDict(conda_package=art)
         # TODO: read envs from "outputs" like for Rattler, below?
         #  or use ``conda render`` to "lock" a templated recipe
