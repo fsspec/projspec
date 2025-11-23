@@ -152,6 +152,9 @@ class FileBrowserWindow(QMainWindow):
     def on_item_changed(self, item: QTreeWidgetItem):
         import projspec
 
+        if not item:
+            return
+
         detail = item.data(0, Qt.ItemDataRole.UserRole)
         if detail["type"] == "directory":
             path = detail["name"]
