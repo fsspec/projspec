@@ -60,13 +60,14 @@ class Project:
         :param xtypes: disallow specs whose names are in this set
         :param excludes: directory names to ignore. If None, uses default_excludes.
         """
+        self.path = path
         if fs is None:
             fs, path = fsspec.url_to_fs(path, **(storage_options or {}))
         else:
             storage_options = fs.storage_options
         self.storage_options = storage_options or {}
         self.fs = fs
-        self.url = path
+        self.url = path  # this is the FS-specific veriant
         self.specs = AttrDict()
         self.children = AttrDict()
         self.contents = AttrDict()
@@ -280,7 +281,7 @@ class Project:
             dic = AttrDict(
                 specs=self.specs,
                 children=self.children,
-                url=self.url,
+                url=self.path,
                 storage_options=self.storage_options,
                 artifacts=self.artifacts,
                 contents=self.contents,
@@ -294,6 +295,8 @@ class Project:
     def _repr_html_(self):
         from projspec.html import dict_to_html
 
+        # TODO: add tooltips to docs or spec links
+        # TODO: remove redundant information?
         return dict_to_html(self.to_dict(), title=self.url)
 
     @staticmethod
@@ -307,9 +310,9 @@ class Project:
         proj.children = from_dict(dic["children"], proj)
         proj.contents = from_dict(dic["contents"], proj)
         proj.artifacts = from_dict(dic["artifacts"], proj)
-        proj.url = dic["url"]
+        proj.path = dic["url"]
         proj.storage_options = dic["storage_options"]
-        proj.fs, _ = fsspec.url_to_fs(proj.url, **proj.storage_options)
+        proj.fs, proj.url = fsspec.url_to_fs(proj.path, **proj.storage_options)
         return proj
 
 

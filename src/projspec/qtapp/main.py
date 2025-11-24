@@ -157,7 +157,7 @@ class FileBrowserWindow(QMainWindow):
 
         detail = item.data(0, Qt.ItemDataRole.UserRole)
         if detail["type"] == "directory":
-            path = detail["name"]
+            path = self.fs.unstrip_protocol(detail["name"])
             proj = projspec.Project(path, walk=False, fs=self.fs)
             if proj.specs:
                 style = app.style()
