@@ -67,7 +67,7 @@ class Project:
             storage_options = fs.storage_options
         self.storage_options = storage_options or {}
         self.fs = fs
-        self.url = path  # this is the FS-specific veriant
+        self.url = path  # this is the FS-specific variant
         self.specs = AttrDict()
         self.children = AttrDict()
         self.contents = AttrDict()
