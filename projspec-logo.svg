@@ -1,0 +1,21 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+
+
+  <!-- Main folder icon representing projects -->
+  <path d="M 40 70 L 40 65 C 40 62 42 60 45 60 L 75 60 L 82 67 L 155 67 C 158 67 160 69 160 72 L 160 135 C 160 138 158 140 155 140 L 45 140 C 42 140 40 138 40 135 Z"
+        fill="#2563eb"
+        stroke="#1e40af"
+        stroke-width="2"/>
+
+  <!-- Magnifying glass (interpretation/analysis symbol) -->
+  <circle cx="120" cy="105" r="28" fill="none" stroke="#fff" stroke-width="5"/>
+  <circle cx="120" cy="105" r="28" fill="none" stroke="#1e40af" stroke-width="2.5"/>
+  <line x1="141" y1="126" x2="156" y2="141" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <line x1="141" y1="126" x2="156" y2="141" stroke="#1e40af" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Code brackets inside magnifying glass suggesting spec/metadata -->
+  <text x="120" y="115" font-family="monospace" font-size="26" fill="#fff" text-anchor="middle" font-weight="bold">{}</text>
+
+  <!-- Package name -->
+  <text x="100" y="170" font-family="Arial, sans-serif" font-size="24" fill="#1e40af" text-anchor="middle" font-weight="bold">projspec</text>
+</svg>
