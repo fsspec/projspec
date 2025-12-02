@@ -1,6 +1,5 @@
 import os.path
 import sys
-from pathlib import Path
 
 import fsspec
 from PyQt5.QtWidgets import (
@@ -38,6 +37,8 @@ class FileBrowserWindow(QMainWindow):
         if path is None:
             # implicitly local
             path = os.path.expanduser("~")
+        self.fs: fsspec.AbstractFileSystem
+        self.path: str
         self.fs, self.path = fsspec.url_to_fs(path)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.library)
 
@@ -80,7 +81,11 @@ class FileBrowserWindow(QMainWindow):
         self.populate_tree()
 
     def path_set(self):
-        self.fs, _ = fsspec.url_to_fs(self.path_text.text())
+        try:
+            self.fs, _ = fsspec.url_to_fs(self.path_text.text())
+        except Exception:
+            self.statusBar().showMessage("filesystem instantiation failed")
+            return
         self.path = self.path_text.text()
         self.populate_tree()
 
@@ -119,7 +124,10 @@ class FileBrowserWindow(QMainWindow):
                     # Add dummy child to make it expandable
                     dummy = QTreeWidgetItem(child_item)
                     dummy.setText(0, "Loading...")
-                    if item["name"] in library.entries:
+                    if (
+                        item["name"] in library.entries
+                        or self.fs.unstrip_protocol(item["name"]) in library.entries
+                    ):
                         child_item.setIcon(
                             0, style.standardIcon(QStyle.SP_FileDialogInfoView)
                         )
@@ -234,7 +242,9 @@ class Library(QDockWidget):
         data = library.filter(self.dia.search_criteria)
         for path in sorted(data):
             self.list.addTopLevelItem(
-                QTreeWidgetItem([path, " ".join(library.entries[path].specs)])
+                QTreeWidgetItem(
+                    [path, library.entries[path].text_summary().rsplit(":", 1)[-1]]
+                )
             )
         self.show()
 
