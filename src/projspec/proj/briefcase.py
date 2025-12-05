@@ -48,10 +48,11 @@ class Briefcase(ProjectSpec):
             DMGArtifact,
             IPAArtifact,
             LinuxPKGArtifact,
+            MacOSZipArtifact,
             MSIArtifact,
             PKGArtifact,
             RPMArtifact,
-            ZipArtifact,
+            WebZipArtifact,
         )
 
         briefcase_meta = self.proj.pyproject["tool"]["briefcase"]
@@ -65,7 +66,7 @@ class Briefcase(ProjectSpec):
 
         if sys.platform == "darwin":
             for fmt, Artifact, arg in [
-                ("macOS-app", ZipArtifact, "zip"),
+                ("macOS-app", MacOSZipArtifact, "zip"),
                 ("macOS-dmg", DMGArtifact, "dmg"),
                 ("macOS-pkg", PKGArtifact, "pkg"),
             ]:
@@ -134,16 +135,12 @@ class Briefcase(ProjectSpec):
                     )
 
         elif sys.platform == "windows":
-            for fmt, Artifact, arg in [
-                ("windows-app", ZipArtifact, "zip"),
-                ("windows-msi", MSIArtifact, "msi"),
-            ]:
-                for app in apps:
-                    if supported(apps, app, "windows"):
-                        self._artifacts[fmt] = Artifact(
-                            proj=self.proj,
-                            cmd=["briefcase", "package", "-a", app, "-p", arg],
-                        )
+            for app in apps:
+                if supported(apps, app, "windows"):
+                    self._artifacts["windows-msi"] = MSIArtifact(
+                        proj=self.proj,
+                        cmd=["briefcase", "package", "-a", app, "-p", "msi"],
+                    )
 
         # Android apps can be built on every platform
         for app in apps:
@@ -168,7 +165,7 @@ class Briefcase(ProjectSpec):
         # Web apps can be built on every platform
         for app in apps:
             if supported(apps, app, "web"):
-                self._artifacts["web-zip"] = Artifact(
+                self._artifacts["web-zip"] = WebZipArtifact(
                     proj=self.proj,
                     cmd=[
                         "briefcase",

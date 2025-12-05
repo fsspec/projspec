@@ -68,10 +68,10 @@ class CondaPackage(FileArtifact):
             self.fn = None
 
 
-class ZipArtifact(FileArtifact):
-    """A zipfile artifact"""
+class MacOSZipArtifact(FileArtifact):
+    """A zipped macOS app artifact"""
     def __init__(self, proj, fn=None, **kw):
-        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.zip", **kw)
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.app.zip", **kw)
 
 
 class DMGArtifact(FileArtifact):
@@ -132,3 +132,9 @@ class FlatpakArtifact(FileArtifact):
     """A Linux Flatpak artifact"""
     def __init__(self, proj, fn=None, **kw):
         super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.flatpak", **kw)
+
+
+class WebZipArtifact(FileArtifact):
+    """A static website zipfile artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.web.zip", **kw)
