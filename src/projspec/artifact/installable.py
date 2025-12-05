@@ -66,3 +66,69 @@ class CondaPackage(FileArtifact):
         if self.fn is not None:
             self.proj.fs.rm(self.fn)
             self.fn = None
+
+
+class ZipArtifact(FileArtifact):
+    """A zipfile artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.zip", **kw)
+
+
+class DMGArtifact(FileArtifact):
+    """A macOS DMG artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.dmg", **kw)
+
+
+class PKGArtifact(FileArtifact):
+    """A macOS PKG artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.pkg", **kw)
+
+
+class MSIArtifact(FileArtifact):
+    """A Windows MSI artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.msi", **kw)
+
+
+class AABArtifact(FileArtifact):
+    """An Android AAB artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.aab", **kw)
+
+
+class APKArtifact(FileArtifact):
+    """An Android APK artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.apk", **kw)
+
+
+class IPAArtifact(FileArtifact):
+    """An iOS IPA artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.ipa", **kw)
+
+
+class RPMArtifact(FileArtifact):
+    """A Linux RPM artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.rpm", **kw)
+
+
+class DEBArtifact(FileArtifact):
+    """A Linux DEB artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.deb", **kw)
+
+
+class LinuxPKGArtifact(FileArtifact):
+    """A Linux PKG artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.pkg.tar.zst", **kw)
+
+
+class FlatpakArtifact(FileArtifact):
+    """A Linux Flatpak artifact"""
+    def __init__(self, proj, fn=None, **kw):
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.flatpak", **kw)
