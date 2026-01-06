@@ -5,7 +5,7 @@ from projspec.proj.conda_project import CondaProject
 from projspec.proj.documentation import RTD, MDBook
 from projspec.proj.git import GitRepo
 from projspec.proj.ide import JetbrainsIDE, NvidiaAIWorkbench, VSCode
-from projspec.proj.node import Node
+from projspec.proj.node import JLabExtension, Node, Yarn
 from projspec.proj.pixi import Pixi
 from projspec.proj.poetry import Poetry
 from projspec.proj.pyscript import PyScript
@@ -22,6 +22,7 @@ __all__ = [
     "CondaProject",
     "GitRepo",
     "JetbrainsIDE",
+    "JLabExtension",
     "MDBook",
     "NvidiaAIWorkbench",
     "Node",
@@ -36,4 +37,5 @@ __all__ = [
     "RustPython",
     "Uv",
     "VSCode",
+    "Yarn",
 ]

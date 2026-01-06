@@ -35,6 +35,9 @@ User Classes
     proj.documentation.MDBook
     proj.documentation.RTD
     proj.git.GitRepo
+    proj.node.Node
+    proj.node.Yarn
+    proj.node.JLabExtension
     proj.pixi.Pixi
     proj.python_code.PythonCode
     proj.python_code.PythonLibrary
@@ -53,6 +56,9 @@ User Classes
 .. autoclass:: projspec.proj.documentation.MDBook
 .. autoclass:: projspec.proj.documentation.RTD
 .. autoclass:: projspec.proj.git.GitRepo
+.. autoclass:: projspec.proj.node.Node
+.. autoclass:: projspec.proj.node.Yarn
+.. autoclass:: projspec.proj.node.JLabExtension
 .. autoclass:: projspec.proj.pixi.Pixi
 .. autoclass:: projspec.proj.python_code.PythonCode
 .. autoclass:: projspec.proj.python_code.PythonLibrary
