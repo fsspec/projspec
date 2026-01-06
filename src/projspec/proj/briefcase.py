@@ -5,12 +5,12 @@ from projspec.proj import ProjectSpec
 from projspec.utils import AttrDict
 
 
-def supported(apps, app, *config):
+def supported(apps: dict, app: str, *config) -> bool:
     """Check if an app is supported on a given platform.
 
     Looks in the metadata for app for a `supported` key in each
     level named in config. If there isn't a table for the named config,
-    or the table contains a `supported = false` declaration, the
+    or the table contains a `supported = false` declaration, skip it.
 
     For example, `supported(apps, "foo", "linux", "system")` will check for:
 
@@ -21,17 +21,17 @@ def supported(apps, app, *config):
 
     If any of those results return False, the app isn't supported.
     """
-    platform = apps[app].get(config[0], {"supported": False})
-    supported = platform.get("supported", True)
+    plat = apps[app].get(config[0], {"supported": False})
+    supp = plat.get("supported", True)
     for part in config[1:]:
         try:
-            platform = platform.get(part, {"supported": False})
-            supported &= platform.get("supported", True)
+            plat = plat.get(part, {"supported": False})
+            supp &= plat.get("supported", True)
         except KeyError:
             # Platform config doesn't exist
-            supported = False
+            supp = False
 
-    return supported
+    return supp
 
 
 class Briefcase(ProjectSpec):
@@ -42,115 +42,104 @@ class Briefcase(ProjectSpec):
 
     def parse(self) -> None:
         from projspec.artifact.installable import (
-            AABArtifact,
-            APKArtifact,
-            DEBArtifact,
-            DMGArtifact,
-            IPAArtifact,
-            LinuxPKGArtifact,
-            MacOSZipArtifact,
-            MSIArtifact,
-            PKGArtifact,
-            RPMArtifact,
-            WebZipArtifact,
+            Architecture,
+            SystemInstallablePackage,
+            types,
         )
 
         briefcase_meta = self.proj.pyproject["tool"]["briefcase"]
 
         cont = AttrDict()
         self._contents = cont
-
         self._artifacts = AttrDict()
 
         apps = briefcase_meta.get("app", {})
 
-        if sys.platform == "darwin":
-            for fmt, Artifact, arg in [
-                ("macOS-app", MacOSZipArtifact, "zip"),
-                ("macOS-dmg", DMGArtifact, "dmg"),
-                ("macOS-pkg", PKGArtifact, "pkg"),
-            ]:
-                for app in apps:
-                    if supported(apps, app, "macOS"):
-                        self._artifacts[fmt] = Artifact(
-                            proj=self.proj,
-                            cmd=["briefcase", "package", "-a", app, "-p", arg],
-                        )
+        # TODO: app name is not encoded in the artifact, so multiple outputs
+        #  will overwrite.
+        for app in apps:
+            for filetype in ("zip", "dmg", "pkg"):
+                if supported(apps, app, "macOS"):
+                    self._artifacts[filetype] = SystemInstallablePackage(
+                        proj=self.proj,
+                        ext=filetype,
+                        arch=Architecture.MACOS,
+                        cmd=["briefcase", "package", "-a", app, "-p", filetype],
+                    )
 
             # iOS doesn't produce an artifact directly, but it's included for
             # completeness.
-            for app in apps:
-                if supported(apps, app, "iOS"):
-                    self._artifacts["iOS"] = IPAArtifact(
-                        proj=self.proj,
-                        cmd=["briefcase", "package", "iOS", "-a", app, "-p", "ipa"],
-                    )
+            if supported(apps, app, "iOS"):
+                self._artifacts["iOS"] = SystemInstallablePackage(
+                    proj=self.proj,
+                    ext="ipa",
+                    arch=Architecture.IOS,
+                    cmd=["briefcase", "package", "iOS", "-a", app, "-p", "ipa"],
+                )
 
-        elif sys.platform == "linux":
-            # This only covers natively built packages; these can all be built
-            # via Docker as well.
-            release = platform.freedesktop_os_release()
-            release_id = release["ID"]
-            release_like = release.get("ID_LIKE", "")
+            if supported(apps, app, "linux", "system", "rhel"):
+                self._artifacts["linux-rpm"] = SystemInstallablePackage(
+                    proj=self.proj,
+                    ext="rpm",
+                    arch=Architecture.LINUX,
+                    cmd=["briefcase", "package", "-a", app, "-p", "rpm"],
+                )
+            if supported(apps, app, "linux", "system", "suse"):
+                self._artifacts["linux-rpm"] = SystemInstallablePackage(
+                    proj=self.proj,
+                    ext="rpm",
+                    arch=Architecture.LINUX,
+                    cmd=["briefcase", "package", "-a", app, "-p", "rpm"],
+                )
+            if supported(apps, app, "linux", "system", "debian"):
+                self._artifacts["linux-deb"] = SystemInstallablePackage(
+                    proj=self.proj,
+                    ext="deb",
+                    arch=Architecture.LINUX,
+                    cmd=["briefcase", "package", "-a", app, "-p", "deb"],
+                )
+            if supported(apps, app, "linux", "system", "arch"):
+                self._artifacts["linux-pkg"] = SystemInstallablePackage(
+                    proj=self.proj,
+                    ext="pkg.tar.zstd",
+                    arch=Architecture.LINUX,
+                    cmd=["briefcase", "package", "-a", app, "-p", "pkg"],
+                )
 
-            for app in apps:
-                if release_id == "fedora" or "fedora" in release_like:
-                    if supported(apps, app, "linux", "system", "rhel"):
-                        self._artifacts["linux-rpm"] = Artifact(
-                            proj=self.proj,
-                            cmd=["briefcase", "package", "-a", app, "-p", "rpm"],
-                        )
-                elif "suse" in release_like:
-                    if supported(apps, app, "linux", "system", "suse"):
-                        self._artifacts["linux-rpm"] = Artifact(
-                            proj=self.proj,
-                            cmd=["briefcase", "package", "-a", app, "-p", "rpm"],
-                        )
-                elif release_id == "debian" or "debian" in release_like:
-                    if supported(apps, app, "linux", "system", "debian"):
-                        self._artifacts["linux-deb"] = Artifact(
-                            proj=self.proj,
-                            cmd=["briefcase", "package", "-a", app, "-p", "deb"],
-                        )
-                elif release_id == "arch" or "arch" in release_like:
-                    if supported(apps, app, "linux", "system", "arch"):
-                        self._artifacts["linux-pkg"] = Artifact(
-                            proj=self.proj,
-                            cmd=["briefcase", "package", "-a", app, "-p", "pkg"],
-                        )
+            if supported(apps, app, "linux", "flatpak"):
+                self._artifacts["linux-flatpak"] = SystemInstallablePackage(
+                    proj=self.proj,
+                    ext="flatpack",
+                    arch=Architecture.LINUX,
+                    cmd=[
+                        "briefcase",
+                        "package",
+                        "linux",
+                        "flatpak",
+                        "-a",
+                        app,
+                        "-p",
+                        "flatpak",
+                    ],
+                )
 
-                if supported(apps, app, "linux", "flatpak"):
-                    self._artifacts["linux-flatpak"] = IPAArtifact(
-                        proj=self.proj,
-                        cmd=[
-                            "briefcase",
-                            "package",
-                            "linux",
-                            "flatpak",
-                            "-a",
-                            app,
-                            "-p",
-                            "flatpak",
-                        ],
-                    )
+            if supported(apps, app, "windows"):
+                self._artifacts["windows-msi"] = SystemInstallablePackage(
+                    proj=self.proj,
+                    ext="msi",
+                    arch=Architecture.WINDOWS,
+                    cmd=["briefcase", "package", "-a", app, "-p", "msi"],
+                )
 
-        elif sys.platform == "windows":
-            for app in apps:
-                if supported(apps, app, "windows"):
-                    self._artifacts["windows-msi"] = MSIArtifact(
-                        proj=self.proj,
-                        cmd=["briefcase", "package", "-a", app, "-p", "msi"],
-                    )
-
-        # Android apps can be built on every platform
-        for app in apps:
             if supported(apps, app, "android"):
                 for fmt, Artifact, arg in [
-                    ("android-aab", AABArtifact, "aab"),
-                    ("android-apk", APKArtifact, "apk"),
+                    ("android-aab", SystemInstallablePackage, "aab"),
+                    ("android-apk", SystemInstallablePackage, "apk"),
                 ]:
                     self._artifacts[fmt] = Artifact(
                         proj=self.proj,
+                        ext=fmt,
+                        arch=Architecture.ANDROID,
                         cmd=[
                             "briefcase",
                             "package",
@@ -162,11 +151,11 @@ class Briefcase(ProjectSpec):
                         ],
                     )
 
-        # Web apps can be built on every platform
-        for app in apps:
             if supported(apps, app, "web"):
-                self._artifacts["web-zip"] = WebZipArtifact(
+                self._artifacts["web-zip"] = SystemInstallablePackage(
                     proj=self.proj,
+                    ext="web.zip",
+                    arch=Architecture.WEB,
                     cmd=[
                         "briefcase",
                         "package",
