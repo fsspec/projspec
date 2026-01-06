@@ -1,6 +1,3 @@
-import platform
-import sys
-
 from projspec.proj import ProjectSpec
 from projspec.utils import AttrDict
 
@@ -44,7 +41,6 @@ class Briefcase(ProjectSpec):
         from projspec.artifact.installable import (
             Architecture,
             SystemInstallablePackage,
-            types,
         )
 
         briefcase_meta = self.proj.pyproject["tool"]["briefcase"]
