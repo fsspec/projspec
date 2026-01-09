@@ -13,6 +13,10 @@ This is implemented first in the context of the python-data ecosystem, so we
 will be concerned with project types that are common in this field, but in
 principle a wide range of things.
 
+Introduction to projspec presented at PyData Global 2025:
+[video](https://www.youtube.com/watch?v=cZi3diO7td0&list=PLGVZCDnMOq0qmerwB1eITnr5AfYRGm0DF&index=36)
+[slides](https://docs.google.com/presentation/d/1AdQuMevqLKJeT9HSS5_4G9Jddz7NHoYUn1l6wk_a-jI/edit?usp=sharing)
+
 ### Niche
 
 There are a large number of project-oriented tools already in existence,
