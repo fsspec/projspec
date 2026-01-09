@@ -1,4 +1,5 @@
 from projspec.proj.base import ParseFailed, Project, ProjectSpec
+from projspec.proj.briefcase import Briefcase
 from projspec.proj.conda_package import CondaRecipe, RattlerRecipe
 from projspec.proj.conda_project import CondaProject
 from projspec.proj.documentation import RTD, MDBook
@@ -16,6 +17,7 @@ __all__ = [
     "ParseFailed",
     "Project",
     "ProjectSpec",
+    "Briefcase",
     "CondaRecipe",
     "CondaProject",
     "GitRepo",

@@ -28,6 +28,7 @@ User Classes
 ~~~~~~~~~~~~
 
 .. autosummary::
+    proj.briefcase.Briefcase
     proj.conda_package.CondaRecipe
     proj.conda_package.RattlerRecipe
     proj.conda_project.CondaProject
@@ -49,6 +50,7 @@ User Classes
     proj.uv.Uv
 
 
+.. autoclass:: projspec.proj.briefcase.Briefcase
 .. autoclass:: projspec.proj.conda_package.CondaRecipe
 .. autoclass:: projspec.proj.conda_package.RattlerRecipe
 .. autoclass:: projspec.proj.conda_project.CondaProject
@@ -129,6 +131,7 @@ User Classes
 
 .. autosummary::
     artifact.installable.CondaPackage
+    artifact.installable.SystemInstallablePackage
     artifact.installable.Wheel
     artifact.process.Process
     artifact.python_env.CondaEnv
@@ -137,6 +140,7 @@ User Classes
     artifact.python_env.VirtualEnv
 
 .. autoclass:: projspec.artifact.installable.CondaPackage
+.. autoclass:: projspec.artifact.installable.SystemInstallablePackage
 .. autoclass:: projspec.artifact.installable.Wheel
 .. autoclass:: projspec.artifact.process.Process
 .. autoclass:: projspec.artifact.python_env.CondaEnv
