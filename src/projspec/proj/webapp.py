@@ -21,12 +21,12 @@ class StreamlitApp(ProjectSpec):
         # project do not share an environment.
         if "environment" not in self.proj.contents:
             # just because of ordering
-            if PythonRequirements.match(self):
-                PythonRequirements(self.proj)
-            if CondaEnv.match(self):
-                CondaEnv(self.proj)
-        if "environment" in self.proj.contents:
-            self._contents["environment"] = self.proj.contents["environment"]
+            for cls in (PythonRequirements, CondaEnv):
+                if cls.match(self):
+                    p = cls(self.proj)
+                    p.parse()
+                    self._contents["environment"] = p.contents["environment"]
+                    break
 
         # the common case is a single .py file
         pyfiles = [v for v in self.proj.basenames if v.endswith(".py")]
