@@ -23,3 +23,9 @@ class Process(BaseArtifact):
             self.proc.terminate()
             self.proc.wait()
             self.proc = None
+
+
+class Server(Process):
+    """A process that is designed to stay running and serve requests, usually over HTTP"""
+
+    pass

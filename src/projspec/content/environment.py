@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from enum import auto
 
+from projspec.proj.base import ProjectExtra
 from projspec.content import BaseContent
 from projspec.utils import Enum
 
@@ -40,3 +41,54 @@ class Environment(BaseContent):
         if not self.channels:
             out.pop("channels", None)
         return out
+
+
+# TODO: if a project has both requirements and environment.yml, one will overwrite the other
+class PythonRequirements(ProjectExtra):
+    spec_doc = "https://pip.pypa.io/en/stable/reference/requirements-file-format/"
+
+    def match(self) -> bool:
+        return "requirements.txt" in self.proj.basenames
+
+    def parse(self) -> None:
+        deps = self.proj.fs.read_text(
+            self.proj.basenames["requirements.txt"]
+        ).splitlines()
+        precision = Precision.LOCK if all("==" in _ for _ in deps) else Precision.SPEC
+        self.contents["environment"] = Environment(
+            stack=Stack.PIP,
+            precision=precision,
+            packages=deps,
+            proj=self.proj,
+            artifacts=set(),
+        )
+
+
+class CondaEnv(ProjectExtra):
+    spec_doc = (
+        "https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/"
+        "manage-environments.html#create-env-file-manually"
+    )
+
+    def match(self) -> bool:
+        return (
+            "environment.yaml" in self.proj.basenames
+            or "environment.yml" in self.proj.basenames
+        )
+
+    def parse(self) -> None:
+        import yaml
+
+        u = self.proj.basenames.get(
+            "environment.yaml", self.proj.basenames.get("environment.yml")
+        )
+        deps = yaml.load(self.proj.fs.open(u, "rt"))
+        # TODO: split out pip deps
+        self.contents["environment"] = Environment(
+            stack=Stack.CONDA,
+            precision=Precision.SPEC,
+            packages=deps,
+            channels=deps.get("channels"),
+            proj=self.proj,
+            artifacts=set(),
+        )
