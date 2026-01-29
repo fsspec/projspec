@@ -12,6 +12,7 @@ from projspec.proj.pyscript import PyScript
 from projspec.proj.python_code import PythonCode, PythonLibrary
 from projspec.proj.rust import Rust, RustPython
 from projspec.proj.uv import Uv
+from projspec.proj.webapp import Streamlit
 
 __all__ = [
     "ParseFailed",
@@ -35,6 +36,7 @@ __all__ = [
     "RTD",
     "Rust",
     "RustPython",
+    "Streamlit",
     "Uv",
     "VSCode",
     "Yarn",
