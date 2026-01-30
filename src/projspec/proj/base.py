@@ -176,6 +176,8 @@ class Project:
             self.fs.unstrip_protocol(self.url),
             "\n\n".join(str(_) for _ in self.specs.values()),
         )
+        if self.contents or self.artifacts:
+            txt += "\n\n<GLOBAL>\n"
         if self.contents:
             ch = "\n".join([f" {k}: {v}" for k, v in self.contents.items()])
             txt += f"\nContents:\n{ch}"

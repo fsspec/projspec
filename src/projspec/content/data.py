@@ -21,4 +21,4 @@ class IntakeCatalog(BaseContent):
     See https://intake.readthedocs.io/en/latest/
     """
 
-    # typically in a catalog.yaml free-floating file
+    # typically in a catalog.y[a]ml free-floating file
