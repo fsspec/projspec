@@ -82,7 +82,7 @@ class CondaEnv(ProjectExtra):
         u = self.proj.basenames.get(
             "environment.yaml", self.proj.basenames.get("environment.yml")
         )
-        deps = yaml.load(self.proj.fs.open(u, "rt"))
+        deps = yaml.safe_load(self.proj.fs.open(u, "rt"))
         # TODO: split out pip deps
         self.contents["environment"] = Environment(
             stack=Stack.CONDA,

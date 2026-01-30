@@ -53,3 +53,9 @@ class Streamlit(ProjectSpec):
                         proj=self.proj,
                         cmd=["streamlit", "run", path.replace(self.proj.url, "")],
                     )
+
+
+# TODO: the following are similar to streamlit, but with perhaps even less metadata
+# - plotly/dash (from dash import Dash; app = Dash(); app.run())
+# - voila (this is just a way to display a notebook)
+# - panel (import panel as pn; .servable())
