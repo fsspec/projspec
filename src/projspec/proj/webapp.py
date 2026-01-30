@@ -90,6 +90,8 @@ class Streamlit(ProjectSpec):
 
 
 # TODO: the following are similar to streamlit, but with perhaps even less metadata
+# - flask (from flask import Flask; app = Flask( )
+# - fastapi (from fastapi import FastAPI; app = FastAPI( )
 # - plotly/dash (from dash import Dash; app = Dash(); app.run())
 # - voila (this is just a way to display a notebook)
 # - panel (import panel as pn; .servable())

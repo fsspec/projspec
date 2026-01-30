@@ -46,6 +46,7 @@ User Classes
     proj.pyscript.PyScript
     proj.rust.Rust
     proj.rust.RustPython
+    proj.webapp.Django
     proj.webapp.Streamlit
     proj.uv.UvScript
     proj.uv.Uv
@@ -69,6 +70,7 @@ User Classes
 .. autoclass:: projspec.proj.pyscript.PyScript
 .. autoclass:: projspec.proj.rust.Rust
 .. autoclass:: projspec.proj.rust.RustPython
+.. autoclass:: projspec.proj.webapp.Django
 .. autoclass:: projspec.proj.webapp.Streamlit
 .. autoclass:: projspec.proj.uv.UvScript
 .. autoclass:: projspec.proj.uv.Uv
