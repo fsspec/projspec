@@ -27,6 +27,9 @@ import projspec.proj
 @click.option("--walk", is_flag=True, help="To descend into all child directories")
 @click.option("--summary", is_flag=True, help="Show abbreviated output")
 @click.option(
+    "--json-out", is_flag=True, default=False, help="JSON output, for projects only"
+)
+@click.option(
     "--make", help="(Re)Create the first artifact found matching this type name"
 )
 @click.option(
@@ -38,7 +41,7 @@ import projspec.proj
     default="",
     help="storage options dict for the given URL, as JSON",
 )
-def main(path, types, xtypes, walk, summary, make, info, storage_options):
+def main(path, types, xtypes, walk, summary, json_out, make, info, storage_options):
     if types in {"ALL", ""}:
         types = None
     else:
@@ -76,6 +79,8 @@ def main(path, types, xtypes, walk, summary, make, info, storage_options):
         print("No such artifact found")
     elif summary:
         print(proj.text_summary())
+    elif json_out:
+        print(json.dumps(proj.to_dict(compact=True)))
     else:
         print(proj)
 

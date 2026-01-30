@@ -39,7 +39,7 @@ class RTD(ProjectSpec):
         # point to a requirements.txt or environment.yaml for conda env.
 
         # Artifact of HTML output. Classically with `make html` (in docs/ unless otherwise
-        # specified), and the output goes into docs/build/html unless the conf.py file says different.
-        # RTD actually does
+        # specified), and the output goes into docs/build/html unless the config.py file
+        # says different. RTD actually does
         # > python -m sphinx -T -W --keep-going -b html -d _build/doctrees -D language=en . $READTHEDOCS_OUTPUT/html
         pass

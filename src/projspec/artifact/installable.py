@@ -1,8 +1,11 @@
+from enum import auto
 import logging
 import os.path
 import subprocess
+from platform import architecture
 
 from projspec.artifact import FileArtifact
+from projspec.utils import Enum
 
 logger = logging.getLogger("projspec")
 
@@ -66,3 +69,37 @@ class CondaPackage(FileArtifact):
         if self.fn is not None:
             self.proj.fs.rm(self.fn)
             self.fn = None
+
+
+class Architecture(Enum):
+    ANDROID = "android"
+    IOS = "iOS"
+    LINUX = "linux"
+    MACOS = "macOS"
+    WEB = "web"
+    WINDOWS = "windows"
+
+
+types = {
+    "aap": Architecture.ANDROID,
+    "apk": Architecture.ANDROID,
+    "deb": Architecture.LINUX,
+    "dmg": Architecture.MACOS,
+    "flatpak": Architecture.LINUX,
+    "ipa": Architecture.IOS,
+    "app.zip": Architecture.MACOS,
+    "msi": Architecture.WINDOWS,
+    "pkg": Architecture.MACOS,
+    "pkg.tar.zst": Architecture.LINUX,
+    "rpm": Architecture.LINUX,
+    "web.zip": Architecture.WEB,
+}
+
+
+class SystemInstallablePackage(FileArtifact):
+    """An Installable system package"""
+
+    def __init__(self, proj, ext: str, fn=None, arch=None, **kw):
+        self.arch = arch or types[ext]
+        self.filetype = ext
+        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.{ext}", **kw)

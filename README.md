@@ -13,6 +13,10 @@ This is implemented first in the context of the python-data ecosystem, so we
 will be concerned with project types that are common in this field, but in
 principle a wide range of things.
 
+Introduction to projspec presented at PyData Global 2025:
+[video](https://www.youtube.com/watch?v=cZi3diO7td0&list=PLGVZCDnMOq0qmerwB1eITnr5AfYRGm0DF&index=36)
+[slides](https://docs.google.com/presentation/d/1AdQuMevqLKJeT9HSS5_4G9Jddz7NHoYUn1l6wk_a-jI/edit?usp=sharing)
+
 ### Niche
 
 There are a large number of project-oriented tools already in existence,
@@ -76,4 +80,4 @@ Work on this repository is supported in part by:
 
 "Anaconda, Inc. - Advancing AI through open source."
 
-<a href="https://anaconda.com/"><img src="https://camo.githubusercontent.com/b8555ef2222598ed37ce38ac86955febbd25de7619931bb7dd3c58432181d3b6/68747470733a2f2f626565776172652e6f72672f636f6d6d756e6974792f6d656d626572732f616e61636f6e64612f616e61636f6e64612d6c617267652e706e67" alt="anaconda logo" width="40%"/></a>
+<a href="https://anaconda.com/"><img src="https://www.anaconda.com/wp-content/uploads/2024/11/2020_Anaconda_Logo_RGB_Corporate.png" alt="anaconda logo" width="40%"/></a>

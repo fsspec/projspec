@@ -32,6 +32,12 @@ class ParseFailed(ValueError):
 
 
 class Project:
+    """Top level representation of a project directory
+
+    This holds any parsed project metadata specs, top level contents and artifacts and
+    any project details from nested child directories.
+    """
+
     def __init__(
         self,
         path: str,
@@ -54,13 +60,14 @@ class Project:
         :param xtypes: disallow specs whose names are in this set
         :param excludes: directory names to ignore. If None, uses default_excludes.
         """
+        self.path = path
         if fs is None:
             fs, path = fsspec.url_to_fs(path, **(storage_options or {}))
         else:
             storage_options = fs.storage_options
         self.storage_options = storage_options or {}
         self.fs = fs
-        self.url = path
+        self.url = path  # this is the FS-specific variant
         self.specs = AttrDict()
         self.children = AttrDict()
         self.contents = AttrDict()
@@ -169,6 +176,8 @@ class Project:
             self.fs.unstrip_protocol(self.url),
             "\n\n".join(str(_) for _ in self.specs.values()),
         )
+        if self.contents or self.artifacts:
+            txt += "\n\n<GLOBAL>\n"
         if self.contents:
             ch = "\n".join([f" {k}: {v}" for k, v in self.contents.items()])
             txt += f"\nContents:\n{ch}"
@@ -209,13 +218,14 @@ class Project:
                 pass
         return {}
 
-    def all_artifacts(self, names=None) -> list:
+    def all_artifacts(self, names: str | None = None) -> list:
         """A flat list of all the artifact objects nested in this project."""
         arts = set(self.artifacts.values())
         for spec in self.specs.values():
             arts.update(flatten(spec.artifacts))
         for child in self.children.values():
             arts.update(child.artifacts)
+        arts.update(self.artifacts.values())
         if names:
             if isinstance(names, str):
                 names = {names}
@@ -236,19 +246,50 @@ class Project:
         types = tuple(types)
         return any(isinstance(_, types) for _ in self.all_artifacts())
 
+    def all_contents(self, names=None) -> list:
+        """A flat list of all the content objects nested in this project."""
+        cont = set(self.contents.values())
+        for spec in self.specs.values():
+            cont.update(flatten(spec.contents))
+        for child in self.children.values():
+            cont.update(child.contents)
+        cont.update(self.contents.values())
+        if names:
+            if isinstance(names, str):
+                names = {names}
+            cont = [
+                a
+                for a in cont
+                if any(a.snake_name() == camel_to_snake(n) for n in names)
+            ]
+        else:
+            cont = list(cont)
+        return cont
+
+    def has_content_type(self, types: Iterable[type]) -> bool:
+        """Answers 'does this project support outputting the given content type'
+
+        This is an experimental example of filtering through projects
+        """
+        types = tuple(types)
+        return any(isinstance(_, types) for _ in self.all_contents())
+
     def __contains__(self, item) -> bool:
         """Is the given project type supported ANYWHERE in this directory?"""
         return item in self.specs or any(item in _ for _ in self.children.values())
 
     def to_dict(self, compact=True) -> dict:
-        dic = AttrDict(
-            specs=self.specs,
-            children=self.children,
-            url=self.url,
-            storage_options=self.storage_options,
-            artifacts=self.artifacts,
-            contents=self.contents,
-        )
+        try:
+            dic = AttrDict(
+                specs=self.specs,
+                children=self.children,
+                url=self.path,
+                storage_options=self.storage_options,
+                artifacts=self.artifacts,
+                contents=self.contents,
+            )
+        except AttributeError:
+            print(list(self.__dict__.keys()))
         if not compact:
             dic["klass"] = "project"
         return dic.to_dict(compact=compact)
@@ -256,6 +297,8 @@ class Project:
     def _repr_html_(self):
         from projspec.html import dict_to_html
 
+        # TODO: add tooltips to docs or spec links
+        # TODO: remove redundant information?
         return dict_to_html(self.to_dict(), title=self.url)
 
     @staticmethod
@@ -267,9 +310,11 @@ class Project:
         proj = object.__new__(Project)
         proj.specs = from_dict(dic["specs"], proj)
         proj.children = from_dict(dic["children"], proj)
-        proj.url = dic["url"]
+        proj.contents = from_dict(dic["contents"], proj)
+        proj.artifacts = from_dict(dic["artifacts"], proj)
+        proj.path = dic["url"]
         proj.storage_options = dic["storage_options"]
-        proj.fs, _ = fsspec.url_to_fs(proj.url, **proj.storage_options)
+        proj.fs, proj.url = fsspec.url_to_fs(proj.path, **proj.storage_options)
         return proj
 
 
@@ -357,8 +402,7 @@ class ProjectSpec:
             _contents=self.contents,
             _artifacts=self.artifacts,
         )
-        if self.subpath:
-            dic["subpath"] = self.subpath
+        dic["subpath"] = self.subpath
         if not compact:
             dic["klass"] = ["projspec", self.snake_name()]
         return dic.to_dict(compact=compact)

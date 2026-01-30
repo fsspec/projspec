@@ -28,12 +28,17 @@ User Classes
 ~~~~~~~~~~~~
 
 .. autosummary::
+    proj.briefcase.Briefcase
     proj.conda_package.CondaRecipe
     proj.conda_package.RattlerRecipe
     proj.conda_project.CondaProject
+    artifact.container.Docker
     proj.documentation.MDBook
     proj.documentation.RTD
     proj.git.GitRepo
+    proj.node.Node
+    proj.node.Yarn
+    proj.node.JLabExtension
     proj.pixi.Pixi
     proj.python_code.PythonCode
     proj.python_code.PythonLibrary
@@ -41,16 +46,22 @@ User Classes
     proj.pyscript.PyScript
     proj.rust.Rust
     proj.rust.RustPython
+    proj.webapp.Streamlit
     proj.uv.UvScript
     proj.uv.Uv
 
 
+.. autoclass:: projspec.proj.briefcase.Briefcase
 .. autoclass:: projspec.proj.conda_package.CondaRecipe
 .. autoclass:: projspec.proj.conda_package.RattlerRecipe
 .. autoclass:: projspec.proj.conda_project.CondaProject
+.. autoclass:: projspec.artifact.container.Docker
 .. autoclass:: projspec.proj.documentation.MDBook
 .. autoclass:: projspec.proj.documentation.RTD
 .. autoclass:: projspec.proj.git.GitRepo
+.. autoclass:: projspec.proj.node.Node
+.. autoclass:: projspec.proj.node.Yarn
+.. autoclass:: projspec.proj.node.JLabExtension
 .. autoclass:: projspec.proj.pixi.Pixi
 .. autoclass:: projspec.proj.python_code.PythonCode
 .. autoclass:: projspec.proj.python_code.PythonLibrary
@@ -58,6 +69,7 @@ User Classes
 .. autoclass:: projspec.proj.pyscript.PyScript
 .. autoclass:: projspec.proj.rust.Rust
 .. autoclass:: projspec.proj.rust.RustPython
+.. autoclass:: projspec.proj.webapp.Streamlit
 .. autoclass:: projspec.proj.uv.UvScript
 .. autoclass:: projspec.proj.uv.Uv
 
@@ -121,6 +133,7 @@ User Classes
 
 .. autosummary::
     artifact.installable.CondaPackage
+    artifact.installable.SystemInstallablePackage
     artifact.installable.Wheel
     artifact.process.Process
     artifact.python_env.CondaEnv
@@ -129,6 +142,7 @@ User Classes
     artifact.python_env.VirtualEnv
 
 .. autoclass:: projspec.artifact.installable.CondaPackage
+.. autoclass:: projspec.artifact.installable.SystemInstallablePackage
 .. autoclass:: projspec.artifact.installable.Wheel
 .. autoclass:: projspec.artifact.process.Process
 .. autoclass:: projspec.artifact.python_env.CondaEnv
@@ -141,18 +155,22 @@ Utilities
 ---------
 
 .. autosummary::
+   library.ProjectLibrary
    utils.AttrDict
    utils.Enum
    utils.IsInstalled
    utils.get_cls
    proj.base.ParseFailed
+   config.get_conf
 
+.. autoclass:: projspec.library.ProjectLibrary
 .. autoclass:: projspec.utils.AttrDict
 .. autoclass:: projspec.utils.Enum
 .. autofunction:: projspec.utils.get_cls
 .. autoclass:: projspec.utils.IsInstalled
    :members:
 .. autoclass:: projspec.proj.base.ParseFailed
+.. autofunction:: projspec.config.get_conf
 
 .. raw:: html
 
