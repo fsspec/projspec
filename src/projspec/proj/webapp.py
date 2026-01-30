@@ -1,4 +1,38 @@
-from projspec.proj import ProjectSpec
+from projspec.proj import ProjectSpec, ParseFailed
+
+
+class Django(ProjectSpec):
+    """A python web app using the django framework"""
+
+    def match(self):
+        return "manage.py" in self.proj.basenames
+
+    def parse(self) -> None:
+        from projspec.artifact.process import Server
+
+        # global settings are in ./*/settings.py in a directory also containing urls.py
+        # the top-level; manage.py may have the line to locate it:
+        # os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mysite.settings")
+        # and "mysite" is the suggestion in the tutorials;
+        # can also be given as --settings to manage.py
+        allpy = self.proj.fs.glob(f"{self.proj.url}/*/*.py")
+
+        # We could also choose to parse the settings or URLs - but they are required
+        s_dirs = {_.rsplit("/", 1)[0] for _ in allpy if _.endswith("settings.py")}
+        u_dirs = {_.rsplit("/", 1)[0] for _ in allpy if _.endswith("urls.py")}
+        maindir = s_dirs.intersection(u_dirs)
+        if not maindir:
+            raise ParseFailed
+
+        # each site is a subdirectory with admin.py and other stuff, typically
+        # each mapped to a different sub-URL.
+        appdirs = [_.rsplit("/", 2)[-2] for _ in allpy if _.endswith("admin.py")]
+        if appdirs:
+            self.contents["apps"] = appdirs
+
+        self.artifacts["server"] = Server(
+            proj=self.proj, cmd=["python", "manage.py", "runserver"]
+        )
 
 
 class Streamlit(ProjectSpec):
@@ -59,3 +93,4 @@ class Streamlit(ProjectSpec):
 # - plotly/dash (from dash import Dash; app = Dash(); app.run())
 # - voila (this is just a way to display a notebook)
 # - panel (import panel as pn; .servable())
+# Each of these takes extra parameters for listen address and port at least.
