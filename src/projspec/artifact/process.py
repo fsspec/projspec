@@ -9,9 +9,9 @@ class Process(BaseArtifact):
     Can include batch jobs and long-running services.
     """
 
-    def _make(self):
+    def _make(self, **kwargs):
         if self.proc is None:
-            self.proc = subprocess.Popen(self.cmd, **self.kw)
+            self.proc = subprocess.Popen(self.cmd, **kwargs)
 
     def _is_done(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
