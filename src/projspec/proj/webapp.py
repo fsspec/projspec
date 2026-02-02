@@ -89,6 +89,50 @@ class Streamlit(ProjectSpec):
                     )
 
 
+class Marimo(ProjectSpec):
+    """Reactive Python notebook and webapp served in the browser"""
+
+    spec_doc = "https://docs.marimo.io/"
+
+    def match(self) -> bool:
+        # marimo notebooks are .py files with specific imports at the top
+        pyfiles = [fn for fn in self.proj.basenames if fn.endswith(".py")]
+        if not pyfiles:
+            return False
+        # quick check for marimo import in any .py file
+        for fn in pyfiles:
+            path = self.proj.basenames[fn]
+            try:
+                with self.proj.fs.open(path, "rb") as f:
+                    header = f.read(500)
+                    if b"import marimo" in header or b"from marimo" in header:
+                        return True
+            except OSError:
+                continue
+        return False
+
+    def parse(self) -> None:
+        from projspec.artifact.process import Server
+
+        # marimo notebooks contain `import marimo` and `marimo.App(` or `= App(`
+        pyfiles = self.proj.fs.glob(f"{self.proj.url}/**/*.py")
+        pycontent = self.proj.fs.cat(pyfiles)
+        self.artifacts["server"] = {}
+        for path, content in pycontent.items():
+            content = content.decode()
+            has_import = "import marimo" in content or "from marimo" in content
+            has_app = "marimo.App(" in content or "= App(" in content
+            if has_import and has_app:
+                name = path.rsplit("/", 1)[-1].replace(".py", "")
+                self.artifacts["server"][name] = Server(
+                    proj=self.proj,
+                    cmd=["marimo", "run", path.replace(self.proj.url, "").lstrip("/")],
+                )
+
+        if not self.artifacts["server"]:
+            raise ParseFailed("No marimo notebooks found")
+
+
 # TODO: the following are similar to streamlit, but with perhaps even less metadata
 # - flask (from flask import Flask; app = Flask( )
 # - fastapi (from fastapi import FastAPI; app = FastAPI( )
