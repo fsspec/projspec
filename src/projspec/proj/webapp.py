@@ -1,8 +1,14 @@
+import os
+import subprocess
+
 from projspec.proj import ProjectSpec, ParseFailed
 
 
 class Django(ProjectSpec):
     """A python web app using the django framework"""
+
+    # this is the metadata settings reference
+    spec_doc = "https://docs.djangoproject.com/en/6.0/ref/settings/"
 
     def match(self):
         return "manage.py" in self.proj.basenames
@@ -34,6 +40,14 @@ class Django(ProjectSpec):
             proj=self.proj, cmd=["python", "manage.py", "runserver"]
         )
 
+    @staticmethod
+    def _create(path, sitename="mysite", appname="myapp"):
+        os.makedirs(path, exist_ok=True)
+        cmd = ["python", "-m", "django", "startproject", sitename, path]
+        subprocess.check_call(cmd, cwd=path)
+        cmd = ["python", f"{path}/manage.py", "startapp", appname]
+        subprocess.check_call(cmd, cwd=path)
+
 
 class Streamlit(ProjectSpec):
     """Interactive graphical app served in the browser, with streamlit components"""
@@ -47,6 +61,29 @@ class Streamlit(ProjectSpec):
         return bool(
             {".streamlit", "streamlit_app.py"}.intersection(self.proj.basenames)
         )
+
+    @staticmethod
+    def _create(path):
+        os.makedirs(f"{path}/.streamlit", exist_ok=True)
+        with open(f"{path}/.streamlit/config.toml", "wt") as f:
+            f.write(
+                """
+                [global]
+
+                [logger]
+                level = "info"
+
+                [server]
+                headless = true
+                """
+            )
+        with open(f"{path}/streamlit_app.py", "wt") as f:
+            f.write(
+                """
+                import streamlit as st
+                st.title("Streamlit minimal app")
+                """
+            )
 
     def parse(self) -> None:
         from projspec.content.environment import PythonRequirements, CondaEnv
