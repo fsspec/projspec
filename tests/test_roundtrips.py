@@ -1,12 +1,16 @@
 import pytest
 
 import projspec.proj
+from projspec.utils import get_cls
 
 
-@pytest.mark.parametrize("cls_name", ["django", "streamlit"])
+@pytest.mark.parametrize(
+    "cls_name",
+    ["django", "streamlit", "python_code", "python_library", "JLabExtension"],
+)
 def test_compliant(tmpdir, cls_name):
     path = str(tmpdir)
-    cls = projspec.proj.base.registry[cls_name]
+    cls = get_cls(cls_name)
     proj = cls.create(path)
     assert cls_name in proj
 

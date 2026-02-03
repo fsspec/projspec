@@ -13,6 +13,7 @@ from projspec.utils import (
     IndentDumper,
     PickleableTomlDecoder,
     camel_to_snake,
+    get_cls,
     flatten,
 )
 
@@ -277,6 +278,7 @@ class Project:
 
     def __contains__(self, item) -> bool:
         """Is the given project type supported ANYWHERE in this directory?"""
+        item = camel_to_snake(item)
         return item in self.specs or any(item in _ for _ in self.children.values())
 
     def to_dict(self, compact=True) -> dict:
@@ -320,7 +322,7 @@ class Project:
 
     def create(self, name: str) -> Self:
         """Make this project conform to the given project spec type."""
-        cls = registry[name]
+        cls = get_cls(name)
         # causes reparse and makes a new instance
         # could rerun resolve or only parse for give type and add, instead.
         return cls.create(self.path)
@@ -393,8 +395,8 @@ class ProjectSpec:
         # TODO: implement dry-run?
         import os.path
 
-        if not cls.snake_name in Project(path):
-            os.makedirs(path, exist_ok=True)
+        os.makedirs(path, exist_ok=True)
+        if not cls.snake_name() in Project(path):
             cls._create(path)
         # perhaps should return ProjSpec, but it needs to be added to a project
         return Project(path)

@@ -64,6 +64,7 @@ class Streamlit(ProjectSpec):
 
     @staticmethod
     def _create(path):
+        # `streamlit init` does this, without the toml file.
         os.makedirs(f"{path}/.streamlit", exist_ok=True)
         with open(f"{path}/.streamlit/config.toml", "wt") as f:
             f.write(
@@ -82,8 +83,15 @@ class Streamlit(ProjectSpec):
                 """
                 import streamlit as st
                 st.title("Streamlit minimal app")
+                st.write("Hello world!")
                 """
             )
+        if not os.path.exists(f"{path}/requirements.txt"):
+            with open(f"{path}/requirements.txt", "wt") as f:
+                f.write("streamlit")
+        elif "streamlit" not in open(f"{path}/requirements.txt").read():
+            with open(f"{path}/requirements.txt", "at") as f:
+                f.write("\nstreamlit")
 
     def parse(self) -> None:
         from projspec.content.environment import PythonRequirements, CondaEnv

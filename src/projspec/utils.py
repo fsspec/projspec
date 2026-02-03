@@ -205,6 +205,24 @@ class IsInstalled:
 
 is_installed = IsInstalled()
 
+
+def run_subprocess(cmd, cwd=None, env=None, output=True, popen=False):
+    """Common way to run subprocesses, first checking for command existence
+
+    This is convenient because command existence can be cached, and so it's much
+    faster to do the lookup and give a reasonable error message.
+    """
+    # TODO: we want to swap out direct calls to subprocess
+    if cmd[0] not in is_installed:
+        raise RuntimeError(f"Command {cmd[0]} not installed in current environment")
+    if popen:
+        return subprocess.Popen(
+            cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
+    # returns CompletedProcess with stdout, stderr as attributes
+    return subprocess.run(cmd, cwd=cwd, env=env, capture_output=output, check=True)
+
+
 # {% set sha256 = "fff" %}
 sj = re.compile(r'{%\s+set\s+(\S+)\s+=\s+"(.*)"\s+%}')
 
@@ -321,6 +339,7 @@ def get_get_cls(registry="proj"):
     import projspec
 
     reg_map = {
+        "proj": projspec.proj.base.registry,
         "projspec": projspec.proj.base.registry,
         "content": projspec.content.base.registry,
         "artifact": projspec.artifact.base.registry,
