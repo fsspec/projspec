@@ -14,6 +14,8 @@ One of the following should work
    $ python -m pip install projspec
    $ conda install projspec -c conda-forge
 
+or list it in your own project's requirements.
+
 CLI
 ---
 
@@ -86,3 +88,6 @@ documentation and artifact activation buttons.)
 
     <script data-goatcounter="https://projspec.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>
+
+We are also working on dedicated UI elements for JupyterLab and other GUIs, and include a
+barebones project browser Qt app in src/projspec/qtapp/main.py .
