@@ -369,10 +369,12 @@ def class_infos():
             for name, cls in projspec.proj.base.registry.items()
         },
         "content": {
-            name: cls.__doc__ for name, cls in projspec.content.base.registry.items()
+            name: {"doc": cls.__doc__}
+            for name, cls in projspec.content.base.registry.items()
         },
         "artifact": {
-            name: cls.__doc__ for name, cls in projspec.artifact.base.registry.items()
+            name: {"doc": cls.__doc__}
+            for name, cls in projspec.artifact.base.registry.items()
         },
-        "enum": {name: cls.__doc__ for name, cls in enum_registry.items()},
+        "enum": {name: {"doc": cls.__doc__} for name, cls in enum_registry.items()},
     }
