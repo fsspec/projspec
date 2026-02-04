@@ -1,3 +1,5 @@
+import os
+
 from projspec.artifact.installable import Wheel
 from projspec.artifact.process import Process
 from projspec.content.environment import Environment, Precision, Stack
@@ -45,6 +47,10 @@ class PythonCode(ProjectSpec):
                 main=Command(proj=self.proj, artifacts={art}, cmd=art.cmd)
             )
         self._contents = out
+
+    @staticmethod
+    def _create(path: str) -> None:
+        open(f"{path}/__init__.py", "w").close()
 
 
 class PythonLibrary(ProjectSpec):
@@ -153,6 +159,54 @@ class PythonLibrary(ProjectSpec):
 
         # TODO: pick keys to add to DescriptiveMetadata
         self._contents = conts
+
+    @staticmethod
+    def _create(path: str, name: str | None = None) -> None:
+        with open(f"{path}/pyproject.toml", "w") as f:
+            # adapted from:
+            # https://packaging.python.org/en/latest/guides/writing-pyproject-toml
+            f.write(
+                """
+                [build-system]
+                requires = ["setuptools >= 77.0.3"]
+                build-backend = "setuptools.build_meta"
+
+                [project]
+                name = "spam"
+                version = "0.0.1"
+                dependencies = [
+                  "click",
+                ]
+                requires-python = ">=3.10"
+                maintainers = [
+                  {name = "You", email = "you@example.com"}
+                ]
+                description = "Lovely Spam! Wonderful Spam!"
+                readme = "README.rst"
+                license = "MIT"
+                license-files = ["LICEN[CS]E.*"]
+                keywords = []
+                classifiers = [
+                  "Programming Language :: Python"
+                ]
+
+                [project.optional-dependencies]
+                test = ["pytest"]
+
+                [project.urls]
+                Homepage = "https://example.com"
+                Repository = "https://github.com/me/spam.git"
+
+                [project.scripts]
+                spam-cli = "spam:main_cli"
+                """
+            )
+            os.makedirs(f"{path}/src/spam", exist_ok=True)
+            open(f"{path}/src/spam/__init__.py", "w")
+            open(
+                f"{path}/README.rst", "w"
+            ).close()  # https://spdx.org/licenses/MIT.html
+            open(f"{path}/src/spam/main_cli.py", "w").write("print('Hello World!')\n")
 
 
 def _resolve_groups(dep) -> dict[str, list[str]]:

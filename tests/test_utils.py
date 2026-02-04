@@ -9,6 +9,7 @@ from projspec.utils import (
     get_cls,
     is_installed,
     sort_version_strings,
+    run_subprocess,
 )
 
 
@@ -62,3 +63,14 @@ def test_info():
     assert "specs" in info
     assert "python_library" in info["specs"]
     assert info["specs"]["python_library"]["doc"]
+
+
+def test_run():
+    import subprocess
+
+    with pytest.raises(RuntimeError):
+        run_subprocess(["not-a-program"])
+    out = run_subprocess(["echo", "word"], output=True)
+    assert out.stdout.strip() == b"word"
+    process = run_subprocess(["echo", "word"], popen=True)
+    assert isinstance(process, subprocess.Popen)
