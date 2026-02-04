@@ -77,6 +77,7 @@ class Streamlit(ProjectSpec):
                 proj=self.proj, cmd=["streamlit", "run", pyfiles[0]]
             )
         else:
+            # TODO: use walk (top-down) here to avoid known directories like .venv/
             pyfiles = self.proj.fs.glob(f"{self.proj.url}/**/*.py")
             pycontent = self.proj.fs.cat(pyfiles)
             self.artifacts["server"] = {}
