@@ -136,7 +136,7 @@ class Yarn(Node):
     def match(self):
         return ".yarnrc.yml" in self.proj.basenames
 
-    def parse(self):
+    def parse(self, ignore=False):
         from projspec.content.environment import Environment, Stack, Precision
         from projspec.artifact.python_env import LockFile
 
@@ -146,6 +146,9 @@ class Yarn(Node):
             with self.proj.fs.open(f"{self.proj.url}/yarn.lock", "rt") as f:
                 txt = f.read()
         except FileNotFoundError:
+            if ignore:
+                # only used by JLab - we know it complies with yarn even without lock-file.
+                return
             raise ParseFailed
         hits = re.findall(r'resolution: "(.*?)"', txt, flags=re.MULTILINE)
 
@@ -186,7 +189,7 @@ class JLabExtension(Yarn):
     def parse(self):
         from projspec.artifact.python_env import LockFile
 
-        super().parse()
+        super().parse(ignore=True)
         if not self.meta["scripts"]["build"].startswith("jlpm"):
             raise ParseFailed("JLab extensions build with jlpm")
         self.artifacts["lock_file"] = LockFile(
@@ -194,3 +197,24 @@ class JLabExtension(Yarn):
             cmd=["jlpm", "install"],
             fn=f"{self.proj.url}/yarn.lock",
         )
+
+    # create() with https://github.com/jupyterlab/extension-template
+    @staticmethod
+    def _create(path: str, name: str | None = None) -> None:
+        import subprocess
+
+        cmd = [
+            "copier",
+            "copy",
+            "--trust",
+            "--defaults",
+            "--data",
+            "author_name=you",
+            "--data",
+            f"kind=frontend-and-server",
+            "--data",
+            "repository=https://github.com/github_username/my-extension",
+            "https://github.com/jupyterlab/extension-template",
+            path,
+        ]
+        subprocess.check_call(cmd, cwd=path)

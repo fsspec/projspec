@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Project specification"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 maintainers = [{ name = "Martin Durant", email = "mdurant@anaconda.com" }]
 keywords = ["project"]
 classifiers = [
@@ -16,11 +16,11 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "fsspec >=2025.5.1",
@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest", "pytest-cov"]
+test = ["pytest", "pytest-cov", "django", "streamlit", "copier", "jinja2-time"]
 qt = ["pyqt>5,<6", "pyqtwebengin>5,<6"]
 
 [project.scripts]
