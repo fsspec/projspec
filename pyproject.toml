@@ -28,7 +28,8 @@ dependencies = [
     "toml",
     "fsspec",
     "click",
-    "jinja2"
+    "jinja2",
+    "typing_extensions >=4.0; python_version < '3.11'"
 ]
 
 [project.optional-dependencies]

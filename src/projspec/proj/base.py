@@ -1,8 +1,13 @@
 import logging
+import sys
 from collections.abc import Iterable
 from itertools import chain
 from functools import cached_property
-from typing import Self
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:
+    from typing_extensions import Self
 
 import fsspec
 import fsspec.implementations.local
