@@ -376,3 +376,24 @@ def spec_class_qnames(registry="proj"):
         )
     ):
         print(s)
+
+
+def class_infos():
+    """Gather all the class info for documentation"""
+    import projspec
+
+    return {
+        "specs": {
+            name: {"doc": cls.__doc__, "link": cls.spec_doc}
+            for name, cls in projspec.proj.base.registry.items()
+        },
+        "content": {
+            name: {"doc": cls.__doc__}
+            for name, cls in projspec.content.base.registry.items()
+        },
+        "artifact": {
+            name: {"doc": cls.__doc__}
+            for name, cls in projspec.artifact.base.registry.items()
+        },
+        "enum": {name: {"doc": cls.__doc__} for name, cls in enum_registry.items()},
+    }

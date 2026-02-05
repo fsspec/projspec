@@ -72,6 +72,8 @@ class CondaPackage(FileArtifact):
 
 
 class Architecture(Enum):
+    """What kind of system this runs on"""
+
     ANDROID = "android"
     IOS = "iOS"
     LINUX = "linux"
