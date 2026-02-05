@@ -190,7 +190,7 @@ class JLabExtension(Yarn):
         from projspec.artifact.python_env import LockFile
 
         super().parse(ignore=True)
-        if not self.meta["scripts"]["build"].startswith("jlpm"):
+        if not self.meta["scripts"].get("build", "").startswith("jlpm"):
             raise ParseFailed("JLab extensions build with jlpm")
         self.artifacts["lock_file"] = LockFile(
             proj=self.proj,
