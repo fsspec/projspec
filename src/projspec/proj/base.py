@@ -2,7 +2,6 @@ import logging
 from collections.abc import Iterable
 from itertools import chain
 from functools import cached_property
-from typing import Self
 
 import fsspec
 import fsspec.implementations.local
@@ -320,7 +319,7 @@ class Project:
         proj.fs, proj.url = fsspec.url_to_fs(proj.path, **proj.storage_options)
         return proj
 
-    def create(self, name: str) -> Self:
+    def create(self, name: str):
         """Make this project conform to the given project spec type."""
         cls = get_cls(name)
         # causes reparse and makes a new instance
