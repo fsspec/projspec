@@ -7,7 +7,7 @@ There are many ways to organise project-oriented code workflows, and projspec ai
 to give a unified experience, so that you don't have to learn them all. This allows
 for the following types of use-cases:
 
-- *browsing*: a project is _shared_ with you (github, gdrive, your corp's storage solution), and
+- *browsing/introspection*: a project is *shared* with you (github, gdrive, your corp's storage solution), and
   you want to know what it is and what it needs, without downloading and browsing a
   bunch of readme and scripts.
 - *search*: you have access to a large number of projects on your disk or elsewhere and you want
