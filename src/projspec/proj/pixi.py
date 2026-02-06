@@ -186,7 +186,11 @@ def extract_feature(
         for name, task in v.get("tasks", {}).items():
             if env:
                 name = f"{name}.{env}"
-            cmd = task["cmd"] if isinstance(task, dict) else task
+            cmd = (
+                task.get("cmd", str(task.get("depends-on")))
+                if isinstance(task, dict)
+                else task
+            )
             commands[name] = Command(proj=pixi.proj, artifacts=set(), cmd=cmd)
             if platform == this_platform():
                 # only commands on the current platform can be executed
@@ -219,7 +223,9 @@ def envs_from_lock(infile) -> dict:
             "packages": [
                 pkgs[entry.get("conda", entry.get("pypi"))]
                 for entry in next(iter(env["packages"].values()))
-            ],
+            ]
+            if env.get("packages")
+            else [],
             "channels": [
                 _ if isinstance(_, str) else _.get("url", "") for _ in env["channels"]
             ]
