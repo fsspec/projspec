@@ -57,7 +57,7 @@ class PyScript(ProjectSpec):
                 "pyscript",
                 "create",
                 "--app-description",
-                "projspec app",
+                "projspec-app",
                 "--author-name",
                 "temp",
                 "--author-email",
