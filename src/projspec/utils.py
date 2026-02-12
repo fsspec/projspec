@@ -1,3 +1,4 @@
+import contextlib
 import enum
 import logging
 import pathlib
@@ -241,13 +242,13 @@ def _yaml_no_jinja(fileobj):
         if " # [" in line:
             line = line[: line.index(" # [")]
         if "{{" in line and "}}" in line:
-            try:
-                import jinja2
+            import jinja2
 
+            try:
                 line = jinja2.Template(line).render(variables)
                 done = True
-            except jinja2.TemplateError:
-                logging.exception("Jinja Template Error")
+            except jinja2.exceptions.TemplateError:
+                logging.debug("Jinja Template Error")
                 done = False
             except ImportError:
                 done = False
@@ -397,3 +398,18 @@ def class_infos():
         },
         "enum": {name: {"doc": cls.__doc__} for name, cls in enum_registry.items()},
     }
+
+
+@contextlib.contextmanager
+def make_and_copy(path):
+    """Provide a temporary directory to create and write into, and then copy to destination"""
+    # TODO: path could be remote, add optional fs= rather than assume local
+    import fsspec
+    import tempfile
+    import uuid
+
+    fs = fsspec.filesystem("file")
+    tmp = f"{tempfile.mkdtemp()}/{uuid.uuid4()}/"
+    yield tmp
+    fs.copy(tmp, path, recursive=True)
+    fs.rm(tmp, recursive=True)

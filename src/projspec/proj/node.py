@@ -97,7 +97,6 @@ class Node(ProjectSpec):
         if "package-lock.json" in self.proj.basenames:
             arts["lock_file"] = LockFile(
                 proj=self.proj,
-                artifacts={},
                 cmd=["npm", "install"],
                 fn=self.proj.basenames["package-lock.json"],
             )
@@ -120,7 +119,7 @@ class Node(ProjectSpec):
         conts["node_package"] = (
             NodePackage(name=name, proj=self.proj, artifacts=set()),
         )
-        conts["command"] = (cmd,)
+        conts["command"] = cmd
         self._artifacts = arts
         self._contents = conts
 
@@ -203,6 +202,7 @@ class JLabExtension(Yarn):
     def _create(path: str, name: str | None = None) -> None:
         import subprocess
 
+        # this is a highly opinionated template
         cmd = [
             "copier",
             "copy",
