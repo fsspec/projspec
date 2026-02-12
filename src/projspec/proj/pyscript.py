@@ -1,7 +1,7 @@
 import toml
 
 from projspec.proj import ProjectSpec
-from projspec.utils import AttrDict, PickleableTomlDecoder
+from projspec.utils import AttrDict, PickleableTomlDecoder, make_and_copy
 
 
 class PyScript(ProjectSpec):
@@ -20,6 +20,9 @@ class PyScript(ProjectSpec):
         return not {"pyscript.toml", "pyscript.json"}.isdisjoint(self.proj.basenames)
 
     def parse(self) -> None:
+        from projspec.content.environment import Environment, Precision, Stack
+        from projspec.artifact.process import Server
+
         try:
             with self.proj.fs.open(f"{self.proj.url}/pyscript.toml", "rt") as f:
                 meta = toml.load(f, decoder=PickleableTomlDecoder())
@@ -28,9 +31,37 @@ class PyScript(ProjectSpec):
                 meta = toml.load(f, decoder=PickleableTomlDecoder())
         cont = AttrDict()
         if "packages" in meta:
-            cont["environment"] = AttrDict(default=meta["packages"])
+            cont["environment"] = AttrDict(
+                default=Environment(
+                    proj=self.proj,
+                    artifacts=set(),
+                    stack=Stack.PIP,
+                    precision=Precision.SPEC,
+                    packages=meta["packages"],
+                )
+            )
         self._contents = cont
 
         # perhaps a local deployment can be a reasonable artifact
         # https://github.com/pyscript/pyscript-cli
-        self._artifacts = AttrDict()
+        self._artifacts = AttrDict(
+            {"server": Server(proj=self.proj, cmd=["pyscript", "run"])}
+        )
+
+    @staticmethod
+    def _create(path: str) -> None:
+        import subprocess
+
+        with make_and_copy(path) as tmp:
+            cmd = [
+                "pyscript",
+                "create",
+                "--app-description",
+                "projspec app",
+                "--author-name",
+                "temp",
+                "--author-email",
+                "temp",
+                tmp,
+            ]
+            subprocess.check_call(cmd)

@@ -6,7 +6,14 @@ from projspec.utils import get_cls
 
 @pytest.mark.parametrize(
     "cls_name",
-    ["django", "streamlit", "python_code", "python_library", "JLabExtension"],
+    [
+        "django",
+        "streamlit",
+        "python_code",
+        "python_library",
+        "JLabExtension",
+        "PyScript",
+    ],
 )
 def test_compliant(tmpdir, cls_name):
     path = str(tmpdir)
