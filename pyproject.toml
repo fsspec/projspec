@@ -33,7 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "django", "streamlit", "copier", "jinja2-time",
-        "pyscript-cli"]
+        "pyscript-cli", "typer>=0.12.5"]
 qt = ["pyqt>5,<6", "pyqtwebengin>5,<6"]
 
 [project.scripts]

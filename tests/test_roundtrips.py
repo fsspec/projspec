@@ -26,10 +26,3 @@ def test_cant_create(tmpdir):
     path = str(tmpdir)
     with pytest.raises(NotImplementedError):
         projspec.proj.ProjectSpec.create(path)
-
-
-def test_debug():
-    import subprocess
-
-    out = subprocess.check_output(["pyscript", "create", "--help"])
-    raise Exception(out)
