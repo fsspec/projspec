@@ -1,8 +1,9 @@
 {
-  "name": "trial",
-  "displayName": "trial",
-  "description": "my trial",
+  "name": "projspec",
+  "displayName": "projspec",
+  "description": "projspec",
   "version": "0.0.1",
+  "repository": "https://github.com/fsspec/projspec",
   "engines": {
     "vscode": "^1.109.0"
   },
