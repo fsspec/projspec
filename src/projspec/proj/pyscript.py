@@ -44,6 +44,7 @@ class PyScript(ProjectSpec):
 
         # perhaps a local deployment can be a reasonable artifact
         # https://github.com/pyscript/pyscript-cli
+        # TODO: the server app is very small, could launch with uvx or such directly
         self._artifacts = AttrDict(
             {"server": Server(proj=self.proj, cmd=["pyscript", "run"])}
         )
@@ -52,6 +53,7 @@ class PyScript(ProjectSpec):
     def _create(path: str) -> None:
         import subprocess
 
+        # TODO: we don't really need the CLI to do this
         with make_and_copy(path) as tmp:
             cmd = [
                 "pyscript",

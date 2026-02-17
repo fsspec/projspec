@@ -18,13 +18,27 @@ from projspec.utils import (
 
 logger = logging.getLogger("projspec")
 registry = {}
+
+# we don't consider these as possible child projects when walk=True
 default_excludes = {
-    # add more here
+    # TODO: add more here
     "bld",
     "build",
+    "_build",
+    ".mypy_cache",
     "dist",
     "env",
     "envs",  # conda-project
+    ".venv",
+    ".git",
+    "__pycache__",
+    ".benchmarks",
+    ".ipynb_checkpoints",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".vscode",
+    ".idea",
+    "htmlcov",
 }
 
 
@@ -44,6 +58,7 @@ class Project:
         path: str,
         storage_options: dict | None = None,
         fs: fsspec.AbstractFileSystem | None = None,
+        # TODO: allow int for walk, for set number of levels; combine with preloading files
         walk: bool | None = None,
         types: set[str] | None = None,
         xtypes: set[str] | None = None,
@@ -360,6 +375,7 @@ class ProjectSpec:
     def match(self) -> bool:
         """Whether the given path might be interpreted as this type of project"""
         # should be fast, not require a full parse, which we will probably do right after
+        # may store attributes to be used later in parse()
         return False
 
     @property
