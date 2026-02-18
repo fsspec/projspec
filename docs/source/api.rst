@@ -118,7 +118,7 @@ User Classes
 
 .. autosummary::
     content.data.FrictionlessData
-    content.data.IntakeCatalog
+    content.data.IntakeSource
     content.env_var.EnvironmentVariables
     content.environment.Environment
     content.executable.Command
@@ -129,7 +129,7 @@ User Classes
     content.package.RustModule
 
 .. autoclass:: projspec.content.data.FrictionlessData
-.. autoclass:: projspec.content.data.IntakeCatalog
+.. autoclass:: projspec.content.data.IntakeSource
 .. autoclass:: projspec.content.env_var.EnvironmentVariables
 .. autoclass:: projspec.content.environment.Environment
 .. autoclass:: projspec.content.executable.Command

@@ -1,4 +1,4 @@
-from projspec.proj.base import ParseFailed, Project, ProjectSpec
+from projspec.proj.base import ParseFailed, Project, ProjectSpec, ProjectExtra
 from projspec.proj.briefcase import Briefcase
 from projspec.proj.conda_package import CondaRecipe, RattlerRecipe
 from projspec.proj.conda_project import CondaProject
