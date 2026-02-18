@@ -349,7 +349,7 @@ def get_get_cls(registry="proj"):
     return reg_map[registry]
 
 
-def get_cls(name, registry="proj"):
+def get_cls(name: str, registry: str = "proj") -> type:
     """Find class by name and type
 
     name: str

@@ -1,8 +1,10 @@
 """Contents specifying datasets"""
+from dataclasses import dataclass, field
 
 from projspec.content import BaseContent
 
 
+@dataclass
 class FrictionlessData(BaseContent):
     """A datapackage spec, as defined by frictionlessdata
 
@@ -12,13 +14,16 @@ class FrictionlessData(BaseContent):
     See https://specs.frictionlessdata.io/data-package/
     """
 
-    # typically in a datapackage.json spec
+    name: str
+    schema: dict = field(default_factory=dict)
 
 
-class IntakeCatalog(BaseContent):
+@dataclass
+class IntakeSource(BaseContent):
     """A catalog of data assets, including basic properties (location) and how to load/process them.
 
     See https://intake.readthedocs.io/en/latest/
     """
 
-    # typically in a catalog.y[a]ml free-floating file
+    # TODO: add better fields: args, driver/reader, metadata, description
+    name: str
