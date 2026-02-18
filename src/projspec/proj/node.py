@@ -127,6 +127,10 @@ class Node(ProjectSpec):
         self.parse0()
 
 
+# TODO: a vscode extension has key "contributes" in package.json and engine: vscode: {},
+#  and then you can build a .vsix with `vsce pack`.
+
+
 class Yarn(Node):
     """A node project that uses `yarn` for building"""
 

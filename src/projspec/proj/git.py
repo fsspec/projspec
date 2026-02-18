@@ -14,13 +14,18 @@ class GitRepo(ProjectSpec):
         return ".git" in self.proj.basenames
 
     def parse(self) -> None:
-        # Actually, it's faster to read the /.git/config file, which also gives
-        # the remote URLs and such.
+        # It's faster to read the /.git/config file for branches, remotes and URLs;
+        # that file i always present.
         cont = AttrDict()
-        cont["remotes"] = [
-            _.rsplit("/", 1)[-1]
-            for _ in self.proj.fs.ls(f"{self.proj.url}/.git/refs/remotes", detail=False)
-        ]
+        try:
+            cont["remotes"] = [
+                _.rsplit("/", 1)[-1]
+                for _ in self.proj.fs.ls(
+                    f"{self.proj.url}/.git/refs/remotes", detail=False
+                )
+            ]
+        except FileNotFoundError:
+            pass
         cont["tags"] = [
             _.rsplit("/", 1)[-1]
             for _ in self.proj.fs.ls(f"{self.proj.url}/.git/refs/tags", detail=False)
