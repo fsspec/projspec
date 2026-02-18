@@ -7,8 +7,9 @@ import projspec.utils
 
 
 def test_basic(proj):
-    spec = proj.specs["python_library"]
+    spec = proj["python_library"]
     assert "wheel" in spec.artifacts
+    assert proj.all_contents()
     assert proj.all_artifacts()
     assert proj.children
     repr(proj)
@@ -35,3 +36,10 @@ def test_serialise(proj):
 
 def test_pickleable(proj):
     pickle.dumps(proj)
+
+
+def test_get_file(proj):
+    # not in scanning by default
+    bool(proj.get_file("README.md"))
+    # scanned
+    bool(proj.get_file("pyproject.toml"))

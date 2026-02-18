@@ -1,3 +1,4 @@
+import io
 import logging
 from collections.abc import Iterable
 from itertools import chain
@@ -7,6 +8,7 @@ import fsspec
 import fsspec.implementations.local
 import toml
 
+from projspec.config import get_conf
 from projspec.utils import (
     AttrDict,
     IndentDumper,
@@ -98,6 +100,36 @@ class Project:
         # see also fsspec.utils.can_be_local for more flexibility with caching.
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
+    # TODO: this can be set from a root project with find() if using walk
+    @cached_property
+    def scanned_files(self):
+        types = get_conf("scan_types")
+        if not types:
+            return {}
+        allfiles = [_ for _ in self.filelist if _["name"].endswith(tuple(types))]
+        size = sum(_["size"] for _ in allfiles)
+        if len(allfiles) > get_conf("scan_max_files") or size > get_conf(
+            "scan_max_size"
+        ):
+            logger.debug(
+                "Skipping scanning of %d files (%d bytes) in %s",
+                len(allfiles),
+                size,
+                self.url,
+            )
+            return {}
+        return {
+            k.rsplit("/", 1)[-1]: v
+            for k, v in self.fs.cat([_["name"] for _ in allfiles]).items()
+        }
+
+    def get_file(self, name: str, text=True) -> io.IOBase:
+        if name in self.scanned_files:
+            if text:
+                return io.StringIO(self.scanned_files[name].decode())
+            return io.BytesIO(self.scanned_files[name])
+        return self.fs.open(f"{self.url}/{name}", mode="rb" if text else "rb")
+
     def resolve(
         self,
         subpath: str = "",
@@ -170,11 +202,11 @@ class Project:
 
     @cached_property
     def filelist(self):
-        return self.fs.ls(self.url, detail=False)
+        return self.fs.ls(self.url, detail=True)
 
     @cached_property
     def basenames(self):
-        return {_.rsplit("/", 1)[-1]: _ for _ in self.filelist}
+        return {_["name"].rsplit("/", 1)[-1]: _["name"] for _ in self.filelist}
 
     def text_summary(self) -> str:
         """Only shows project types, not what they contain"""
@@ -225,13 +257,12 @@ class Project:
     @cached_property
     def pyproject(self):
         """Contents of top-level pyproject.toml, if found"""
-        if "pyproject.toml" in self.basenames:
-            try:
-                with self.fs.open(self.basenames["pyproject.toml"], "rt") as f:
-                    return toml.load(f, decoder=PickleableTomlDecoder())
-            except (OSError, ValueError, TypeError):
-                # debug/warn?
-                pass
+        try:
+            with self.get_file("pyproject.toml") as f:
+                return toml.load(f, decoder=PickleableTomlDecoder())
+        except (OSError, ValueError, TypeError):
+            # debug/warn?
+            pass
         return {}
 
     def all_artifacts(self, names: str | None = None) -> list:
@@ -264,12 +295,13 @@ class Project:
 
     def all_contents(self, names=None) -> list:
         """A flat list of all the content objects nested in this project."""
-        cont = set(self.contents.values())
+        # TODO: deduplicate these non-hashables
+        cont = list(self.contents.values())
         for spec in self.specs.values():
-            cont.update(flatten(spec.contents))
+            cont.extend(flatten(spec.contents))
         for child in self.children.values():
-            cont.update(child.contents)
-        cont.update(self.contents.values())
+            cont.extend(child.all_contents(names=names))
+        cont.extend(self.contents.values())
         if names:
             if isinstance(names, str):
                 names = {names}
@@ -296,17 +328,14 @@ class Project:
         return item in self.specs or any(item in _ for _ in self.children.values())
 
     def to_dict(self, compact=True) -> dict:
-        try:
-            dic = AttrDict(
-                specs=self.specs,
-                children=self.children,
-                url=self.path,
-                storage_options=self.storage_options,
-                artifacts=self.artifacts,
-                contents=self.contents,
-            )
-        except AttributeError:
-            print(list(self.__dict__.keys()))
+        dic = AttrDict(
+            specs=self.specs,
+            children=self.children,
+            url=self.path,
+            storage_options=self.storage_options,
+            artifacts=self.artifacts,
+            contents=self.contents,
+        )
         if not compact:
             dic["klass"] = "project"
         return dic.to_dict(compact=compact)

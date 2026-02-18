@@ -10,6 +10,12 @@ conf_dir = os.environ.get("PROJSPEC_CONFIG_DIR", default_conf_dir)
 defaults = {
     # location of persisted project objects
     "library_path": f"{conf_dir}/library.json",
+    # files automatically read before scanning
+    "scan_types": [".py", ".yaml", ".yml", ".toml", "j.son"],
+    # don't scan files if more than this number in the project
+    "scan_max_files": 100,
+    # don't scan files if more than this size (in bytes)
+    "scan_max_size": 10**20,  # not implemented
 }
 
 
