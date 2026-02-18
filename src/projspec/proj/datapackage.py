@@ -45,6 +45,30 @@ class DataPackage(ProjectSpec):
                 for _ in conf["resources"]
             ]
 
+    @staticmethod
+    def _create(path: str) -> None:
+        with open(path + "/datapackage.json", "wt") as f:
+            # https://github.com/frictionlessdata/examples/tree/main/text-file
+            f.write(
+                """
+            {
+              "name": "text-file",
+              "title": "Text File Data Package",
+              "description": "An example of a text file in a non-tabular data package",
+              "licenses": [{
+                "name": "CC0-1.0",
+                "path": "https://creativecommons.org/publicdomain/zero/1.0/"
+              }],
+              "resources": [{
+                "name": "text-file",
+                "path": "text-file.txt",
+                "title": "Text File Data Resource",
+                "format": "txt"
+              }]
+            }
+            """
+            )
+
 
 class DVCRepo(ProjectSpec):
     """Git management of data assets within a repo"""
@@ -102,3 +126,32 @@ class IntakeCatalog(ProjectExtra):
                 IntakeSource(proj=self.proj, name=_, artifacts=set())
                 for _ in meta.get("sources", [])
             ]
+
+    @staticmethod
+    def _create(path: str) -> None:
+        with open(f"{path}/catalog.yaml", "w") as f:
+            # doesn't actually create data
+            f.write(
+                """
+            aliases: {}
+            data:
+              35b33d80d511b79c:
+                datatype: intake.readers.datatypes:Text
+                kwargs:
+                  storage_options: null
+                  url: text-file.txt
+                metadata: {}
+                user_parameters: {}
+            entries:
+              text:
+                kwargs:
+                  data: '{data(35b33d80d511b79c)}'
+                metadata: {}
+                output_instance: builtins:str
+                reader: intake.readers.readers:FileTextReader
+                user_parameters: {}
+            metadata: {}
+            user_parameters: {}
+            version: 2
+            """
+            )
