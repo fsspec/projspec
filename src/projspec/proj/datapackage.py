@@ -1,3 +1,5 @@
+import re
+
 from projspec.proj import ProjectSpec, ParseFailed, ProjectExtra
 
 
@@ -101,19 +103,25 @@ class IntakeCatalog(ProjectExtra):
     spec_doc = (
         "https://intake.readthedocs.io/en/latest/api2.html#intake.readers.entry.Catalog"
     )
+    template = re.compile(r"^cat(alog)?\.y[a]?ml$")
+    match: str
 
     def match(self) -> bool:
-        return "catalog.yaml" in self.proj.basenames
+        matches = [_ for _ in self.proj.basenames if self.template.match(_)]
+        if matches:
+            self.match = matches[0]
+            return True
+        return False
 
     def parse(self) -> None:
         from projspec.content.data import IntakeSource
 
         import yaml
 
-        with self.proj.fs.open(self.proj.basenames["catalog.yaml"], "rt") as f:
+        with self.proj.fs.open(self.proj.basenames[self.match], "rt") as f:
             meta = yaml.safe_load(f)
 
-        if not "entries" in meta:
+        if "entries" not in meta and "sources" not in meta:
             raise ParseFailed("No entries found in catalog")
 
         if meta.get("version") == 2:

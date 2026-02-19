@@ -270,25 +270,23 @@ def _yaml_no_jinja(fileobj):
     return yaml.load("\n".join(lines), Loader=yaml.CSafeLoader)
 
 
-def flatten(x: Iterable):
-    """Descend into dictionaries to return a set of all of the leaf values"""
-    # todo: only works on hashables
-    # todo: pass set for mutation rather than create set on each recursion
-    out = set()
+def flatten(x: Iterable, out=None):
+    """Descend into dictionaries to return the set of all leaf values"""
+    out = out or []
     if isinstance(x, dict):
         x = x.values()
     for item in x:
         if isinstance(item, dict):
-            out.update(flatten(item.values()))
+            flatten(item.values(), out)
         elif isinstance(item, (str, bytes)):
             # These are iterables whose items are also iterable, i.e.,
             # the first item of "item" is "i", which is also a string.
-            out.add(item)
+            out.append(item)
         else:
             try:
-                out.update(flatten(item))
+                flatten(item, out)
             except TypeError:
-                out.add(item)
+                out.append(item)
     return out
 
 
