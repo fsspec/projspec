@@ -97,7 +97,6 @@ class Node(ProjectSpec):
         if "package-lock.json" in self.proj.basenames:
             arts["lock_file"] = LockFile(
                 proj=self.proj,
-                artifacts={},
                 cmd=["npm", "install"],
                 fn=self.proj.basenames["package-lock.json"],
             )
@@ -120,12 +119,16 @@ class Node(ProjectSpec):
         conts["node_package"] = (
             NodePackage(name=name, proj=self.proj, artifacts=set()),
         )
-        conts["command"] = (cmd,)
+        conts["command"] = cmd
         self._artifacts = arts
         self._contents = conts
 
     def parse(self):
         self.parse0()
+
+
+# TODO: a vscode extension has key "contributes" in package.json and engine: vscode: {},
+#  and then you can build a .vsix with `vsce pack`.
 
 
 class Yarn(Node):
@@ -136,7 +139,7 @@ class Yarn(Node):
     def match(self):
         return ".yarnrc.yml" in self.proj.basenames
 
-    def parse(self):
+    def parse(self, ignore=False):
         from projspec.content.environment import Environment, Stack, Precision
         from projspec.artifact.python_env import LockFile
 
@@ -146,6 +149,9 @@ class Yarn(Node):
             with self.proj.fs.open(f"{self.proj.url}/yarn.lock", "rt") as f:
                 txt = f.read()
         except FileNotFoundError:
+            if ignore:
+                # only used by JLab - we know it complies with yarn even without lock-file.
+                return
             raise ParseFailed
         hits = re.findall(r'resolution: "(.*?)"', txt, flags=re.MULTILINE)
 
@@ -186,11 +192,33 @@ class JLabExtension(Yarn):
     def parse(self):
         from projspec.artifact.python_env import LockFile
 
-        super().parse()
-        if not self.meta["scripts"]["build"].startswith("jlpm"):
+        super().parse(ignore=True)
+        if not self.meta["scripts"].get("build", "").startswith("jlpm"):
             raise ParseFailed("JLab extensions build with jlpm")
         self.artifacts["lock_file"] = LockFile(
             proj=self.proj,
             cmd=["jlpm", "install"],
             fn=f"{self.proj.url}/yarn.lock",
         )
+
+    # create() with https://github.com/jupyterlab/extension-template
+    @staticmethod
+    def _create(path: str, name: str | None = None) -> None:
+        import subprocess
+
+        # this is a highly opinionated template
+        cmd = [
+            "copier",
+            "copy",
+            "--trust",
+            "--defaults",
+            "--data",
+            "author_name=you",
+            "--data",
+            f"kind=frontend-and-server",
+            "--data",
+            "repository=https://github.com/github_username/my-extension",
+            "https://github.com/jupyterlab/extension-template",
+            path,
+        ]
+        subprocess.check_call(cmd, cwd=path)

@@ -135,13 +135,13 @@ class Uv(ProjectSpec):
         meta = self.proj.pyproject
         conf = meta.get("tools", {}).get("uv", {})
         try:
-            with self.proj.fs.open(f"{self.proj.url}/uv.toml", "rt") as f:
+            with self.get_file("uv.toml") as f:
                 conf2 = toml.load(f, decoder=PickleableTomlDecoder())
         except (OSError, FileNotFoundError):
             conf2 = {}
         conf.update(conf2)
         try:
-            with self.proj.fs.open(f"{self.proj.url}/uv.lock", "rt") as f:
+            with self.get_file("uv.lock") as f:
                 lock = toml.load(f, decoder=PickleableTomlDecoder())
         except (OSError, FileNotFoundError):
             lock = {}

@@ -1,5 +1,5 @@
-Overview
-========
+Intro
+=====
 
 From the point of view of this library, a "project" is a directory of stuff,
 with associated metadata (typically in small text files) to tell you

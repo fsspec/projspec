@@ -1,3 +1,4 @@
+import contextlib
 import enum
 import logging
 import pathlib
@@ -205,6 +206,24 @@ class IsInstalled:
 
 is_installed = IsInstalled()
 
+
+def run_subprocess(cmd, cwd=None, env=None, output=True, popen=False):
+    """Common way to run subprocesses, first checking for command existence
+
+    This is convenient because command existence can be cached, and so it's much
+    faster to do the lookup and give a reasonable error message.
+    """
+    # TODO: we want to swap out direct calls to subprocess
+    if cmd[0] not in is_installed:
+        raise RuntimeError(f"Command {cmd[0]} not installed in current environment")
+    if popen:
+        return subprocess.Popen(
+            cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
+    # returns CompletedProcess with stdout, stderr as attributes
+    return subprocess.run(cmd, cwd=cwd, env=env, capture_output=output, check=True)
+
+
 # {% set sha256 = "fff" %}
 sj = re.compile(r'{%\s+set\s+(\S+)\s+=\s+"(.*)"\s+%}')
 
@@ -223,13 +242,13 @@ def _yaml_no_jinja(fileobj):
         if " # [" in line:
             line = line[: line.index(" # [")]
         if "{{" in line and "}}" in line:
-            try:
-                import jinja2
+            import jinja2
 
+            try:
                 line = jinja2.Template(line).render(variables)
                 done = True
-            except jinja2.TemplateError:
-                logging.exception("Jinja Template Error")
+            except jinja2.exceptions.TemplateError:
+                logging.debug("Jinja Template Error")
                 done = False
             except ImportError:
                 done = False
@@ -251,25 +270,23 @@ def _yaml_no_jinja(fileobj):
     return yaml.load("\n".join(lines), Loader=yaml.CSafeLoader)
 
 
-def flatten(x: Iterable):
-    """Descend into dictionaries to return a set of all of the leaf values"""
-    # todo: only works on hashables
-    # todo: pass set for mutation rather than create set on each recursion
-    out = set()
+def flatten(x: Iterable, out=None):
+    """Descend into dictionaries to return the set of all leaf values"""
+    out = out or []
     if isinstance(x, dict):
         x = x.values()
     for item in x:
         if isinstance(item, dict):
-            out.update(flatten(item.values()))
+            flatten(item.values(), out)
         elif isinstance(item, (str, bytes)):
             # These are iterables whose items are also iterable, i.e.,
             # the first item of "item" is "i", which is also a string.
-            out.add(item)
+            out.append(item)
         else:
             try:
-                out.update(flatten(item))
+                flatten(item, out)
             except TypeError:
-                out.add(item)
+                out.append(item)
     return out
 
 
@@ -321,6 +338,7 @@ def get_get_cls(registry="proj"):
     import projspec
 
     reg_map = {
+        "proj": projspec.proj.base.registry,
         "projspec": projspec.proj.base.registry,
         "content": projspec.content.base.registry,
         "artifact": projspec.artifact.base.registry,
@@ -329,7 +347,7 @@ def get_get_cls(registry="proj"):
     return reg_map[registry]
 
 
-def get_cls(name, registry="proj"):
+def get_cls(name: str, registry: str = "proj") -> type:
     """Find class by name and type
 
     name: str
@@ -357,3 +375,39 @@ def spec_class_qnames(registry="proj"):
         )
     ):
         print(s)
+
+
+def class_infos():
+    """Gather all the class info for documentation"""
+    import projspec
+
+    return {
+        "specs": {
+            name: {"doc": cls.__doc__, "link": cls.spec_doc}
+            for name, cls in projspec.proj.base.registry.items()
+        },
+        "content": {
+            name: {"doc": cls.__doc__}
+            for name, cls in projspec.content.base.registry.items()
+        },
+        "artifact": {
+            name: {"doc": cls.__doc__}
+            for name, cls in projspec.artifact.base.registry.items()
+        },
+        "enum": {name: {"doc": cls.__doc__} for name, cls in enum_registry.items()},
+    }
+
+
+@contextlib.contextmanager
+def make_and_copy(path):
+    """Provide a temporary directory to create and write into, and then copy to destination"""
+    # TODO: path could be remote, add optional fs= rather than assume local
+    import fsspec
+    import tempfile
+    import uuid
+
+    fs = fsspec.filesystem("file")
+    tmp = f"{tempfile.mkdtemp()}/{uuid.uuid4()}/"
+    yield tmp
+    fs.copy(tmp, path, recursive=True)
+    fs.rm(tmp, recursive=True)

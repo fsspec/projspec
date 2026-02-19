@@ -3,7 +3,14 @@ import pytest
 from projspec.content import BaseContent
 from projspec.content.environment import Stack
 from projspec.content.metadata import DescriptiveMetadata
-from projspec.utils import AttrDict, get_cls, is_installed, sort_version_strings
+from projspec.utils import (
+    AttrDict,
+    class_infos,
+    get_cls,
+    is_installed,
+    sort_version_strings,
+    run_subprocess,
+)
 
 
 def test_is_installed():
@@ -49,3 +56,21 @@ def test_sort_versions():
     vers = ["1", "1.2.3", "1.0.3", "1.10.3", "1.10.3.dev1", "1.10.3.dev"]
     expected = ["1", "1.0.3", "1.2.3", "1.10.3", "1.10.3.dev", "1.10.3.dev1"]
     assert sort_version_strings(vers) == expected
+
+
+def test_info():
+    info = class_infos()
+    assert "specs" in info
+    assert "python_library" in info["specs"]
+    assert info["specs"]["python_library"]["doc"]
+
+
+def test_run():
+    import subprocess
+
+    with pytest.raises(RuntimeError):
+        run_subprocess(["not-a-program"])
+    out = run_subprocess(["echo", "word"], output=True)
+    assert out.stdout.strip() == b"word"
+    process = run_subprocess(["echo", "word"], popen=True)
+    assert isinstance(process, subprocess.Popen)

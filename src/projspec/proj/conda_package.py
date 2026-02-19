@@ -19,6 +19,9 @@ class CondaRecipe(ProjectSpec):
         from projspec.artifact.installable import CondaPackage
         from projspec.content.environment import Environment, Precision, Stack
 
+        # https://github.com/conda/conda-recipe-manager/tree/main/conda_recipe_manager/parser may be a good
+        # renderer of the jinja stuff
+
         meta = None
         for fn in ("meta.yaml", "meta.yml", "conda.yaml"):
             if fn in self.proj.basenames:
@@ -71,6 +74,7 @@ class RattlerRecipe(CondaRecipe):
         return "recipe.yaml" in self.proj.basenames
 
     def parse(self) -> None:
+        # TODO: variants.yaml, conda_build_config.yaml or variant_config.yaml?
         from projspec.artifact.installable import CondaPackage
         from projspec.content.environment import Environment, Precision, Stack
 

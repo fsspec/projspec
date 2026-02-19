@@ -3,6 +3,7 @@
 from projspec.artifact.base import BaseArtifact, FileArtifact
 from projspec.artifact.container import DockerImage
 from projspec.artifact.installable import CondaPackage, Wheel
+from projspec.artifact.linter import PreCommit
 from projspec.artifact.process import Process
 from projspec.artifact.python_env import EnvPack, CondaEnv, VirtualEnv, LockFile
 
