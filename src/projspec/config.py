@@ -11,11 +11,12 @@ defaults = {
     # location of persisted project objects
     "library_path": f"{conf_dir}/library.json",
     # files automatically read before scanning
-    "scan_types": [".py", ".yaml", ".yml", ".toml", "j.son"],
+    "scan_types": [".py", ".yaml", ".yml", ".toml", ".json"],
     # don't scan files if more than this number in the project
     "scan_max_files": 100,
-    # don't scan files if more than this size (in bytes)
-    "scan_max_size": 10**20,  # not implemented
+    # don't scan files bigger than this (in bytes)
+    # In the future we may change this to reading this many bytes from the header.
+    "scan_max_size": 5 * 2**10,
 }
 
 

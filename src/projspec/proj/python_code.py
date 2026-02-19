@@ -31,16 +31,14 @@ class PythonCode(ProjectSpec):
         exe = [v for k, v in self.proj.basenames.items() if k == "__main__.py"]
         if exe:
             arts["process"] = AttrDict(
-                main=Process(
-                    proj=self.proj, cmd=["python", self.proj.basenames[exe[0]]]
-                )
+                main=Process(proj=self.proj, cmd=["python", exe[0]])
             )
         self._artifacts = arts
         out = AttrDict(
             PythonPackage(
                 proj=self.proj,
                 artifacts=set(),
-                package_name=self.path.rsplit("/", 1)[-1],
+                package_name=self.proj.url.rsplit("/", 1)[-1],
             )
         )
         if arts:

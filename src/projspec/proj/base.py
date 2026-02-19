@@ -23,23 +23,14 @@ registry = {}
 
 # we don't consider these as possible child projects when walk=True
 default_excludes = {
+    # TODO: make this a conf
     # TODO: add more here
+    # we always ignore directories starting with "." or "_"
     "bld",
     "build",
-    "_build",
-    ".mypy_cache",
     "dist",
     "env",
     "envs",  # conda-project
-    ".venv",
-    ".git",
-    "__pycache__",
-    ".benchmarks",
-    ".ipynb_checkpoints",
-    ".pytest_cache",
-    ".ruff_cache",
-    ".vscode",
-    ".idea",
     "htmlcov",
 }
 
@@ -93,59 +84,64 @@ class Project:
         # read and respect .gitignore? for exclude directories?
         self.excludes = excludes or default_excludes
         self._pyproject = None
+        self._scanned_files = None
         self.resolve(walk=walk, types=types, xtypes=xtypes)
+        # clear cached files
+        self._scanned_files = None
 
     def is_local(self) -> bool:
         """Did we read this from the local filesystem?"""
         # see also fsspec.utils.can_be_local for more flexibility with caching.
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
-    # TODO: this can be set from a root project with find() if using walk
-    @cached_property
+    @property
     def scanned_files(self):
-        types = get_conf("scan_types")
-        if not types:
-            return {}
-        allfiles = [_ for _ in self.filelist if _["name"].endswith(tuple(types))]
-        size = sum(_["size"] for _ in allfiles)
-        if len(allfiles) > get_conf("scan_max_files") or size > get_conf(
-            "scan_max_size"
-        ):
-            logger.debug(
-                "Skipping scanning of %d files (%d bytes) in %s",
-                len(allfiles),
-                size,
-                self.url,
-            )
-            return {}
-        return {
-            k.rsplit("/", 1)[-1]: v
-            for k, v in self.fs.cat([_["name"] for _ in allfiles]).items()
-        }
+        if self._scanned_files is None:
+            types = get_conf("scan_types")
+            if not types:
+                return {}
+            size = get_conf("scan_max_size")
+            allfiles = [
+                _
+                for _ in self.filelist
+                if _["name"].endswith(tuple(types)) and _["size"] < size
+            ]
+            if len(allfiles) > get_conf("scan_max_files"):
+                logger.debug(
+                    "Skipping scanning of %d files in %s",
+                    len(allfiles),
+                    self.url,
+                )
+                return {}
+            self._scanned_files = {
+                k.rsplit("/", 1)[-1]: v
+                for k, v in self.fs.cat([_["name"] for _ in allfiles]).items()
+            }
+        return self._scanned_files
 
     def get_file(self, name: str, text=True) -> io.IOBase:
         if name in self.scanned_files:
             if text:
                 return io.StringIO(self.scanned_files[name].decode())
             return io.BytesIO(self.scanned_files[name])
-        return self.fs.open(f"{self.url}/{name}", mode="rb" if text else "rb")
+        return self.fs.open(f"{self.url}/{name}", mode="rt" if text else "rb")
 
     def resolve(
         self,
-        subpath: str = "",
         walk: bool | None = None,
         types: set[str] | None = None,
         xtypes: set[str] | None = None,
     ) -> None:
         """Fill out project specs in this directory
 
-        :param subpath: find specs at the given subpath
         :param walk: if None (default) only try subdirectories if root has
             no specs, and don't descend further. If True, recurse all directories;
             if False, don't descend at all.
         :param types: names of types to allow while parsing. If empty or None, allow all
+        :param xtypes: names of types to disallow while parsing.
         """
-        fullpath = "/".join([self.url, subpath]) if subpath else self.url
+        if types and set(types) - set(registry):
+            raise ValueError(f"Unknown types: {set(types) - set(registry)}")
         # sorting to ensure consistency
         for name in sorted(registry):
             cls = registry[name]
@@ -157,7 +153,7 @@ class Project:
                     snake_name,
                 }.intersection(xtypes or set()):
                     continue
-                logger.debug("resolving %s as %s", fullpath, cls)
+                logger.debug("resolving %s as %s", self.url, cls)
                 inst = cls(self)
                 inst.parse()
                 if isinstance(inst, ProjectExtra):
@@ -171,7 +167,7 @@ class Project:
                 # we don't want to fail the parse completely
                 logger.exception("Failed to resolve spec %r", e)
         if walk or (walk is None and not self.specs):
-            for fileinfo in self.fs.ls(fullpath, detail=True):
+            for fileinfo in self.filelist:
                 if fileinfo["type"] == "directory":
                     # TODO: some types (like python packages) are recursive; so we should
                     #  separate out the parse and children steps, and only descend to
@@ -179,9 +175,8 @@ class Project:
                     # Alternatively: allow walk to be an integer, indicating the depth
                     #  of search.
                     basename = fileinfo["name"].rsplit("/", 1)[-1]
-                    if basename in self.excludes or basename.startswith("."):
+                    if basename in self.excludes or basename.startswith((".", "_")):
                         continue
-                    sub = f"{subpath}/{basename}"
                     proj2 = Project(
                         fileinfo["name"],
                         fs=self.fs,
@@ -191,11 +186,11 @@ class Project:
                         excludes=self.excludes,
                     )
                     if proj2.specs:
-                        self.children[sub] = proj2
+                        self.children[basename] = proj2
                     elif proj2.children:
                         self.children.update(
                             {
-                                f"{sub.rstrip('/')}/{s2.lstrip('/')}": p
+                                f"{basename.rstrip('/')}/{s2.lstrip('/')}": p
                                 for s2, p in proj2.children.items()
                             }
                         )
@@ -388,18 +383,12 @@ class ProjectSpec:
 
     spec_doc = ""  # URL to prose about this spec
 
-    def __init__(self, proj: Project, subpath: str = ""):
+    def __init__(self, proj: Project):
         self.proj = proj
-        self.subpath = subpath  # not used yet
         self._contents = AttrDict()
         self._artifacts = AttrDict()
         if not self.match():
             raise ParseFailed(f"Not a {type(self).__name__}")
-
-    @property
-    def path(self) -> str:
-        """Location of this project spec"""
-        return self.proj.url + "/" + self.subpath if self.subpath else self.proj.url
 
     def match(self) -> bool:
         """Whether the given path might be interpreted as this type of project"""
@@ -473,10 +462,12 @@ class ProjectSpec:
             _contents=self.contents,
             _artifacts=self.artifacts,
         )
-        dic["subpath"] = self.subpath
         if not compact:
             dic["klass"] = ["projspec", self.snake_name()]
         return dic.to_dict(compact=compact)
+
+    def get_file(self, name: str, text=True) -> io.IOBase:
+        return self.proj.get_file(name, text=text)
 
     @classmethod
     def snake_name(cls) -> str:

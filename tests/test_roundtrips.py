@@ -14,6 +14,7 @@ from projspec.utils import get_cls
         "JLabExtension",
         "IntakeCatalog",
         "DataPackage",
+        "PyScript",
     ],
 )
 def test_compliant(tmpdir, cls_name):

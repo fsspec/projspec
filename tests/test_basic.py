@@ -11,7 +11,7 @@ def test_basic(proj):
     assert "wheel" in spec.artifacts
     assert proj.all_contents()
     assert proj.all_artifacts()
-    assert proj.children
+    assert "src/projspec" in proj.children
     repr(proj)
     proj._repr_html_()
 

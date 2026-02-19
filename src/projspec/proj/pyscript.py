@@ -1,3 +1,5 @@
+from pathlib import Path
+import os.path
 import toml
 
 from projspec.proj import ProjectSpec
@@ -45,25 +47,63 @@ class PyScript(ProjectSpec):
         # perhaps a local deployment can be a reasonable artifact
         # https://github.com/pyscript/pyscript-cli
         # TODO: the server app is very small, could launch with uvx or such directly
+        #  or embed.
         self._artifacts = AttrDict(
             {"server": Server(proj=self.proj, cmd=["pyscript", "run"])}
         )
 
     @staticmethod
     def _create(path: str) -> None:
-        import subprocess
+        create_project(Path(path))
 
-        # TODO: we don't really need the CLI to do this
-        with make_and_copy(path) as tmp:
-            cmd = [
-                "pyscript",
-                "create",
-                "--app-description",
-                "projspec-app",
-                "--author-name",
-                "temp",
-                "--author-email",
-                "temp",
-                tmp,
-            ]
-            subprocess.check_call(cmd)
+
+TEMPLATE_PYTHON_CODE = """# Replace the code below with your own
+print("Hello, world!")
+"""
+TEMPLATE_HTML = """<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>{{ title }}</title>
+
+    <!-- Recommended meta tags -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+    <link rel="stylesheet" href="https://pyscript.net/releases/2026.2.1/core.css">
+    <script type="module" src="https://pyscript.net/releases/2026.2.1/core.js"></script>
+  </head>
+  <body>
+    <script type="py" src="./main.py" config="./pyscript.toml" terminal></script>
+  </body>
+</html>"""
+
+
+def create_project(
+    app_dir: Path,
+) -> None:
+    # modified from
+    # https://github.com/pyscript/pyscript-cli/blob/main/src/pyscript/_generator.py
+    app_name = "projspec-app"
+
+    context = {
+        "name": app_name,
+        "description": "Pyscript template by projspec",
+        "type": "app",
+        "author_name": "temp",
+        "author_email": "temp",
+        "version": "latest",
+        "packages": [],
+    }
+
+    os.makedirs(str(app_dir), exist_ok=True)
+    manifest_file = app_dir / "pyscript.toml"
+    with manifest_file.open("w") as fp:
+        toml.dump(context, fp)
+    output_path = app_dir / "index.html"
+    python_filepath = app_dir / "main.py"
+
+    with python_filepath.open("w", encoding="utf-8") as fp:
+        fp.write(TEMPLATE_PYTHON_CODE)
+
+    with output_path.open("w") as fp:
+        fp.write(TEMPLATE_HTML)
