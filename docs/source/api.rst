@@ -60,6 +60,7 @@ User Classes
     proj.uv.Uv
     proj.uv.UvScript
     proj.webapp.Django
+    proj.webapp.Marimo
     proj.webapp.Streamlit
 
 
@@ -95,6 +96,7 @@ User Classes
 .. autoclass:: projspec.proj.uv.Uv
 .. autoclass:: projspec.proj.uv.UvScript
 .. autoclass:: projspec.proj.webapp.Django
+.. autoclass:: projspec.proj.webapp.Marimo
 .. autoclass:: projspec.proj.webapp.Streamlit
 
 
