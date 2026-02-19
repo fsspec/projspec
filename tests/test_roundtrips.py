@@ -15,6 +15,7 @@ from projspec.utils import get_cls
         "IntakeCatalog",
         "DataPackage",
         "PyScript",
+        "marimo",
     ],
 )
 def test_compliant(tmpdir, cls_name):
