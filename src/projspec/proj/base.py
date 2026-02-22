@@ -113,10 +113,13 @@ class Project:
                     self.url,
                 )
                 return {}
-            self._scanned_files = {
-                k.rsplit("/", 1)[-1]: v
-                for k, v in self.fs.cat([_["name"] for _ in allfiles]).items()
-            }
+            if allfiles:
+                self._scanned_files = {
+                    k.rsplit("/", 1)[-1]: v
+                    for k, v in self.fs.cat([_["name"] for _ in allfiles]).items()
+                }
+            else:
+                self._scanned_files = {}
         return self._scanned_files
 
     def get_file(self, name: str, text=True) -> io.IOBase:
@@ -262,12 +265,12 @@ class Project:
 
     def all_artifacts(self, names: str | None = None) -> list:
         """A flat list of all the artifact objects nested in this project."""
-        arts = set(self.artifacts.values())
+        arts = list(self.artifacts.values())
         for spec in self.specs.values():
-            arts.update(flatten(spec.artifacts))
+            arts.extend(flatten(spec.artifacts))
         for child in self.children.values():
-            arts.update(child.artifacts)
-        arts.update(self.artifacts.values())
+            arts.extend(child.artifacts)
+        arts.extend(self.artifacts.values())
         if names:
             if isinstance(names, str):
                 names = {names}

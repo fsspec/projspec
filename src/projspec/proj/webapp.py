@@ -4,6 +4,14 @@ import subprocess
 from projspec.proj import ProjectSpec, ParseFailed
 
 
+# TODO: webapp Servers should (optionally?) call threading.Timer(0.5, webbrowser.open(..));
+#  but then it must not block, and we need to set/infer the URL including port.
+
+# TODO: each of these has a different way to define which address/port to listen on,
+#  and how to get that info back if not defined. The Server class should provide a way to
+#  interact with this. Some can also auto-open a browser, but we don't want that usually.
+
+
 class Django(ProjectSpec):
     """A python web app using the django framework"""
 
@@ -69,22 +77,22 @@ class Streamlit(ProjectSpec):
         with open(f"{path}/.streamlit/config.toml", "wt") as f:
             f.write(
                 """
-                [global]
+[global]
 
-                [logger]
-                level = "info"
+[logger]
+level = "info"
 
-                [server]
-                headless = true
-                """
+[server]
+headless = true
+"""
             )
         with open(f"{path}/streamlit_app.py", "wt") as f:
             f.write(
                 """
-                import streamlit as st
-                st.title("Streamlit minimal app")
-                st.write("Hello world!")
-                """
+import streamlit as st
+st.title("Streamlit minimal app")
+st.write("Hello world!")
+"""
             )
         if not os.path.exists(f"{path}/requirements.txt"):
             with open(f"{path}/requirements.txt", "wt") as f:
@@ -141,15 +149,7 @@ class Marimo(ProjectSpec):
     spec_doc = "https://docs.marimo.io/"
 
     def match(self) -> bool:
-        pyfiles = {
-            data for fn, data in self.proj.scanned_files.items() if fn.endswith(".py")
-        }
-        if not pyfiles:
-            return False
-        # quick check for marimo import in any .py file
-        return any(
-            b"import marimo" in data or b"from marimo " in data for data in pyfiles
-        )
+        return any(fn.endswith(".py") for fn in self.proj.scanned_files)
 
     def parse(self) -> None:
         from projspec.artifact.process import Server
@@ -169,32 +169,248 @@ class Marimo(ProjectSpec):
                 )
 
         if not self.artifacts["server"]:
-            raise ParseFailed("No marimo notebooks found")
+            raise ParseFailed
 
     @staticmethod
     def _create(path):
         with open(f"{path}/marimo-app.py", "wt") as f:
             f.write(
                 """
-            import marimo
-            __generated_with = "0.19.11"
-            app = marimo.App()
+import marimo
+__generated_with = "0.19.11"
+app = marimo.App()
 
-            @app.cell
-            def _():
-                import marimo as mo
-                return "Hello, marimo!"
+@app.cell
+def _():
+    import marimo as mo
+    return "Hello, marimo!"
 
-            if __name__ == "__main__":
-                app.run()
-            """
+if __name__ == "__main__":
+    app.run()
+"""
             )
 
 
-# TODO: the following are similar to streamlit, but with perhaps even less metadata
-# - flask (from flask import Flask; app = Flask( )
-# - fastapi (from fastapi import FastAPI; app = FastAPI( )
-# - plotly/dash (from dash import Dash; app = Dash(); app.run())
-# - voila (this is just a way to display a notebook)
-# - panel (import panel as pn; .servable())
-# Each of these takes extra parameters for listen address and port at least.
+class Flask(ProjectSpec):
+    """Lightweight web application framework in Python"""
+
+    spec_doc = "https://flask.palletsprojects.com/en/stable/config/"
+
+    def match(self) -> bool:
+        # the default and common name for the main file is app.py
+        return (
+            any(fn.endswith(".py") for fn in self.proj.scanned_files)
+            or "app.py" in self.proj.basenames
+        )
+
+    def parse(self) -> None:
+        from projspec.artifact.process import Server
+
+        self.artifacts["server"] = {}
+        for path, content in self.proj.scanned_files.items():
+            if not path.endswith(".py"):
+                continue
+            content = content.decode()
+            has_import = "import flask" in content or "from flask" in content
+            has_app = "flask.Flask(" in content or "= Flask(" in content
+            if has_import and has_app:
+                name = path.replace(".py", "")
+                self.artifacts["server"][name] = Server(
+                    proj=self.proj,
+                    cmd=["flask", "--app", name, "run"],
+                )
+        # read this one file anyway, if it wasn't already
+        if "app.py" in self.proj.basenames and "app.py" not in self.proj.scanned_files:
+            content = self.proj.fs.cat("app.py").decode()
+            # stash
+            self.proj.scanned_files["app.py"] = content
+            has_import = "import flask" in content or "from flask" in content
+            has_app = "flask.Flask(" in content or "= Flask(" in content
+            if has_import and has_app:
+                self.artifacts["server"]["app"] = Server(
+                    proj=self.proj, cmd=["flask", "run"]
+                )
+
+        if not self.artifacts["server"]:
+            raise ParseFailed
+
+    @staticmethod
+    def _create(path):
+        with open(f"{path}/flask-app.py", "wt") as f:
+            # https://flask.palletsprojects.com/en/stable/quickstart/#a-minimal-application
+            f.write(
+                """
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route("/")
+def hello_world():
+    return "<p>Hello, World!</p>"
+"""
+            )
+
+
+class FastAPI(ProjectSpec):
+    """Fast web application framework in Python"""
+
+    spec_doc = "https://fastapi.tiangolo.com/advanced/settings/"
+
+    def match(self) -> bool:
+        # the default and common name for the main file is app.py
+        return (
+            any(fn.endswith(".py") for fn in self.proj.scanned_files)
+            or "app.py" in self.proj.basenames
+        )
+
+    def parse(self) -> None:
+        from projspec.artifact.process import Server
+
+        self.artifacts["server"] = {}
+        for path, content in self.proj.scanned_files.items():
+            if not path.endswith(".py"):
+                continue
+            content = content.decode()
+            has_import = "import fastapi" in content or "from fastapi" in content
+            has_app = "FastAPI(" in content
+            if has_import and has_app:
+                name = path.rsplit("/", 1)[-1].replace(".py", "")
+                self.artifacts["server"][name] = Server(
+                    proj=self.proj,
+                    cmd=["fastapi", "dev", path],
+                )
+
+        if not self.artifacts["server"]:
+            raise ParseFailed
+
+    @staticmethod
+    def _create(path):
+        with open(f"{path}/flask-app.py", "wt") as f:
+            # https://fastapi.tiangolo.com/#create-it
+            f.write(
+                """
+from fastapi import FastAPI
+
+app = FastAPI()
+
+
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+
+
+@app.get("/items/{item_id}")
+def read_item(item_id: int, q: str | None = None):
+    return {"item_id": item_id, "q": q}
+"""
+            )
+
+
+class Dash(ProjectSpec):
+    """Interactive data dashboarding with plotly components."""
+
+    spec_doc = "https://dash.plotly.com/tutorial"  # no actual configuration
+
+    def match(self) -> bool:
+        # the default and common name for the main file is app.py
+        return (
+            any(fn.endswith(".py") for fn in self.proj.scanned_files)
+            or "app.py" in self.proj.basenames
+        )
+
+    def parse(self) -> None:
+        from projspec.artifact.process import Server
+
+        self.artifacts["server"] = {}
+        for path, content in self.proj.scanned_files.items():
+            if not path.endswith(".py"):
+                continue
+            content = content.decode()
+            has_import = "import dash" in content or "from dash" in content
+            has_app = "Dash(" in content
+            if has_import and has_app:
+                name = path.rsplit("/", 1)[-1].replace(".py", "")
+                self.artifacts["server"][name] = Server(
+                    proj=self.proj,
+                    cmd=["python", path],
+                )
+
+        if not self.artifacts["server"]:
+            raise ParseFailed
+
+    def _create(path: str) -> None:
+        with open(f"{path}/app.py", "wt") as f:
+            # https://dash.plotly.com/minimal-app
+            f.write(
+                """from dash import Dash, html, dcc, callback, Output, Input
+import plotly.express as px
+import pandas as pd
+
+df = pd.read_csv('https://raw.githubusercontent.com/plotly/datasets/master/gapminder_unfiltered.csv')
+
+app = Dash()
+
+# Requires Dash 2.17.0 or later
+app.layout = [
+    html.H1(children='Title of Dash App', style={'textAlign':'center'}),
+    dcc.Dropdown(df.country.unique(), 'Canada', id='dropdown-selection'),
+    dcc.Graph(id='graph-content')
+]
+
+@callback(
+    Output('graph-content', 'figure'),
+    Input('dropdown-selection', 'value')
+)
+def update_graph(value):
+    dff = df[df.country==value]
+    return px.line(dff, x='year', y='pop')
+
+if __name__ == '__main__':
+    app.run(debug=True)
+"""
+            )
+
+
+class Panel(ProjectSpec):
+    """Interactive data dashboarding using panel, with holoviz/bokeh components."""
+
+    spec_doc = "https://panel.holoviz.org/api/config.html"
+
+    def match(self) -> bool:
+        # the default and common name for the main file is app.py
+        return (
+            any(fn.endswith((".py", ".ipynb")) for fn in self.proj.scanned_files)
+            or "app.py" in self.proj.basenames
+        )
+
+    def parse(self) -> None:
+        from projspec.artifact.process import Server
+
+        self.artifacts["server"] = {}
+        for path, content in self.proj.scanned_files.items():
+            if not path.endswith((".py", ".ipynb")):
+                continue
+            content = content.decode()
+            has_import = "import panel" in content or "from panel" in content
+            has_app = ".servable(" in content
+            if has_import and has_app:
+                name = path.rsplit("/", 1)[-1].replace(".py", "")
+                self.artifacts["server"][name] = Server(
+                    proj=self.proj,
+                    cmd=["panel", "serve", path],
+                )
+
+        if not self.artifacts["server"]:
+            raise ParseFailed
+
+    def _create(path: str) -> None:
+        with open(f"{path}/app.py", "wt") as f:
+            # https://panel.holoviz.org/tutorials/basic/serve.html#serve-the-app
+            f.write(
+                """import panel as pn
+
+pn.extension()
+
+pn.panel("Hello World").servable()
+"""
+            )

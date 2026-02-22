@@ -272,7 +272,7 @@ def _yaml_no_jinja(fileobj):
 
 def flatten(x: Iterable, out=None):
     """Descend into dictionaries to return the set of all leaf values"""
-    out = out or []
+    out = [] if out is None else out
     if isinstance(x, dict):
         x = x.values()
     for item in x:
@@ -282,11 +282,10 @@ def flatten(x: Iterable, out=None):
             # These are iterables whose items are also iterable, i.e.,
             # the first item of "item" is "i", which is also a string.
             out.append(item)
+        elif isinstance(item, Iterable):
+            flatten(item, out)
         else:
-            try:
-                flatten(item, out)
-            except TypeError:
-                out.append(item)
+            out.append(item)
     return out
 
 
