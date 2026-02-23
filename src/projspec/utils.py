@@ -11,6 +11,7 @@ import toml
 import yaml
 
 enum_registry = {}
+logger = logging.getLogger("projspec")
 
 
 class Enum(enum.Enum):
@@ -214,6 +215,7 @@ def run_subprocess(cmd, cwd=None, env=None, output=True, popen=False):
     faster to do the lookup and give a reasonable error message.
     """
     # TODO: we want to swap out direct calls to subprocess
+    logger.debug("Running subprocess: %s", cmd)
     if cmd[0] not in is_installed:
         raise RuntimeError(f"Command {cmd[0]} not installed in current environment")
     if popen:
@@ -272,7 +274,7 @@ def _yaml_no_jinja(fileobj):
 
 def flatten(x: Iterable, out=None):
     """Descend into dictionaries to return the set of all leaf values"""
-    out = out or []
+    out = [] if out is None else out
     if isinstance(x, dict):
         x = x.values()
     for item in x:
@@ -282,11 +284,10 @@ def flatten(x: Iterable, out=None):
             # These are iterables whose items are also iterable, i.e.,
             # the first item of "item" is "i", which is also a string.
             out.append(item)
+        elif isinstance(item, Iterable):
+            flatten(item, out)
         else:
-            try:
-                flatten(item, out)
-            except TypeError:
-                out.append(item)
+            out.append(item)
     return out
 
 
