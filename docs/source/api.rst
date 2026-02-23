@@ -33,7 +33,6 @@ User Classes
     content.environment.CondaEnv
     content.environment.PythonRequirements
     content.metadata.Licensed
-    proj.base.ProjectExtra
     proj.briefcase.Briefcase
     proj.conda_package.CondaRecipe
     proj.conda_package.RattlerRecipe
@@ -69,7 +68,6 @@ User Classes
 .. autoclass:: projspec.content.environment.CondaEnv
 .. autoclass:: projspec.content.environment.PythonRequirements
 .. autoclass:: projspec.content.metadata.Licensed
-.. autoclass:: projspec.proj.base.ProjectExtra
 .. autoclass:: projspec.proj.briefcase.Briefcase
 .. autoclass:: projspec.proj.conda_package.CondaRecipe
 .. autoclass:: projspec.proj.conda_package.RattlerRecipe

@@ -63,6 +63,7 @@ class Streamlit(ProjectSpec):
     spec_doc = "https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/file-organization"
     # see also "https://docs.streamlit.io/develop/api-reference/configuration/config.toml", which is
     # mainly theme and server config.
+    server_args = {"port_arg": "--server.address", "address_arg": "--server.port"}
 
     def match(self) -> bool:
         # more possible layouts
@@ -147,6 +148,7 @@ class Marimo(ProjectSpec):
     """Reactive Python notebook and webapp served in the browser"""
 
     spec_doc = "https://docs.marimo.io/"
+    server_args = {"port_arg": "--port", "address_arg": "--host"}
 
     def match(self) -> bool:
         return any(fn.endswith(".py") for fn in self.proj.scanned_files)
@@ -164,8 +166,7 @@ class Marimo(ProjectSpec):
             if has_import and has_app:
                 name = path.rsplit("/", 1)[-1].replace(".py", "")
                 self.artifacts["server"][name] = Server(
-                    proj=self.proj,
-                    cmd=["marimo", "run", path],
+                    proj=self.proj, cmd=["marimo", "run", path], **self.server_args
                 )
 
         if not self.artifacts["server"]:
@@ -195,6 +196,7 @@ class Flask(ProjectSpec):
     """Lightweight web application framework in Python"""
 
     spec_doc = "https://flask.palletsprojects.com/en/stable/config/"
+    server_args = {"port_arg": "--port", "address_arg": "--host"}
 
     def match(self) -> bool:
         # the default and common name for the main file is app.py
@@ -218,6 +220,7 @@ class Flask(ProjectSpec):
                 self.artifacts["server"][name] = Server(
                     proj=self.proj,
                     cmd=["flask", "--app", name, "run"],
+                    **self.server_args,
                 )
         # read this one file anyway, if it wasn't already
         if "app.py" in self.proj.basenames and "app.py" not in self.proj.scanned_files:
@@ -228,7 +231,7 @@ class Flask(ProjectSpec):
             has_app = "flask.Flask(" in content or "= Flask(" in content
             if has_import and has_app:
                 self.artifacts["server"]["app"] = Server(
-                    proj=self.proj, cmd=["flask", "run"]
+                    proj=self.proj, cmd=["flask", "run"] ** self.server_args
                 )
 
         if not self.artifacts["server"]:
@@ -255,6 +258,7 @@ class FastAPI(ProjectSpec):
     """Fast web application framework in Python"""
 
     spec_doc = "https://fastapi.tiangolo.com/advanced/settings/"
+    server_args = {"port_arg": "--port", "address_arg": "--host"}
 
     def match(self) -> bool:
         # the default and common name for the main file is app.py
@@ -276,8 +280,7 @@ class FastAPI(ProjectSpec):
             if has_import and has_app:
                 name = path.rsplit("/", 1)[-1].replace(".py", "")
                 self.artifacts["server"][name] = Server(
-                    proj=self.proj,
-                    cmd=["fastapi", "dev", path],
+                    proj=self.proj, cmd=["fastapi", "run", path], **self.server_args
                 )
 
         if not self.artifacts["server"]:
@@ -310,6 +313,7 @@ class Dash(ProjectSpec):
     """Interactive data dashboarding with plotly components."""
 
     spec_doc = "https://dash.plotly.com/tutorial"  # no actual configuration
+    server_args = {"in_env": True, "port_arg": "PORT", "address_arg": "HOST"}
 
     def match(self) -> bool:
         # the default and common name for the main file is app.py
@@ -331,8 +335,7 @@ class Dash(ProjectSpec):
             if has_import and has_app:
                 name = path.rsplit("/", 1)[-1].replace(".py", "")
                 self.artifacts["server"][name] = Server(
-                    proj=self.proj,
-                    cmd=["python", path],
+                    proj=self.proj, cmd=["python", path], **self.server_args
                 )
 
         if not self.artifacts["server"]:

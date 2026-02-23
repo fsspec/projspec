@@ -11,6 +11,7 @@ import toml
 import yaml
 
 enum_registry = {}
+logger = logging.getLogger("projspec")
 
 
 class Enum(enum.Enum):
@@ -214,6 +215,7 @@ def run_subprocess(cmd, cwd=None, env=None, output=True, popen=False):
     faster to do the lookup and give a reasonable error message.
     """
     # TODO: we want to swap out direct calls to subprocess
+    logger.debug("Running subprocess: %s", cmd)
     if cmd[0] not in is_installed:
         raise RuntimeError(f"Command {cmd[0]} not installed in current environment")
     if popen:

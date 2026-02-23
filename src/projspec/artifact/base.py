@@ -18,10 +18,11 @@ class BaseArtifact:
     calling the external tool associated with the project type in a subprocess.
     """
 
-    def __init__(self, proj: Project, cmd: list[str] | None = None):
+    def __init__(self, proj: Project, cmd: list[str] | None = None, **kwargs):
         self.proj = proj
         self.cmd = cmd
         self.proc = None
+        self.__dict__.update(kwargs)
 
     def _is_clean(self) -> bool:
         return self.proc is None  # in general, more complex
