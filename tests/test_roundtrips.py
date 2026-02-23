@@ -8,6 +8,7 @@ from projspec.utils import get_cls
     "cls_name",
     [
         "django",
+        "git_repo",
         "streamlit",
         "python_code",
         "python_library",
