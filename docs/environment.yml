@@ -5,6 +5,7 @@ dependencies:
   - python=3.12
   - pyyaml
   - toml
+  - flask
   - numpydoc
   - sphinx-design
   - sphinx_rtd_theme
