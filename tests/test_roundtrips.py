@@ -20,6 +20,7 @@ from projspec.utils import get_cls
         "flask",
         "dash",
         "panel",
+        "Golang",
     ],
 )
 def test_compliant(tmpdir, cls_name):
