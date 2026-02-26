@@ -11,6 +11,7 @@ import projspec.proj
 
 
 @click.command()
+@click.argument("path", default=".")
 @click.option(
     "--types",
     default="ALL",
@@ -21,9 +22,9 @@ import projspec.proj
     default="NONE",
     help="List of spec types to ignore (comma-separated list in camel or snake case)",
 )
-@click.argument("path", default=".")
 @click.option("--walk", is_flag=True, help="To descend into all child directories")
 @click.option("--summary", is_flag=True, help="Show abbreviated output")
+@click.option("--version", is_flag=True, default=False, help="Print version and quit")
 @click.option(
     "--json-out", is_flag=True, default=False, help="JSON output, for projects only"
 )
@@ -31,7 +32,8 @@ import projspec.proj
     "--html-out", is_flag=True, default=False, help="HTML output, for projects only"
 )
 @click.option(
-    "--make", help="(Re)Create the first artifact found matching this type name"
+    "--make",
+    help="(Re)Create the first artifact found matching this type name; matches [spec.]artifact[.name]",
 )
 @click.option(
     "--info",
@@ -43,8 +45,21 @@ import projspec.proj
     help="storage options dict for the given URL, as JSON",
 )
 def main(
-    path, types, xtypes, walk, summary, json_out, html_out, make, info, storage_options
+    path,
+    types,
+    xtypes,
+    walk,
+    summary,
+    version,
+    json_out,
+    html_out,
+    make,
+    info,
+    storage_options,
 ):
+    if version:
+        print(projspec.__version__)
+        return
     if types in {"ALL", ""}:
         types = None
     else:
@@ -73,13 +88,7 @@ def main(
         path, storage_options=storage_options, types=types, xtypes=xtypes, walk=walk
     )
     if make:
-        art: projspec.artifact.BaseArtifact
-        for art in proj.all_artifacts():
-            if art.snake_name() == projspec.utils.camel_to_snake(make):
-                print("Launching:", art)
-                art.remake()
-                return
-        print("No such artifact found")
+        proj.make(make)
     elif summary:
         print(proj.text_summary())
     elif json_out:

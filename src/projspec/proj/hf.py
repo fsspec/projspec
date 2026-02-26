@@ -1,6 +1,6 @@
 from io import StringIO
 
-from projspec.proj import ProjectSpec
+from projspec.proj import ProjectSpec, ParseFailed
 
 
 class HuggingFaceRepo(ProjectSpec):
@@ -25,8 +25,13 @@ class HuggingFaceRepo(ProjectSpec):
 
         with self.proj.fs.open(readme, "rt") as f:
             txt = f.read()
+        if txt.count("---\n") < 2:
+            raise ParseFailed
         meta = txt.split("---\n")[1]
-        meta = yaml.safe_load(StringIO(meta))
+        try:
+            meta = yaml.safe_load(StringIO(meta))
+        except yaml.YAMLError:
+            raise ParseFailed
         if "licence" in meta:
             self.contents["license"] = License(
                 proj=self.proj,

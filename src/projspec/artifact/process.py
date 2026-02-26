@@ -33,9 +33,9 @@ class Process(BaseArtifact):
     Can include batch jobs and long-running services.
     """
 
-    term: bool = True
+    term: bool = False
     environ: dict[str, str] = {}
-    queue: Queue[bytes] | None = None
+    queue: Queue[bytes] | None = None  # lines of binary output by the subprocess
 
     def _make(self, **kwargs):
         if self.environ and "environ" not in kwargs:
@@ -44,6 +44,7 @@ class Process(BaseArtifact):
             kwargs["env"] = env
         if self.proc is None:
             self.queue = Queue()
+            logger.info(f"Running {self.cmd}")
             proc = subprocess.Popen(
                 self.cmd,
                 stdout=subprocess.PIPE,
@@ -120,7 +121,6 @@ class Server(Process):
                 except Empty:
                     time.sleep(0.02)
                     continue
-                logger.debug(line)
                 if not line:
                     break
                 if match := self._url_pattern.match(line):

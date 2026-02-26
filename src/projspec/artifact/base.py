@@ -48,11 +48,11 @@ class BaseArtifact:
             # Later, will implement download-and-make, although some tools
             # can already do this themselves.
             raise RuntimeError("Can't run local command on remote project")
-        logger.debug(" ".join(self.cmd))
         # this default implementation does not store any state
         self._make(*args, **kwargs)
 
     def _make(self, *args, **kwargs):
+        logger.info("running %s", self.cmd)
         subprocess.check_call(self.cmd, cwd=self.proj.url, **kwargs)
 
     def remake(self):

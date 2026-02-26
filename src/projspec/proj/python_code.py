@@ -28,10 +28,9 @@ class PythonCode(ProjectSpec):
 
     def parse(self):
         arts = AttrDict()
-        exe = [v for k, v in self.proj.basenames.items() if k == "__main__.py"]
-        if exe:
+        if "__main__.py" in self.proj.basenames:
             arts["process"] = AttrDict(
-                main=Process(proj=self.proj, cmd=["python", exe[0]])
+                main=Process(proj=self.proj, cmd=["python", "__main__.py"])
             )
         self._artifacts = arts
         out = AttrDict(
