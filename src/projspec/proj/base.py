@@ -368,6 +368,33 @@ class Project:
         # could rerun resolve or only parse for give type and add, instead.
         return cls.create(self.path)
 
+    def make(self, qname: str, **kwargs) -> None:
+        """Make an artifact of the given type
+
+        qname: str
+            Format is [<spec>.]<artifact-type>[.<name>]. If <spec> or <name> are not given
+            will use the first artifact found of the given type - so include them to be more
+            explicit.
+        """
+        if "." not in qname:
+            spec, artifact, name = None, qname, None
+        else:
+            spec, artifact, *name = qname.split(".")
+        specs = [self.specs[spec]] if spec else self.specs.values()
+        art = None
+        for spec in specs:
+            if artifact in spec.artifacts:
+                art = spec.artifacts[artifact]
+                break
+        if art is None:
+            raise ValueError(f"No artifact {artifact} found in {spec}")
+        if isinstance(art, dict):
+            if name:
+                art = art[name[0]]
+            else:
+                art = next(iter(art.values()))
+        art.make(**kwargs)
+
 
 class ProjectSpec:
     """A project specification
