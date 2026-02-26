@@ -29,7 +29,6 @@ dependencies = [
     "fsspec",
     "click",
     "jinja2",
-    "spdx-tools",
 ]
 
 [project.optional-dependencies]
