@@ -28,7 +28,8 @@ dependencies = [
     "toml",
     "fsspec",
     "click",
-    "jinja2"
+    "jinja2",
+    "spdx-tools",
 ]
 
 [project.optional-dependencies]

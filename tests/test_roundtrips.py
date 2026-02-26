@@ -21,6 +21,7 @@ from projspec.utils import get_cls
         "dash",
         "panel",
         "Golang",
+        "HuggingFaceRepo",
     ],
 )
 def test_compliant(tmpdir, cls_name):

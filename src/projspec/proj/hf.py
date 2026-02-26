@@ -18,12 +18,47 @@ class HuggingFaceRepo(ProjectSpec):
         return self.proj.fs.exists(readme)
 
     def parse(self) -> None:
-        # for now, we just stash the metadata declaration
+        from projspec.content.metadata import DescriptiveMetadata, License
         import yaml
 
         readme = f"{self.proj.url}/README.md"
 
-        with self.proj.fs.open(readme) as f:
+        with self.proj.fs.open(readme, "rt") as f:
             txt = f.read()
         meta = txt.split("---\n")[1]
-        self.meta = yaml.safe_load(StringIO(meta))
+        meta = yaml.safe_load(StringIO(meta))
+        if "licence" in meta:
+            self.contents["license"] = License(
+                proj=self.proj,
+                shortname=meta["licence"],
+                fullname=meta.get("license_name"),
+                url=meta.get("license_link"),
+                artifacts=set(),
+            )
+        self.contents["desciptive_metadata"] = DescriptiveMetadata(
+            proj=self.proj,
+            meta={
+                k: meta[k] for k in ["language", "library_name", "tags"] if k in meta
+            },
+            artifacts=set(),
+        )
+
+    @staticmethod
+    def _create(path: str) -> None:
+        with open(f"{path}/README.md", "w") as f:
+            f.write(
+                """---
+license: other
+license_name: coqui-public-model-license
+license_link: https://coqui.ai/cpml
+library_name: flair
+tags:
+- flair
+base_model: HuggingFaceH4/zephyr-7b-beta
+new_version: 0.1
+datasets:
+- stanfordnlp/imdb
+- HuggingFaceFW/fineweb
+---
+"""
+            )
