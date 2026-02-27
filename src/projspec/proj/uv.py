@@ -63,9 +63,6 @@ class UvScript(PythonLibrary):
         from projspec.content.environment import Environment, Stack, Precision
         from projspec.artifact import LockFile
 
-        import fsspec.implementations.http
-        import fsspec.implementations.local
-
         found = False
         if self.proj.url.endswith(".py"):
             with self.proj.fs.open(self.proj.url, "rb") as f:
@@ -93,12 +90,9 @@ class UvScript(PythonLibrary):
                     cmd=["uv", "lock", "--script", name],
                     fn=f"{url}.lock",
                 )
-                if isinstance(
-                    self.proj.fs,
-                    (
-                        fsspec.implementations.local.LocalFileSystem,
-                        fsspec.implementations.http.HTTPFileSystem,
-                    ),
+                if (
+                    "file" not in self.proj.fs.protocol
+                    and "http" not in self.proj.fs.protocol
                 ):
                     self.artifacts.setdefault("process", AttrDict())[
                         name[:-3]
