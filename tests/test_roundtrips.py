@@ -22,6 +22,7 @@ from projspec.utils import get_cls
         "panel",
         "Golang",
         "HuggingFaceRepo",
+        "uv_script",
     ],
 )
 def test_compliant(tmpdir, cls_name):

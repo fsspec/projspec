@@ -102,6 +102,8 @@ class PythonLibrary(ProjectSpec):
                     channels=[],
                 )
             if "optional-dependencies" in proj:
+                # these are advertised in the built package, even when
+                # called "test" or "dev".
                 for name, deps in proj["optional-dependencies"].items():
                     env[name] = Environment(
                         proj=self.proj,
@@ -124,6 +126,8 @@ class PythonLibrary(ProjectSpec):
                         )
                     conts["command"] = cmd
         if "dependency-groups" in self.proj.pyproject:
+            # these are means for local envs with the library source, you
+            # don't use with `pip install package[extras]`
             env.update(
                 {
                     k: Environment(
