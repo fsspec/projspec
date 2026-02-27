@@ -58,12 +58,9 @@ class Licensed(ProjectExtra):
                     shortname=v[0],
                     fullname=v[1] or k,
                     url=v[2],
-                    artifacts=set(),
                 )
                 break
-        self._contents["license"] = lic or License(
-            proj=self.proj, url=self.lic_file, artifacts=set()
-        )
+        self._contents["license"] = lic or License(proj=self.proj, url=self.lic_file)
 
 
 known = {

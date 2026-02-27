@@ -218,6 +218,9 @@ class Project:
         return txt + "\n".join(bits)
 
     def __repr__(self):
+        return f"<Project '{self.fs.unstrip_protocol(self.url)}'>"
+
+    def __str__(self):
         txt = "<Project '{}'>\n\n{}".format(
             self.fs.unstrip_protocol(self.url),
             "\n\n".join(str(_) for _ in self.specs.values()),

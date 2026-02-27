@@ -121,7 +121,6 @@ class Pixi(ProjectSpec):
                 conts["environments"][env_name] = Environment(
                     proj=self.proj,
                     packages=details["packages"],
-                    artifacts={art},
                     stack=Stack.CONDA,
                     precision=Precision.LOCK,
                     channels=details["channels"],
@@ -181,7 +180,7 @@ def extract_feature(
         cmd = task.get("cmd", "") if isinstance(task, dict) else task
         # NB: these may have dependencies on other tasks and envs, but pixi
         # manages those.
-        commands[name] = Command(proj=pixi.proj, artifacts={art}, cmd=cmd)
+        commands[name] = Command(proj=pixi.proj, cmd=cmd)
     for platform, v in meta.get("target", {}).items():
         for name, task in v.get("tasks", {}).items():
             if env:
@@ -191,7 +190,7 @@ def extract_feature(
                 if isinstance(task, dict)
                 else task
             )
-            commands[name] = Command(proj=pixi.proj, artifacts=set(), cmd=cmd)
+            commands[name] = Command(proj=pixi.proj, cmd=cmd)
             if platform == this_platform():
                 # only commands on the current platform can be executed
                 cmd = ["pixi", "run", name]

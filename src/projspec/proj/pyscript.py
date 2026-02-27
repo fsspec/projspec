@@ -36,7 +36,6 @@ class PyScript(ProjectSpec):
             cont["environment"] = AttrDict(
                 default=Environment(
                     proj=self.proj,
-                    artifacts=set(),
                     stack=Stack.PIP,
                     precision=Precision.SPEC,
                     packages=meta["packages"],

@@ -52,7 +52,6 @@ class CondaRecipe(ProjectSpec):
                 {
                     k: Environment(
                         proj=self.proj,
-                        artifacts={art},
                         packages=v,
                         stack=Stack.CONDA,
                         precision=Precision.SPEC,
@@ -123,7 +122,6 @@ class RattlerRecipe(CondaRecipe):
                     {
                         k: Environment(
                             proj=self.proj,
-                            artifacts={art},
                             packages=v,
                             stack=Stack.CONDA,
                             precision=Precision.SPEC,

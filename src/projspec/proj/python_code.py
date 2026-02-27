@@ -36,15 +36,12 @@ class PythonCode(ProjectSpec):
         out = AttrDict(
             PythonPackage(
                 proj=self.proj,
-                artifacts=set(),
                 package_name=self.proj.url.rsplit("/", 1)[-1],
             )
         )
         if arts:
             art = arts["process"]["main"]
-            out["command"] = AttrDict(
-                main=Command(proj=self.proj, artifacts={art}, cmd=art.cmd)
-            )
+            out["command"] = AttrDict(main=Command(proj=self.proj, cmd=art.cmd))
         self._contents = out
 
     @staticmethod
@@ -84,7 +81,7 @@ class PythonLibrary(ProjectSpec):
         env = AttrDict()
         if proj is not None:
             conts["python_package"] = PythonPackage(
-                proj=self.proj, artifacts=set(), package_name=proj["name"]
+                proj=self.proj, package_name=proj["name"]
             )
             py = (
                 [f"python {proj['requires-python']}"]
@@ -95,7 +92,6 @@ class PythonLibrary(ProjectSpec):
             if "dependencies" in proj:
                 env["default"] = Environment(
                     proj=self.proj,
-                    artifacts=set(),
                     precision=Precision.SPEC,
                     stack=Stack.PIP,
                     packages=proj["dependencies"] + py,
@@ -107,7 +103,6 @@ class PythonLibrary(ProjectSpec):
                 for name, deps in proj["optional-dependencies"].items():
                     env[name] = Environment(
                         proj=self.proj,
-                        artifacts=set(),
                         precision=Precision.SPEC,
                         stack=Stack.PIP,
                         packages=deps + py,
@@ -121,7 +116,6 @@ class PythonLibrary(ProjectSpec):
                         c = f"import sys; from {mod} import {func}; sys.exit({func}())"
                         cmd[name] = Command(
                             proj=self.proj,
-                            artifacts=set(),
                             cmd=["python", "-c", c],
                         )
                     conts["command"] = cmd
@@ -132,7 +126,6 @@ class PythonLibrary(ProjectSpec):
                 {
                     k: Environment(
                         proj=self.proj,
-                        artifacts=set(),
                         precision=Precision.SPEC,
                         stack=Stack.PIP,
                         packages=v,
@@ -149,7 +142,6 @@ class PythonLibrary(ProjectSpec):
                 lines = f.readlines()
             env["default"] = Environment(
                 proj=self.proj,
-                artifacts=set(),
                 precision=Precision.SPEC,
                 stack=Stack.PIP,
                 packages=[l.rstrip() for l in lines if l and "#" not in l],

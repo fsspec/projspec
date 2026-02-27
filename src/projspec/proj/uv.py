@@ -63,6 +63,9 @@ class UvScript(PythonLibrary):
         from projspec.content.environment import Environment, Stack, Precision
         from projspec.artifact import LockFile
 
+        import fsspec.implementations.http
+        import fsspec.implementations.local
+
         found = False
         if self.proj.url.endswith(".py"):
             with self.proj.fs.open(self.proj.url, "rb") as f:
@@ -110,7 +113,6 @@ class UvScript(PythonLibrary):
                     stack=Stack.PIP,
                     precision=Precision.SPEC,
                     packages=packages,
-                    artifacts=set(),
                     channels=deep_get(meta, "tools.uv.index", default=[]),
                 )
                 found = True
@@ -203,7 +205,6 @@ class Uv(PythonLibrary):
                 stack=Stack.PIP,
                 precision=Precision.LOCK,
                 packages=pkg,
-                artifacts={self._artifacts["virtual_env"]["default"]},
             )
 
 
