@@ -60,7 +60,6 @@ class PythonRequirements(ProjectExtra):
             precision=precision,
             packages=deps,
             proj=self.proj,
-            artifacts=set(),
         )
 
 
@@ -90,5 +89,4 @@ class CondaEnv(ProjectExtra):
             packages=deps,
             channels=deps.get("channels"),
             proj=self.proj,
-            artifacts=set(),
         )

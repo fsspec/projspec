@@ -1,3 +1,4 @@
+import projspec
 import pytest
 
 from projspec.content import BaseContent
@@ -27,17 +28,18 @@ def test_attrdict():
 
 
 def test_attrdict_entity():
+    proj = object.__new__(projspec.Project)
     d = AttrDict(
-        BaseContent(proj=None, artifacts=set()),
-        DescriptiveMetadata(proj=None, artifacts=set()),
+        BaseContent(proj=proj),
+        DescriptiveMetadata(proj=proj),
     )
     assert set(d) == {"base_content", "descriptive_metadata"}
 
     with pytest.raises(TypeError):
         AttrDict(
             [
-                BaseContent(proj=None, artifacts=set()),
-                DescriptiveMetadata(proj=None, artifacts=set()),
+                BaseContent(proj=proj),
+                DescriptiveMetadata(proj=proj),
             ]
         )
 

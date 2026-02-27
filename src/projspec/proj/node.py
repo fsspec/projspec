@@ -69,16 +69,13 @@ class Node(ProjectSpec):
                         "main": main,
                         "module": module,
                     },
-                    artifacts=set(),
                 ),
             },
         )
 
         cmd = AttrDict()
         for name, path in bin_entry.items():
-            cmd[name] = Command(
-                proj=self.proj, cmd=["node", f"{self.proj.url}/{path}"], artifacts=set()
-            )
+            cmd[name] = Command(proj=self.proj, cmd=["node", f"{self.proj.url}/{path}"])
 
         # Artifacts
         arts = AttrDict()
@@ -91,7 +88,6 @@ class Node(ProjectSpec):
                 cmd[script_name] = Command(
                     proj=self.proj,
                     cmd=[package_manager_name, "run", script_name],
-                    artifacts=set(),
                 )
 
         if "package-lock.json" in self.proj.basenames:
@@ -103,22 +99,18 @@ class Node(ProjectSpec):
             # TODO: load lockfile and make environment
         conts.setdefault("environment", {})["node"] = Environment(
             proj=self.proj,
-            artifacts=set(),
             stack=Stack.NPM,
             packages=dependencies,
             precision=Precision.SPEC,
         )
         conts.setdefault("environment", {})["node_dev"] = Environment(
             proj=self.proj,
-            artifacts=set(),
             stack=Stack.NPM,
             packages=dev_dependencies,  # + dependencies?
             precision=Precision.SPEC,
         )
 
-        conts["node_package"] = (
-            NodePackage(name=name, proj=self.proj, artifacts=set()),
-        )
+        conts["node_package"] = (NodePackage(name=name, proj=self.proj),)
         conts["command"] = cmd
         self._artifacts = arts
         self._contents = conts
@@ -162,7 +154,6 @@ class Yarn(Node):
         )
         self.contents.setdefault("environment", {})["yarn_lock"] = Environment(
             proj=self.proj,
-            artifacts=set(),
             stack=Stack.NPM,
             packages=hits,
             precision=Precision.LOCK,

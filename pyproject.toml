@@ -152,6 +152,11 @@ ignore = [
     "COM819",
 ]
 
+[tool.uv.workspace]
+members = [
+    "temp",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",

@@ -18,7 +18,6 @@ class BaseContent:
     """
 
     proj: Project = field(repr=False)
-    artifacts: set[BaseArtifact] = field(repr=False)
 
     def _repr2(self):
         return {
@@ -44,7 +43,6 @@ class BaseContent:
             for k in self.__dataclass_fields__
             if k not in ("proj", "artifacts")
         }
-        dic["artifacts"] = []
         dic["klass"] = ["content", self.snake_name()]
         for k in list(dic):
             if isinstance(dic[k], Enum):

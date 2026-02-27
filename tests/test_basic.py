@@ -12,7 +12,8 @@ def test_basic(proj):
     assert proj.all_contents()
     assert proj.all_artifacts()
     assert "src/projspec" in proj.children
-    repr(proj)
+    assert repr(proj).count("\n") == 0
+    assert str(proj).count("\n") > 0
     proj._repr_html_()
 
 

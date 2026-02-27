@@ -26,7 +26,6 @@ class DataPackage(ProjectSpec):
             meta={
                 k: v for k, v in conf.items() if k in {"name", "title", "description"}
             },
-            artifacts=set(),
         )
         if "licenses" in conf:
             lic = conf["licenses"][0]
@@ -34,7 +33,6 @@ class DataPackage(ProjectSpec):
                 proj=self.proj,
                 shortname=lic["name"],
                 url=lic.get("path"),
-                artifacts=set(),
             )
         if "resources" in conf:
             self.contents["frictionless_data"] = [
@@ -42,7 +40,6 @@ class DataPackage(ProjectSpec):
                     proj=self.proj,
                     name=_["name"],
                     schema=_.get("schema", {}),
-                    artifacts=set(),
                 )
                 for _ in conf["resources"]
             ]
@@ -126,13 +123,11 @@ class IntakeCatalog(ProjectExtra):
 
         if meta.get("version") == 2:
             self.contents["intake_source"] = [
-                IntakeSource(proj=self.proj, name=_, artifacts=set())
-                for _ in meta.get("entries", [])
+                IntakeSource(proj=self.proj, name=_) for _ in meta.get("entries", [])
             ]
         else:
             self.contents["intake_source"] = [
-                IntakeSource(proj=self.proj, name=_, artifacts=set())
-                for _ in meta.get("sources", [])
+                IntakeSource(proj=self.proj, name=_) for _ in meta.get("sources", [])
             ]
 
     @staticmethod

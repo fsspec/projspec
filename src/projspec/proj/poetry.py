@@ -71,7 +71,6 @@ class Poetry(PythonLibrary):
                 packages=packages,
                 stack=Stack.PIP,
                 precision=Precision.LOCK,
-                artifacts={self._artifacts["lock_file"]},
             )
         except (OSError, UnicodeDecodeError):
             pass

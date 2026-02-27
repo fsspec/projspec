@@ -38,14 +38,12 @@ class HuggingFaceRepo(ProjectSpec):
                 shortname=meta["licence"],
                 fullname=meta.get("license_name"),
                 url=meta.get("license_link"),
-                artifacts=set(),
             )
         self.contents["desciptive_metadata"] = DescriptiveMetadata(
             proj=self.proj,
             meta={
                 k: meta[k] for k in ["language", "library_name", "tags"] if k in meta
             },
-            artifacts=set(),
         )
 
     @staticmethod

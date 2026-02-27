@@ -90,7 +90,6 @@ class CondaProject(ProjectSpec):
                         packages=lpackages,
                         stack=Stack.CONDA,
                         precision=Precision.LOCK,
-                        artifacts={runtime},
                     )
                 env = Environment(
                     proj=self.proj,
@@ -98,7 +97,6 @@ class CondaProject(ProjectSpec):
                     packages=packages,
                     stack=Stack.CONDA,
                     precision=Precision.SPEC,
-                    artifacts={runtime, lock},
                 )
                 envs[env_name] = env
             except FileNotFoundError:
@@ -110,7 +108,7 @@ class CondaProject(ProjectSpec):
                 cmd=["conda", "project", "run", name],
             )
             procs[name] = prc
-            cmds[name] = Command(proj=self.proj, cmd=cmd, artifacts={prc})
+            cmds[name] = Command(proj=self.proj, cmd=cmd)
 
         cont = AttrDict(environment=envs, command=cmds)
         arts = AttrDict(lock_file=locks, conda_env=runtimes, process=procs)

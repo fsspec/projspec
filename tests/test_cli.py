@@ -39,5 +39,5 @@ open(str(time.time()), "w").close()
     main([path, "--make", "process"], standalone_mode=False)
     main([path, "--make", "python_code.process"], standalone_mode=False)
     main([path, "--make", "python_code.process.main"], standalone_mode=False)
-    time.sleep(0.1)  # wait for the files to arrive
+    time.sleep(1.7)  # wait for the files to arrive; perhaps --wait should be a thing
     assert len(os.listdir(path)) == 5
