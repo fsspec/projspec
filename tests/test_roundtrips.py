@@ -23,6 +23,7 @@ from projspec.utils import get_cls
         "Golang",
         "HuggingFaceRepo",
         "uv_script",
+        "MLFlow",
     ],
 )
 def test_compliant(tmpdir, cls_name):

@@ -16,6 +16,7 @@ from projspec.proj.python_code import PythonCode, PythonLibrary
 from projspec.proj.rust import Rust, RustPython
 from projspec.proj.uv import Uv
 from projspec.proj.webapp import Django, Marimo, Streamlit
+from projspec.proj.workflows import MLFlow
 
 __all__ = [
     "ParseFailed",
@@ -31,6 +32,7 @@ __all__ = [
     "JLabExtension",
     "Marimo",
     "MDBook",
+    "MLFlow",
     "NvidiaAIWorkbench",
     "Node",
     "Poetry",

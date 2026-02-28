@@ -1,3 +1,5 @@
+"""Environments in the sense of specifications that can be built into runtimes"""
+
 from dataclasses import dataclass, field
 from enum import auto
 
@@ -86,7 +88,7 @@ class CondaEnv(ProjectExtra):
         self.contents["environment"] = Environment(
             stack=Stack.CONDA,
             precision=Precision.SPEC,
-            packages=deps,
+            packages=deps["dependencies"],
             channels=deps.get("channels"),
             proj=self.proj,
         )

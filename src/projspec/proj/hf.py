@@ -39,7 +39,7 @@ class HuggingFaceRepo(ProjectSpec):
                 fullname=meta.get("license_name"),
                 url=meta.get("license_link"),
             )
-        self.contents["desciptive_metadata"] = DescriptiveMetadata(
+        self.contents["descriptive_metadata"] = DescriptiveMetadata(
             proj=self.proj,
             meta={
                 k: meta[k] for k in ["language", "library_name", "tags"] if k in meta
