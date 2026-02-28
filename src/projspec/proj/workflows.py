@@ -26,7 +26,7 @@ class MLFlow(ProjectSpec):
                     stack=Stack.PIP,
                     precision=Precision.SPEC,
                     packages=env.get("dependencies", [])
-                    + [f"python {env.get('python', " ")}"],
+                    + [f"python {env.get('python', '')}"],
                     proj=self.proj,
                 )
         elif "conda_env" in meta:
