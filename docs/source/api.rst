@@ -99,7 +99,7 @@ User Classes
 .. autoclass:: projspec.proj.webapp.Django
 .. autoclass:: projspec.proj.webapp.Marimo
 .. autoclass:: projspec.proj.webapp.Streamlit
-.. autoclass:: projspec.proj.workflows.mlflow
+.. autoclass:: projspec.proj.workflows.MLFlow
 
 
 Contents
