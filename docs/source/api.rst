@@ -62,6 +62,7 @@ User Classes
     proj.webapp.Django
     proj.webapp.Marimo
     proj.webapp.Streamlit
+    proj.workflows.MLFlow
 
 
 .. autoclass:: projspec.artifact.container.Docker
@@ -98,6 +99,7 @@ User Classes
 .. autoclass:: projspec.proj.webapp.Django
 .. autoclass:: projspec.proj.webapp.Marimo
 .. autoclass:: projspec.proj.webapp.Streamlit
+.. autoclass:: projspec.proj.workflows.mlflow
 
 
 Contents
