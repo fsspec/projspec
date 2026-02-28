@@ -153,6 +153,8 @@ class Pixi(ProjectSpec):
         # environments built by pixi will contain a conda-meta/pixi file with the meta file,
         # pixi version, and lockfile hash detailed.
 
+        # TODO: add built environment(s) as artifact with `pixi install -e <env>`
+
         self._artifacts = arts
         self._contents = conts
 
