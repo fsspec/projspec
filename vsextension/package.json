@@ -27,6 +27,10 @@
       {
         "command": "projspec.openProject",
         "title": "Open Project"
+      },
+      {
+        "command": "projspec.showJson",
+        "title": "Show"
       }
     ],
     "views": {
@@ -41,7 +45,12 @@
       "view/item/context": [
         {
           "command": "projspec.openProject",
-          "when": "view == projspec-projects",
+          "when": "view == projspec-projects && viewItem == project",
+          "group": "navigation"
+        },
+        {
+          "command": "projspec.showJson",
+          "when": "view == projspec-projects && viewItem == project",
           "group": "navigation"
         }
       ]
