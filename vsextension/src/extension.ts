@@ -11,51 +11,62 @@ interface TreeNode {
 function getExampleData(): TreeNode {
 	try {
 		const out = execSync("projspec library list --json-out", { stdio: 'pipe', encoding: 'utf-8' });
-		const data = JSON.parse(out);
+		const data = JSON.parse(out) as Record<string, any>;
 
 		const children: TreeNode[] = [];
-		for (const [key, project] of Object.entries(data)) {
+
+		// Data is a dict of project_url -> project_data
+		for (const [projectUrl, project] of Object.entries(data)) {
 			const projectChildren: TreeNode[] = [];
 
 			// Top-level contents
-			if (project.contents && project.contents.length > 0) {
-				projectChildren.push({
-					key: "contents",
-					children: project.contents.map((c: string) => ({ key: c }))
-				});
+			if (project.contents && Object.keys(project.contents).length > 0) {
+				const contentChildren: TreeNode[] = [];
+				for (const [name, _] of Object.entries(project.contents)) {
+					contentChildren.push({ key: name });
+				}
+				projectChildren.push({ key: "contents", children: contentChildren });
 			}
 
 			// Top-level artifacts
-			if (project.artifacts && project.artifacts.length > 0) {
-				projectChildren.push({
-					key: "artifacts",
-					children: project.artifacts.map((a: string) => ({ key: a }))
-				});
+			if (project.artifacts && Object.keys(project.artifacts).length > 0) {
+				const artifactChildren: TreeNode[] = [];
+				for (const [name, _] of Object.entries(project.artifacts)) {
+					artifactChildren.push({ key: name });
+				}
+				projectChildren.push({ key: "artifacts", children: artifactChildren });
 			}
 
 			// Specs
-			if (project.specs && project.specs.length > 0) {
+			if (project.specs && Object.keys(project.specs).length > 0) {
 				const specsChildren: TreeNode[] = [];
-				for (const spec of project.specs) {
+				for (const [specName, spec] of Object.entries(project.specs as Record<string, any>)) {
 					const specChildren: TreeNode[] = [];
-					if (spec.contents && spec.contents.length > 0) {
-						specChildren.push({
-							key: "contents",
-							children: spec.contents.map((c: string) => ({ key: c }))
-						});
+
+					// Spec contents
+					if (spec._contents && Object.keys(spec._contents).length > 0) {
+						const specContentChildren: TreeNode[] = [];
+						for (const [name, _] of Object.entries(spec._contents as Record<string, any>)) {
+							specContentChildren.push({ key: name });
+						}
+						specChildren.push({ key: "contents", children: specContentChildren });
 					}
-					if (spec.artifacts && spec.artifacts.length > 0) {
-						specChildren.push({
-							key: "artifacts",
-							children: spec.artifacts.map((a: string) => ({ key: a }))
-						});
+
+					// Spec artifacts
+					if (spec._artifacts && Object.keys(spec._artifacts).length > 0) {
+						const specArtifactChildren: TreeNode[] = [];
+						for (const [name, _] of Object.entries(spec._artifacts as Record<string, any>)) {
+							specArtifactChildren.push({ key: name });
+						}
+						specChildren.push({ key: "artifacts", children: specArtifactChildren });
 					}
-					specsChildren.push({ key: spec.name, children: specChildren });
+
+					specsChildren.push({ key: specName, children: specChildren });
 				}
 				projectChildren.push({ key: "specs", children: specsChildren });
 			}
 
-			children.push({ key: project.key, children: projectChildren });
+			children.push({ key: projectUrl, children: projectChildren });
 		}
 
 		return { key: "projects", children };
@@ -158,6 +169,25 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('projspec.showTree', async () => {
 		treeDataProvider.refresh();
 		await vscode.commands.executeCommand('projspec-projects.focus');
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('projspec.openProject', async (item: TreeNode) => {
+		if (!item || !item.key) {
+			return;
+		}
+
+		const projectUrl = item.key;
+
+		// Only handle file:// URLs
+		if (projectUrl.startsWith('file://')) {
+			const fsPath = projectUrl.replace('file://', '');
+			const uri = vscode.Uri.file(fsPath);
+			await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+		} else if (projectUrl.startsWith('gs://')) {
+			vscode.window.showErrorMessage('Cannot open GCS buckets directly. Clone the repository locally first.');
+		} else {
+			vscode.window.showErrorMessage(`Unsupported project URL scheme: ${projectUrl}`);
+		}
 	}));
     // /Users/mdurant/code/projspec
 
