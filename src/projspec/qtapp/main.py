@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import Qt, pyqtSignal  # just Signal in PySide
 
-from projspec.library import library
+from projspec.library import ProjectLibrary
 import projspec
 
 

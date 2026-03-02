@@ -17,8 +17,20 @@
       {
         "command": "projspec.scan",
         "title": "Projspec scan"
+      },
+      {
+        "command": "projspec.showTree",
+        "title": "Show Project Library"
       }
-    ]
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "projspec-projects",
+          "name": "Project Library"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

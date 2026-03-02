@@ -3,6 +3,118 @@
 import * as vscode from 'vscode';
 import { execSync } from "node:child_process";
 
+interface TreeNode {
+	key: string;
+	children?: TreeNode[];
+}
+
+function getExampleData(): TreeNode {
+	try {
+		const out = execSync("projspec library list --json-out", { stdio: 'pipe', encoding: 'utf-8' });
+		const data = JSON.parse(out);
+
+		const children: TreeNode[] = [];
+		for (const [key, project] of Object.entries(data)) {
+			const projectChildren: TreeNode[] = [];
+
+			// Top-level contents
+			if (project.contents && project.contents.length > 0) {
+				projectChildren.push({
+					key: "contents",
+					children: project.contents.map((c: string) => ({ key: c }))
+				});
+			}
+
+			// Top-level artifacts
+			if (project.artifacts && project.artifacts.length > 0) {
+				projectChildren.push({
+					key: "artifacts",
+					children: project.artifacts.map((a: string) => ({ key: a }))
+				});
+			}
+
+			// Specs
+			if (project.specs && project.specs.length > 0) {
+				const specsChildren: TreeNode[] = [];
+				for (const spec of project.specs) {
+					const specChildren: TreeNode[] = [];
+					if (spec.contents && spec.contents.length > 0) {
+						specChildren.push({
+							key: "contents",
+							children: spec.contents.map((c: string) => ({ key: c }))
+						});
+					}
+					if (spec.artifacts && spec.artifacts.length > 0) {
+						specChildren.push({
+							key: "artifacts",
+							children: spec.artifacts.map((a: string) => ({ key: a }))
+						});
+					}
+					specsChildren.push({ key: spec.name, children: specChildren });
+				}
+				projectChildren.push({ key: "specs", children: specsChildren });
+			}
+
+			children.push({ key: project.key, children: projectChildren });
+		}
+
+		return { key: "projects", children };
+	} catch (error) {
+		return {
+			key: "projects",
+			children: [
+				{
+					key: "https://example.com/project-alpha",
+					children: [
+						{ key: "contents", children: [{ key: "README.md" }, { key: "setup.py" }] },
+						{ key: "artifacts", children: [{ key: "dist/pkg.tar" }] },
+						{
+							key: "specs",
+							children: [
+								{
+									key: "v1.0.0",
+									children: [
+										{ key: "contents", children: [{ key: "spec.md" }] },
+										{ key: "artifacts", children: [{ key: "output.html" }] }
+									]
+								}
+							]
+						}
+					]
+				}
+			]
+		};
+	}
+}
+
+class ProjectTreeDataProvider implements vscode.TreeDataProvider<TreeNode> {
+	private _onDidChangeTreeData = new vscode.EventEmitter<TreeNode | undefined | void>();
+	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+	constructor() {}
+
+	refresh(): void {
+		this._onDidChangeTreeData.fire();
+	}
+
+	getTreeItem(element: TreeNode): vscode.TreeItem {
+		const item = new vscode.TreeItem(element.key);
+		if (element.children && element.children.length > 0) {
+			item.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+		} else {
+			item.collapsibleState = vscode.TreeItemCollapsibleState.None;
+		}
+		return item;
+	}
+
+	getChildren(element?: TreeNode): TreeNode[] {
+		if (!element) {
+			return getExampleData().children || [];
+		}
+		return element.children || [];
+	}
+}
+
 export function activate(context: vscode.ExtensionContext) {
 
     // register a content provider for scheme
@@ -38,6 +150,14 @@ export function activate(context: vscode.ExtensionContext) {
 			console.log(folderPath);
 		}
 		else {return;};
+	}));
+
+	const treeDataProvider = new ProjectTreeDataProvider();
+	context.subscriptions.push(vscode.window.registerTreeDataProvider('projspec-projects', treeDataProvider));
+
+	context.subscriptions.push(vscode.commands.registerCommand('projspec.showTree', async () => {
+		treeDataProvider.refresh();
+		await vscode.commands.executeCommand('projspec-projects.focus');
 	}));
     // /Users/mdurant/code/projspec
 

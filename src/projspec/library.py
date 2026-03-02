@@ -19,9 +19,9 @@ class ProjectLibrary:
 
     def __init__(self, library_path: str | None = None, auto_save: bool = True):
         self.path = library_path or get_conf("library_path")
-        self.load()
         self.entries: dict[str, Project] = {}
         self.auto_save = auto_save
+        self.load()
 
     def load(self):
         """Loads scanned project objects from JSON file"""
@@ -68,7 +68,3 @@ def _match(proj: Project, filters: list[tuple[str, str | tuple[str]]]) -> bool:
         if cat == "content" and not proj.all_contents(value):
             return False
     return True
-
-
-library = ProjectLibrary()
-library.load()

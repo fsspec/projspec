@@ -206,9 +206,13 @@ class Project:
     def basenames(self):
         return {_["name"].rsplit("/", 1)[-1]: _["name"] for _ in self.filelist}
 
-    def text_summary(self) -> str:
+    def text_summary(self, bare=False) -> str:
         """Only shows project types, not what they contain"""
-        txt = f"<Project '{self.fs.unstrip_protocol(self.url)}'>\n"
+        txt = (
+            self.fs.unstrip_protocol(self.url)
+            if bare
+            else f"<Project '{self.fs.unstrip_protocol(self.url)}'>\n"
+        )
         bits = [
             f" {'/'}: {' '.join(type(_).__name__ for _ in chain(self.specs.values(), self.contents.values(), self.artifacts.values()))}"
         ] + [
@@ -397,6 +401,14 @@ class Project:
             else:
                 art = next(iter(art.values()))
         art.make(**kwargs)
+
+    def add_to_library(self, path=None):
+        """Add this project to the current session library"""
+        # TODO: prevent overwrite?
+        from projspec.library import ProjectLibrary
+
+        library = ProjectLibrary(path)
+        library.add_entry(self.fs.unstrip_protocol(self.url), self)
 
 
 class ProjectSpec:

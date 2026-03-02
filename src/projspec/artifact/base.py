@@ -4,6 +4,7 @@ from typing import Literal
 
 import fsspec.implementations.local
 
+from projspec.config import get_conf
 from projspec.proj import Project
 from projspec.utils import camel_to_snake, is_installed
 
