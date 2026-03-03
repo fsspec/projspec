@@ -83,9 +83,16 @@ class Project:
         self.artifacts = AttrDict()
         # read and respect .gitignore? for exclude directories?
         self.excludes = excludes or default_excludes
-        self._pyproject = None
-        self._scanned_files = None
+        self._reset()
         self.resolve(walk=walk, types=types, xtypes=xtypes)
+
+    def _reset(self):
+        """Prepare this project for parsing with new specs"""
+        # cached properties
+        self.__dict__.pop("basenames", None)
+        self.__dict__.pop("filelist", None)
+        self.__dict__.pop("pyproject", None)
+        self._scanned_files = None
         # clear cached files
         self._scanned_files = None
 
@@ -368,12 +375,20 @@ class Project:
         proj.fs, proj.url = fsspec.url_to_fs(proj.path, **proj.storage_options)
         return proj
 
-    def create(self, name: str):
-        """Make this project conform to the given project spec type."""
+    def create(self, name: str) -> list[str]:
+        """Make this project conform to the given project spec type.
+
+        Returns a list of files that were created.
+        """
         cls = get_cls(name)
         # causes reparse and makes a new instance
         # could rerun resolve or only parse for give type and add, instead.
-        return cls.create(self.path)
+        allfiles = self.fs.find(self.url, detail=False)
+        cls.create(self.url)
+        allfiles2 = self.fs.find(self.url, detasil=False)
+        self._reset()
+        self.specs[camel_to_snake(cls.__name__)] = cls(self)
+        return sorted(set(allfiles2) - set(allfiles))
 
     def make(self, qname: str, **kwargs) -> None:
         """Make an artifact of the given type
@@ -467,7 +482,7 @@ class ProjectSpec:
         raise NotImplementedError("Subclass must implement this")
 
     @classmethod
-    def create(cls, path: str) -> Project:
+    def create(cls, path: str):
         """Make the target directory compliant with this project type, if not already"""
         # TODO: implement remote??
         # TODO: implement dry-run?
@@ -476,8 +491,6 @@ class ProjectSpec:
         os.makedirs(path, exist_ok=True)
         if not cls.snake_name() in Project(path):
             cls._create(path)
-        # perhaps should return ProjSpec, but it needs to be added to a project
-        return Project(path)
 
     def parse(self) -> None:
         raise ParseFailed

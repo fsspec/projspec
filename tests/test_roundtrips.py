@@ -1,3 +1,4 @@
+import os.path
 import pytest
 
 import projspec.proj
@@ -24,12 +25,16 @@ from projspec.utils import get_cls
         "HuggingFaceRepo",
         "uv_script",
         "MLFlow",
+        "Rust",
+        "RustPython",
     ],
 )
 def test_compliant(tmpdir, cls_name):
     path = str(tmpdir)
     cls = get_cls(cls_name)
-    proj = cls.create(path)
+    proj = projspec.Project(path)
+    files = proj.create(cls_name)
+    assert os.path.exists(files[0])
     if not issubclass(cls, projspec.proj.ProjectExtra):
         assert cls_name in proj
     else:
