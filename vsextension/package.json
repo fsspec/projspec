@@ -10,15 +10,51 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "projspec.scan",
         "title": "Projspec scan"
+      },
+      {
+        "command": "projspec.showTree",
+        "title": "Show Project Library"
+      },
+      {
+        "command": "projspec.openProject",
+        "title": "Open Project"
+      },
+      {
+        "command": "projspec.showJson",
+        "title": "Show"
       }
-    ]
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "projspec-projects",
+          "name": "Project Library"
+        }
+      ]
+    },
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "projspec.openProject",
+          "when": "view == projspec-projects && viewItem == project",
+          "group": "navigation"
+        },
+        {
+          "command": "projspec.showJson",
+          "when": "view == projspec-projects && viewItem == project",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

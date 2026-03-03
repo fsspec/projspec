@@ -14,7 +14,7 @@ def blank_conf(monkeypatch):
 
 
 def test_get_conf(blank_conf, tmpdir):
-    assert get_conf("library_path") == defaults["library_path"]
+    assert get_conf("library_path") == defaults()["library_path"]
     fn = str(tmpdir.join("projspec.json"))
     with open(fn, "wt") as f:
         json.dump({"temp": True}, f)

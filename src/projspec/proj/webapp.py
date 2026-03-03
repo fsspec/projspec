@@ -2,14 +2,10 @@ import os
 import subprocess
 
 from projspec.proj import ProjectSpec, ParseFailed
-
+from projspec.utils import _ipynb_to_py
 
 # TODO: webapp Servers should (optionally?) call threading.Timer(0.5, webbrowser.open(..));
 #  but then it must not block, and we need to set/infer the URL including port.
-
-# TODO: each of these has a different way to define which address/port to listen on,
-#  and how to get that info back if not defined. The Server class should provide a way to
-#  interact with this. Some can also auto-open a browser, but we don't want that usually.
 
 
 class Django(ProjectSpec):
@@ -394,6 +390,8 @@ class Panel(ProjectSpec):
             if not path.endswith((".py", ".ipynb")):
                 continue
             content = content.decode()
+            if path.endswith(".ipynb"):
+                content = _ipynb_to_py(content)
             has_import = "import panel" in content or "from panel" in content
             has_app = ".servable(" in content
             if has_import and has_app:

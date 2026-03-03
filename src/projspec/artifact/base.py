@@ -4,6 +4,7 @@ from typing import Literal
 
 import fsspec.implementations.local
 
+from projspec.config import get_conf
 from projspec.proj import Project
 from projspec.utils import camel_to_snake, is_installed
 
@@ -34,13 +35,16 @@ class BaseArtifact:
         return self.cmd[0] in is_installed
 
     @property
-    def state(self) -> Literal["clean", "done", "pending"]:
-        if self._is_clean():
-            return "clean"
-        elif self._is_done():
-            return "done"
+    def state(self) -> Literal["clean", "done", "pending", ""]:
+        if get_conf("remote_artifact_status"):
+            if self._is_clean():
+                return "clean"
+            elif self._is_done():
+                return "done"
+            else:
+                return "pending"
         else:
-            return "pending"
+            return ""
 
     def make(self, *args, **kwargs):
         """Create the artifact and any runtime it depends on"""
