@@ -14,17 +14,21 @@ def conf_dir():
 
 def defaults():
     return {
-        # location of persisted project objects
         "library_path": f"{conf_dir()}/library.json",
-        # files automatically read before scanning
         "scan_types": [".py", ".yaml", ".yml", ".toml", ".json"],
-        # don't scan files if more than this number in the project
         "scan_max_files": 100,
-        # don't scan files bigger than this (in bytes)
-        # In the future we may change this to reading this many bytes from the header.
         "scan_max_size": 5 * 2**10,
-        "remote_artifact_status": False,  # check status for remote artifacts?
+        "remote_artifact_status": False,
     }
+
+
+config_doc = {
+    "library_path": "location of persisted project objects",
+    "scan_types": "files extensions automatically read for scanning",
+    "scan_max_files": "don't scan files if more than this number in the project",
+    "scan_max_size": "don't scan files bigger than this (in bytes)",
+    "remote_artifact_status": "whether to check status for remote artifacts",
+}
 
 
 def load_conf(path: str | None = None):
@@ -45,6 +49,7 @@ def get_conf(name: str):
 
 def set_conf(name: str, value: Any):
     """Set the value of the given conf parameter and save to the config file"""
+    # TODO: require new value to be of same type as default?
     if value:
         conf[name] = value
     else:
@@ -58,6 +63,7 @@ def set_conf(name: str, value: Any):
 def temp_conf(**kwargs):
     """Temporarily set the config"""
     old = conf.copy()
+    # TODO: only allow keys that exist in defaults()?
     conf.update(kwargs)
     try:
         yield

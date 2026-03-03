@@ -412,3 +412,17 @@ def make_and_copy(path):
     yield tmp
     fs.copy(tmp, path, recursive=True)
     fs.rm(tmp, recursive=True)
+
+
+def _ipynb_to_py(data: str) -> str:
+    """Read only executable code from an ipython notebook.
+
+    This is roughly equivalent to an ipynb->py conversion.
+    """
+    import json
+
+    everything = json.loads(data)
+    assert "nbformat" in everything, "Not an ipython notebook"
+    return "\n\n###\n\n".join(
+        ["".join(_["source"]) for _ in everything["cells"] if _["cell_type"] == "code"]
+    )

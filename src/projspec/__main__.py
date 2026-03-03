@@ -186,6 +186,8 @@ def get(key):
 def show():
     from projspec.config import conf
 
+    # TODO: show docs and defaults for each key, from projspec.config.config_doc?
+    # TODO: allow JSON output
     print(conf)
 
 
@@ -203,7 +205,6 @@ def unset(key):
 def set_(key, value):
     from projspec.config import set_conf
 
-    # TODO: consider types
     set_conf(key, value)
 
 

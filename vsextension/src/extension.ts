@@ -13,16 +13,41 @@ interface TreeNode {
 }
 
 const openDocuments = new Map<string, vscode.TextDocument>();
+let cachedInfo: { specs: Record<string, { doc: string | null; link: string }>; content: Record<string, { doc: string | null; link: string }>; artifact: Record<string, { doc: string | null; link: string }> } | null = null;
+
+function getInfoData(): { specs: Record<string, { doc: string | null; link: string }>; content: Record<string, { doc: string | null; link: string }>; artifact: Record<string, { doc: string | null; link: string }> } | null {
+	if (cachedInfo === null) {
+		try {
+			const out = execSync("projspec info", { stdio: 'pipe', encoding: 'utf-8' });
+			cachedInfo = JSON.parse(out);
+		} catch (error) {
+			cachedInfo = null;
+		}
+	}
+	return cachedInfo;
+}
+
+function buildTooltip(doc: string | null, link: string): string {
+	let tooltip = doc || "";
+	if (link) {
+		tooltip += (tooltip ? "\n\n" : "") + link;
+	}
+	return tooltip;
+}
 
 function buildTreeNodes(projectUrl: string, project: any): TreeNode[] {
 	const projectChildren: TreeNode[] = [];
+	const infoData = getInfoData();
 
 	// Top-level contents
 	if (project.contents && Object.keys(project.contents).length > 0) {
 		const contentChildren: TreeNode[] = [];
 		for (const [name, _] of Object.entries(project.contents)) {
 			const basename = name.split('/').pop() || name;
-			contentChildren.push({ key: basename, tooltip: name, projectUrl });
+			const contentType = basename.split('.')[0];
+			const info = infoData?.content?.[contentType];
+			const tooltip = info ? buildTooltip(info.doc, info.link) : name;
+			contentChildren.push({ key: basename, tooltip, projectUrl });
 		}
 		projectChildren.push({ key: "contents", children: contentChildren });
 	}
@@ -32,7 +57,10 @@ function buildTreeNodes(projectUrl: string, project: any): TreeNode[] {
 		const artifactChildren: TreeNode[] = [];
 		for (const [name, _] of Object.entries(project.artifacts)) {
 			const basename = name.split('/').pop() || name;
-			artifactChildren.push({ key: basename, tooltip: name, projectUrl });
+			const artifactType = basename.split('.')[0];
+			const info = infoData?.artifact?.[artifactType];
+			const tooltip = info ? buildTooltip(info.doc, info.link) : name;
+			artifactChildren.push({ key: basename, tooltip, projectUrl });
 		}
 		projectChildren.push({ key: "artifacts", children: artifactChildren });
 	}
@@ -41,7 +69,9 @@ function buildTreeNodes(projectUrl: string, project: any): TreeNode[] {
 	if (project.specs && Object.keys(project.specs).length > 0) {
 		const specsChildren: TreeNode[] = [];
 		for (const [specName, _] of Object.entries(project.specs as Record<string, any>)) {
-			specsChildren.push({ key: specName, projectUrl });
+			const info = infoData?.specs?.[specName];
+			const tooltip = info ? buildTooltip(info.doc, info.link) : specName;
+			specsChildren.push({ key: specName, tooltip, projectUrl });
 		}
 		projectChildren.push({ key: "specs", children: specsChildren });
 	}
