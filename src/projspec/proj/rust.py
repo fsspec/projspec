@@ -2,6 +2,7 @@ import subprocess
 
 import toml
 from projspec.proj import ProjectSpec, PythonLibrary
+from projspec.utils import AttrDict
 
 
 class Rust(ProjectSpec):
@@ -21,18 +22,20 @@ class Rust(ProjectSpec):
         self.contents["desciptive_metadata"] = DescriptiveMetadata(
             proj=self.proj, meta=meta.get("package")
         )
-        self.artifacts["binary"]["debug"] = FileArtifact(
+        bin = AttrDict()
+        bin["debug"] = FileArtifact(
             proj=self.proj,
             cmd=["cargo", "build"],
             # extension is platform specific
             fn=f"{self.proj.url}/target/debug/{meta['package']['name']}.*",
         )
-        self.artifacts["binary"]["release"] = FileArtifact(
+        bin["release"] = FileArtifact(
             proj=self.proj,
             cmd=["cargo", "build", "--release"],
             # extension is platform specific
             fn=f"{self.proj.url}/target/release/{meta['package']['name']}.*",
         )
+        self.artifacts["file"] = bin
 
     @staticmethod
     def _create(path: str) -> None:
