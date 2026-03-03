@@ -51,7 +51,7 @@ def make(artifact, path, storage_options, types, xtypes):
     proj = projspec.Project(
         path, storage_options=storage_options, types=types, xtypes=xtypes
     )
-    proj.make(artifact)
+    print("Created:", proj.make(artifact))
 
 
 @main.command()

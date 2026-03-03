@@ -64,4 +64,6 @@ class RustPython(Rust, PythonLibrary):
 
     @staticmethod
     def _create(path: str) -> None:
+        # will fail for existing python libraries, since it doesn't want to edit
+        # the pyproject.toml build backend.
         subprocess.check_call(["maturin", "init", "-b", "pyo3", "--mixed"], cwd=path)

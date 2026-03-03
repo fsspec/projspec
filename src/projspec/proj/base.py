@@ -387,7 +387,9 @@ class Project:
         cls.create(self.url)
         allfiles2 = self.fs.find(self.url, detasil=False)
         self._reset()
-        self.specs[camel_to_snake(cls.__name__)] = cls(self)
+        spec = cls(self)
+        spec.parse()
+        self.specs[camel_to_snake(cls.__name__)] = spec
         return sorted(set(allfiles2) - set(allfiles))
 
     def make(self, qname: str, **kwargs) -> None:
