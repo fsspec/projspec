@@ -10,6 +10,7 @@ import time
 import weakref
 
 from projspec.artifact import BaseArtifact
+from projspec.config import get_conf
 
 
 logger = logging.getLogger("projspec")
@@ -37,7 +38,8 @@ class Process(BaseArtifact):
     environ: dict[str, str] = {}
     queue: Queue[bytes] | None = None  # lines of binary output by the subprocess
 
-    def _make(self, **kwargs):
+    def _make(self, enqueue=True, **kwargs):
+        enq = enqueue and get_conf("capture_artifact_output")
         if self.environ and "environ" not in kwargs:
             env = os.environ.copy()
             env.update(self.environ)
@@ -45,18 +47,19 @@ class Process(BaseArtifact):
         if self.proc is None:
             self.queue = Queue()
             logger.info(f"Running {self.cmd}")
+            if enq:
+                kwargs["stdout"] = subprocess.PIPE
+                kwargs["stderr"] = subprocess.STDOUT
+                kwargs["close_fds"] = ON_POSIX
             proc = subprocess.Popen(
                 self.cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
                 cwd=self.proj.url,
-                close_fds=ON_POSIX,
                 **kwargs,
             )
-            # should be optional?
-            t = Thread(target=_enqueue, args=(proc.stdout, self.queue))
-            t.daemon = True  # thread dies with the program
-            t.start()
+            if enq:
+                t = Thread(target=_enqueue, args=(proc.stdout, self.queue))
+                t.daemon = True  # thread dies with the program
+                t.start()
             if self.term:
                 weakref.finalize(self, proc.terminate)
                 # weakref.finalize(self, t.join)

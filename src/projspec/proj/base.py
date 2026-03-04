@@ -6,6 +6,7 @@ from functools import cached_property
 
 import fsspec
 import fsspec.implementations.local
+import projspec.utils
 import toml
 
 from projspec.config import get_conf
@@ -392,7 +393,7 @@ class Project:
         self.specs[camel_to_snake(cls.__name__)] = spec
         return sorted(set(allfiles2) - set(allfiles))
 
-    def make(self, qname: str, **kwargs) -> None:
+    def make(self, qname: str, **kwargs):
         """Make an artifact of the given type
 
         qname: str
@@ -418,6 +419,7 @@ class Project:
             else:
                 art = next(iter(art.values()))
         art.make(**kwargs)
+        return art
 
     def add_to_library(self, path=None):
         """Add this project to the current session library"""

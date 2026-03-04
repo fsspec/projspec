@@ -27,6 +27,7 @@ from projspec.utils import get_cls
         "MLFlow",
         "Rust",
         "RustPython",
+        "pixi",
     ],
 )
 def test_compliant(tmpdir, cls_name):

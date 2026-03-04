@@ -1,3 +1,4 @@
+import os
 import toml
 
 from projspec.proj import ParseFailed, ProjectSpec
@@ -40,7 +41,7 @@ def this_platform():
     base = _platform_map.get(sys.platform, "unknown")
     bits = 8 * struct.calcsize("P")
     m = platform.machine()
-    platform = m if m in non_x86_machines else _arch_names[bits]
+    platform = m if m in non_x86_machines else bits
     return f"{base}-{platform}"
 
 
@@ -157,6 +158,27 @@ class Pixi(ProjectSpec):
 
         self._artifacts = arts
         self._contents = conts
+
+    @staticmethod
+    def _create(path: str) -> None:
+        name = os.path.basename(path)
+        with open(f"{path}/pixi.toml", "wt") as f:
+            f.write(
+                f"""
+[workspace]
+authors = ["projspec <projscpec@example.com>"]
+channels = ["conda-forge"]
+name = "{name}"
+platforms = ["osx-arm64", "linux-64", "win-64"]
+version = "0.1.0"
+
+[tasks]
+hello = "echo 'hello world'"
+
+[dependencies]
+python = ">=3.10"
+"""
+            )
 
 
 def extract_feature(

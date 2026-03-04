@@ -8,6 +8,7 @@ import sys
 import click
 
 import projspec.proj
+from projspec.config import temp_conf
 
 
 # global runtime config
@@ -37,7 +38,13 @@ def main():
     default="NONE",
     help="List of spec types to ignore (comma-separated list in camel or snake case)",
 )
-def make(artifact, path, storage_options, types, xtypes):
+@click.option(
+    "--wait",
+    default=True,
+    is_flag=True,
+    help="Wait for artifact to finish, for Process type artifacts only (default True)",
+)
+def make(artifact, path, storage_options, types, xtypes, wait):
     """Make the given artifact in the project at the given path.
 
     artifact: str , of the form [<spec>.]<artifact-type>[.<name>]
@@ -51,7 +58,12 @@ def make(artifact, path, storage_options, types, xtypes):
     proj = projspec.Project(
         path, storage_options=storage_options, types=types, xtypes=xtypes
     )
-    print("Created:", proj.make(artifact))
+    with temp_conf(capture_artifact_output=False):
+        art = proj.make(artifact)
+        print("Created:", art)
+    if wait and art.proc:
+        art.proc.wait()
+        print("Finished with code:", art.proc.returncode)
 
 
 @main.command()
