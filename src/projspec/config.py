@@ -19,6 +19,7 @@ def defaults():
         "scan_max_files": 100,
         "scan_max_size": 5 * 2**10,
         "remote_artifact_status": False,
+        "capture_artifact_output": True,
     }
 
 
@@ -28,6 +29,10 @@ config_doc = {
     "scan_max_files": "don't scan files if more than this number in the project",
     "scan_max_size": "don't scan files bigger than this (in bytes)",
     "remote_artifact_status": "whether to check status for remote artifacts",
+    "capture_artifact_output": (
+        "if True, capture and enqueue output from spawned Process artifacts."
+        "Otherwise, output appears on stdout/err."
+    ),
 }
 
 
@@ -37,6 +42,7 @@ def load_conf(path: str | None = None):
     if os.path.exists(fn):
         with open(fn) as f:
             conf.update(json.load(f))
+    # TODO: warn on unknown keys?
 
 
 load_conf()
@@ -44,7 +50,24 @@ load_conf()
 
 def get_conf(name: str):
     """Fetch the value of the given conf parameter from the current config or defaults"""
-    return conf[name] if name in conf else defaults()[name]
+    if f"PROJSPEC_{name.upper()}" in os.environ:
+        val = os.environ[f"PROJSPEC_{name.upper()}"]
+    else:
+        assert name in config_doc, f"Unknown config parameter {name}"
+        val = conf[name] if name in conf else defaults()[name]
+    return coerce(defaults()[name], val)
+
+
+def coerce(template, val):
+    """ensure val has the same type as template"""
+    typ = type(template)
+    if typ is bool:
+        return val in ("true", "True", "1", True, "T")
+    if typ is list:
+        return [coerce(template[0], _) for _ in val]
+    if typ in (str, int, float):
+        return typ(val)
+    return val
 
 
 def set_conf(name: str, value: Any):
