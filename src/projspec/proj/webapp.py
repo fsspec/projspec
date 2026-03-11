@@ -124,7 +124,12 @@ st.write("Hello world!")
         pyfiles = [v for v in self.proj.basenames if v.endswith(".py")]
         if len(pyfiles) == 1:
             self.artifacts["server"] = Server(
-                proj=self.proj, cmd=["streamlit", "run", pyfiles[0]]
+                proj=self.proj,
+                cmd=[
+                    "streamlit",
+                    "run",
+                    pyfiles[0].replace(self.proj.url, "").lstrip("/"),
+                ],
             )
         else:
             # TODO: use walk (top-down) here to avoid known directories like .venv/
@@ -136,7 +141,11 @@ st.write("Hello world!")
                     name = path.rsplit("/", 1)[-1].replace(".py", "")
                     self.artifacts["server"][name] = Server(
                         proj=self.proj,
-                        cmd=["streamlit", "run", path.replace(self.proj.url, "")],
+                        cmd=[
+                            "streamlit",
+                            "run",
+                            path.replace(self.proj.url, "").lstrip("/"),
+                        ],
                     )
 
 

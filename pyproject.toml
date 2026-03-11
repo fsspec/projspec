@@ -33,7 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "django", "streamlit", "copier", "jinja2-time", "flask",
-    "maturin"]
+    "maturin", "uv"]
 qt = ["pyqt>5,<6", "pyqtwebengin>5,<6"]
 
 [project.scripts]

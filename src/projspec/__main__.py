@@ -130,6 +130,11 @@ def scan(
     default="ALL",
 )
 def info(types=None):
+    """Documentation about all the classes within projspec
+
+    types: a specific class name, in Camel or snake_case; if not given,
+        lists all types as JSON.
+    """
     if types in {"ALL", "", None}:
         from projspec.utils import class_infos
 
@@ -145,6 +150,27 @@ def info(types=None):
             pydoc.doc(cls, output=sys.stdout)
         else:
             print("Name not found")
+
+
+@main.command("create")
+@click.argument("type")
+@click.argument("path", default=".")
+def create(type, path):
+    """Create a new project of the given type in the given path.
+
+    Returns the list of files created.
+
+    (Path must be local, no storage_options)
+    """
+    from projspec.proj import Project
+
+    proj = Project(path)
+    if type not in proj:
+        files = proj.create(type)
+        for afile in files:
+            print(afile)
+    else:
+        print(f"Project already has a {type} spec")
 
 
 @main.group("library")
@@ -166,7 +192,8 @@ def list(json_out):
     if json_out:
         print(json.dumps({k: v.to_dict() for k, v in library.entries.items()}))
     else:
-        for url, proj in library.entries.items():
+        for url in sorted(library.entries):
+            proj = library.entries[url]
             print(f"{proj.text_summary(bare=True)}")
 
 
