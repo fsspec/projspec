@@ -33,28 +33,8 @@
         "title": "Show"
       }
     ],
-    "views": {
-      "explorer": [
-        {
-          "id": "projspec-projects",
-          "name": "Project Library"
-        }
-      ]
-    },
-    "menus": {
-      "view/item/context": [
-        {
-          "command": "projspec.openProject",
-          "when": "view == projspec-projects && viewItem == project",
-          "group": "navigation"
-        },
-        {
-          "command": "projspec.showJson",
-          "when": "view == projspec-projects && viewItem == project",
-          "group": "navigation"
-        }
-      ]
-    }
+    "views": {},
+    "menus": {}
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

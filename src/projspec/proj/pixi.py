@@ -129,7 +129,7 @@ class Pixi(ProjectSpec):
         arts["lock_file"] = LockFile(
             proj=self.proj,
             fn=f"{self.proj.url}/pixi.lock",
-            cmd=["pixi", "lock"],
+            cmd=["pixi", "lock"],  # --no-install ?
         )
 
         if pkg := meta.get("package", {}):

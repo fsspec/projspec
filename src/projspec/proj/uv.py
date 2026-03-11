@@ -1,3 +1,5 @@
+import subprocess
+
 import toml
 
 import fsspec
@@ -188,7 +190,17 @@ class Uv(PythonLibrary):
                 lock = toml.load(f, decoder=PickleableTomlDecoder())
         except (OSError, FileNotFoundError):
             lock = {}
-        _parse_conf(self, conf)
+        if conf:
+            _parse_conf(self, conf)
+        elif ".python-version" in self.proj.basenames:
+            # percolate to any env that doesn't define a python version?
+            with self.get_file(".python-version") as f:
+                self._contents.setdefault("environment", {})["default"] = Environment(
+                    proj=self.proj,
+                    stack=Stack.PIP,
+                    precision=Precision.SPEC,
+                    packages=[f"python =={f.read().strip()}"],
+                )
 
         if lock:
             pkg = [f"python {lock['requires-python']}"]
@@ -200,6 +212,14 @@ class Uv(PythonLibrary):
                 precision=Precision.LOCK,
                 packages=pkg,
             )
+
+    @staticmethod
+    def _create(path: str, name: str | None = None) -> None:
+        # TODO: check for existing pyproject and add to it
+        cmd = ["uv", "init", "--lib", "--package", "--vcs", "none"]
+        if name:
+            cmd.extend(["--name", name])
+        subprocess.check_call(cmd + [path])
 
 
 def _vers(s: dict) -> str:
