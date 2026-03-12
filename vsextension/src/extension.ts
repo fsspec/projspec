@@ -877,7 +877,7 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
             color: var(--vscode-foreground);
         }
 
-        .modal-select {
+        .modal-select, .modal-input {
             width: 100%;
             padding: 6px;
             background: var(--vscode-settings-textInputBackground);
@@ -885,6 +885,41 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
             border: 1px solid var(--vscode-settings-textInputBorder);
             border-radius: 2px;
             font-family: inherit;
+            box-sizing: border-box;
+        }
+
+        .autocomplete-container {
+            position: relative;
+            width: 100%;
+        }
+
+        .autocomplete-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-top: none;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 2100;
+            display: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .autocomplete-suggestions.visible {
+            display: block;
+        }
+
+        .suggestion-item {
+            padding: 6px 10px;
+            cursor: pointer;
+            transition: background-color 0.1s ease;
+        }
+
+        .suggestion-item:hover, .suggestion-item.active {
+            background-color: var(--vscode-list-hoverBackground);
         }
 
         .modal-buttons {
@@ -953,10 +988,11 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         <div class="modal-dialog">
             <h3 class="modal-title">Create Project</h3>
             <div class="modal-content">
-                <label for="project-type" class="modal-label">Project Type:</label>
-                <select id="project-type" class="modal-select">
-                    ${specOptions}
-                </select>
+                <label for="project-type-input" class="modal-label">Project Type:</label>
+                <div class="autocomplete-container">
+                    <input type="text" id="project-type-input" class="modal-input" placeholder="Search or select type..." autocomplete="off">
+                    <div id="autocomplete-suggestions" class="autocomplete-suggestions"></div>
+                </div>
             </div>
             <div class="modal-buttons">
                 <button id="modal-cancel" class="modal-button modal-button-secondary">Cancel</button>
@@ -972,12 +1008,17 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         const popupContent = document.getElementById('popup-content');
         const searchInput = document.getElementById('search-input');
         const createModal = document.getElementById('create-modal');
+        const typeInput = document.getElementById('project-type-input');
+        const suggestionsContainer = document.getElementById('autocomplete-suggestions');
         const modalCancelBtn = document.getElementById('modal-cancel');
         const modalCreateBtn = document.getElementById('modal-create');
         const expandAllBtn = document.getElementById('expand-all');
         const collapseAllBtn = document.getElementById('collapse-all');
         const scanProjectBtn = document.getElementById('scan-project');
         const createProjectBtn = document.getElementById('create-project');
+
+        const specNames = ${JSON.stringify(specNames)};
+        let activeSuggestionIndex = -1;
 
         const scrollToProjectUrl = ${scrollToProjectUrl ? `'${scrollToProjectUrl}'` : 'null'};
 
@@ -1027,6 +1068,75 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         // Handle create project
         createProjectBtn.addEventListener('click', () => {
             createModal.classList.add('visible');
+            typeInput.value = '';
+            typeInput.focus();
+            renderSuggestions('');
+        });
+
+        // Autocomplete logic
+        typeInput.addEventListener('input', (e) => {
+            renderSuggestions(e.target.value);
+        });
+
+        typeInput.addEventListener('keydown', (e) => {
+            const suggestions = suggestionsContainer.querySelectorAll('.suggestion-item');
+            if (e.key === 'ArrowDown') {
+                activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, suggestions.length - 1);
+                updateActiveSuggestion(suggestions);
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, -1);
+                updateActiveSuggestion(suggestions);
+                e.preventDefault();
+            } else if (e.key === 'Enter') {
+                if (activeSuggestionIndex >= 0) {
+                    selectSuggestion(suggestions[activeSuggestionIndex].textContent);
+                    e.preventDefault();
+                }
+            }
+        });
+
+        function renderSuggestions(filter) {
+            const filteredSpecs = specNames.filter(s => s.toLowerCase().includes(filter.toLowerCase()));
+            suggestionsContainer.innerHTML = '';
+            activeSuggestionIndex = -1;
+
+            if (filteredSpecs.length > 0) {
+                filteredSpecs.forEach(spec => {
+                    const item = document.createElement('div');
+                    item.className = 'suggestion-item';
+                    item.textContent = spec;
+                    item.addEventListener('click', () => selectSuggestion(spec));
+                    suggestionsContainer.appendChild(item);
+                });
+                suggestionsContainer.classList.add('visible');
+            } else {
+                suggestionsContainer.classList.remove('visible');
+            }
+        }
+
+        function updateActiveSuggestion(suggestions) {
+            suggestions.forEach((s, i) => {
+                if (i === activeSuggestionIndex) {
+                    s.classList.add('active');
+                    s.scrollIntoView({ block: 'nearest' });
+                } else {
+                    s.classList.remove('active');
+                }
+            });
+        }
+
+        function selectSuggestion(spec) {
+            typeInput.value = spec;
+            suggestionsContainer.classList.remove('visible');
+            activeSuggestionIndex = -1;
+        }
+
+        // Close suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!typeInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+                suggestionsContainer.classList.remove('visible');
+            }
         });
 
         // Handle search
@@ -1079,12 +1189,16 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         });
 
         modalCreateBtn.addEventListener('click', () => {
-            const projectType = document.getElementById('project-type').value;
-            vscode.postMessage({
-                command: 'createProject',
-                projectType: projectType
-            });
-            createModal.classList.remove('visible');
+            const projectType = typeInput.value;
+            if (projectType) {
+                vscode.postMessage({
+                    command: 'createProject',
+                    projectType: projectType
+                });
+                createModal.classList.remove('visible');
+            } else {
+                typeInput.focus();
+            }
         });
 
         // Close modal on escape
