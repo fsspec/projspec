@@ -36,7 +36,7 @@ class BaseArtifact:
 
     @property
     def state(self) -> Literal["clean", "done", "pending", ""]:
-        if get_conf("remote_artifact_status"):
+        if get_conf("remote_artifact_status") or self.proj.is_local():
             if self._is_clean():
                 return "clean"
             elif self._is_done():
@@ -48,7 +48,7 @@ class BaseArtifact:
 
     def make(self, *args, **kwargs):
         """Create the artifact and any runtime it depends on"""
-        if not isinstance(self.proj.fs, fsspec.implementations.local.LocalFileSystem):
+        if not self.proj.is_local():
             # Later, will implement download-and-make, although some tools
             # can already do this themselves.
             raise RuntimeError("Can't run local command on remote project")
