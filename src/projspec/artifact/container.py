@@ -1,7 +1,6 @@
-import subprocess
-
 from projspec.proj.base import Project, ProjectExtra
 from projspec.artifact import BaseArtifact
+from projspec.utils import run_subprocess
 
 
 class DockerImage(BaseArtifact):
@@ -28,16 +27,19 @@ class DockerRuntime(DockerImage):
         :param args: added to the docker run command
         :param kwargs: affect the docker run subprocess call
         """
-        out = subprocess.check_output(self.cmd, cwd=self.proj.url, **kwargs)
+        out = run_subprocess(self.cmd, cwd=self.proj.url, **kwargs).stdout
         if self.tag:
-            subprocess.check_call(["docker", "run", self.tag])
+            run_subprocess(["docker", "run", self.tag], cwd=self.proj.url, output=False)
         else:
             lines = [
                 l for l in out.splitlines() if l.startswith(b"Successfully built ")
             ]
             img = lines[-1].split()[-1]
-            subprocess.check_call(
-                ["docker", "run", img.decode()] + list(args), **kwargs
+            run_subprocess(
+                ["docker", "run", img.decode()] + list(args),
+                cwd=self.proj.url,
+                output=False,
+                **kwargs,
             )
 
 

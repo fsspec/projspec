@@ -29,6 +29,7 @@ from projspec.utils import get_cls
         "RustPython",
         "pixi",
         "uv",
+        "briefcase",
     ],
 )
 def test_compliant(tmpdir, cls_name):

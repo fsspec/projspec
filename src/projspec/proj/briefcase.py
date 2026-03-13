@@ -1,5 +1,7 @@
+import os
+
 from projspec.proj import ProjectSpec
-from projspec.utils import AttrDict
+from projspec.utils import AttrDict, run_subprocess, make_and_copy
 
 
 def supported(apps: dict, app: str, *config) -> bool:
@@ -162,3 +164,9 @@ class Briefcase(ProjectSpec):
                         "zip",
                     ],
                 )
+
+    @staticmethod
+    def _create(path: str) -> None:
+        # TODO: this version will overwrite any pyproject.toml
+        with make_and_copy(path, sub="helloworld", mkdir=True) as tmp:
+            run_subprocess(["briefcase", "new", "--no-input"], cwd=tmp, output=False)
