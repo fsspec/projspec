@@ -1,7 +1,5 @@
-import subprocess
-
 from projspec.proj.base import ProjectSpec
-from projspec.utils import AttrDict
+from projspec.utils import AttrDict, run_subprocess
 
 
 class GitRepo(ProjectSpec):
@@ -17,7 +15,7 @@ class GitRepo(ProjectSpec):
 
     @staticmethod
     def _create(path: str) -> None:
-        subprocess.check_call(["git", "init", path])
+        run_subprocess(["git", "init"], cwd=path, output=False)
 
     def parse(self) -> None:
         # It's faster to read the /.git/config file for branches, remotes and URLs;

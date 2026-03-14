@@ -1,8 +1,6 @@
-import subprocess
-
 import toml
 from projspec.proj import ProjectSpec, PythonLibrary
-from projspec.utils import AttrDict
+from projspec.utils import AttrDict, run_subprocess
 
 
 class Rust(ProjectSpec):
@@ -39,7 +37,7 @@ class Rust(ProjectSpec):
 
     @staticmethod
     def _create(path: str) -> None:
-        subprocess.check_call(["cargo", "init"], cwd=path)
+        run_subprocess(["cargo", "init"], cwd=path, output=False)
 
 
 class RustPython(Rust, PythonLibrary):
@@ -69,4 +67,6 @@ class RustPython(Rust, PythonLibrary):
     def _create(path: str) -> None:
         # will fail for existing python libraries, since it doesn't want to edit
         # the pyproject.toml build backend.
-        subprocess.check_call(["maturin", "init", "-b", "pyo3", "--mixed"], cwd=path)
+        run_subprocess(
+            ["maturin", "init", "-b", "pyo3", "--mixed"], cwd=path, output=False
+        )

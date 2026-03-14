@@ -6,10 +6,10 @@ or sys.executable.
 """
 
 import json
-import subprocess
 from functools import cache
 
 from projspec.artifact import FileArtifact
+from projspec.utils import run_subprocess
 
 
 class CondaEnv(FileArtifact):
@@ -27,7 +27,7 @@ class CondaEnv(FileArtifact):
     def envs() -> list[str]:
         """Global conda env root paths"""
         # pixi also has global envs
-        out = subprocess.check_output(["conda", "env", "list", "--json"])
+        out = run_subprocess(["conda", "env", "list", "--json"]).stdout
         return json.loads(out.decode())["envs"]
 
 

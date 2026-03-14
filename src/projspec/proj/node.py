@@ -3,6 +3,7 @@ import re
 from projspec.proj.base import ProjectSpec, ParseFailed
 from projspec.content.package import NodePackage
 from projspec.artifact.process import Process
+from projspec.utils import run_subprocess
 from projspec.content.executable import Command
 from projspec.utils import AttrDict
 
@@ -195,8 +196,6 @@ class JLabExtension(Yarn):
     # create() with https://github.com/jupyterlab/extension-template
     @staticmethod
     def _create(path: str, name: str | None = None) -> None:
-        import subprocess
-
         # this is a highly opinionated template
         cmd = [
             "copier",
@@ -212,4 +211,4 @@ class JLabExtension(Yarn):
             "https://github.com/jupyterlab/extension-template",
             path,
         ]
-        subprocess.check_call(cmd, cwd=path)
+        run_subprocess(cmd, cwd=path, output=False)

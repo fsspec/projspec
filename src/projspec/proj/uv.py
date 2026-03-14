@@ -1,12 +1,10 @@
-import subprocess
-
 import toml
 
 import fsspec
 
 from projspec.proj.base import ParseFailed, Project, ProjectSpec
 from projspec.proj.python_code import PythonLibrary
-from projspec.utils import AttrDict, PickleableTomlDecoder, deep_get
+from projspec.utils import AttrDict, PickleableTomlDecoder, deep_get, run_subprocess
 
 
 def _parse_conf(self: ProjectSpec, conf: dict | None = None):
@@ -219,7 +217,7 @@ class Uv(PythonLibrary):
         cmd = ["uv", "init", "--lib", "--package", "--vcs", "none"]
         if name:
             cmd.extend(["--name", name])
-        subprocess.check_call(cmd + [path])
+        run_subprocess(cmd, cwd=path, output=False)
 
 
 def _vers(s: dict) -> str:

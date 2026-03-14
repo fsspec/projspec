@@ -1,12 +1,11 @@
 import logging
-import subprocess
 from typing import Literal
 
 import fsspec.implementations.local
 
 from projspec.config import get_conf
 from projspec.proj import Project
-from projspec.utils import camel_to_snake, is_installed
+from projspec.utils import camel_to_snake, is_installed, run_subprocess
 
 logger = logging.getLogger("projspec")
 registry = {}
@@ -57,7 +56,7 @@ class BaseArtifact:
 
     def _make(self, *args, **kwargs):
         logger.info("running %s", self.cmd)
-        subprocess.check_call(self.cmd, cwd=self.proj.url, **kwargs)
+        run_subprocess(self.cmd, cwd=self.proj.url, output=False, **kwargs)
 
     def remake(self):
         """Recreate the artifact and any runtime it depends on"""

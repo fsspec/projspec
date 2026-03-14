@@ -76,3 +76,16 @@ def test_run():
     assert out.stdout.strip() == b"word"
     process = run_subprocess(["echo", "word"], popen=True)
     assert isinstance(process, subprocess.Popen)
+
+
+def test_run_subprocess_missing_tool_suggests_install(monkeypatch):
+    from projspec.tools import suggest
+
+    monkeypatch.setattr(is_installed, "exists", lambda cmd, **kw: False)
+    with pytest.raises(RuntimeError, match=suggest("uv")):
+        run_subprocess(["uv", "sync"])
+
+
+def test_run_subprocess_unknown_tool_no_info(monkeypatch):
+    with pytest.raises(RuntimeError, match="No install information"):
+        run_subprocess(["doesnotexist", "foo"])
