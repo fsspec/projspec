@@ -200,6 +200,10 @@ def list(json_out):
 @library.command("delete")
 @click.argument("url")
 def delete(url):
+    """Delete the project at the given URL from the library.
+
+    URL must be given as shows in `list`.
+    """
     from projspec.library import ProjectLibrary
 
     library = ProjectLibrary()
@@ -228,6 +232,18 @@ def show():
     # TODO: show docs and defaults for each key, from projspec.config.config_doc?
     # TODO: allow JSON output
     print(conf)
+
+
+@config.command("defaults")
+def defaults():
+    """Show default config settings for all available values and their definitions"""
+    from projspec.config import defaults, config_doc
+    import os
+
+    print("PROJSPEC_CONFIG_DIR", os.environ.get("PROJSPEC_CONFIG_DIR", "unset"))
+    print()
+    for k, v, d in zip(defaults(), defaults().values(), config_doc.values()):
+        print(f"{k}: {v} -- {d}")
 
 
 @config.command("unset")

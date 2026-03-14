@@ -1267,7 +1267,7 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
                         command: 'selectProject',
                         item: itemData
                     });
-                } else if (itemData.projectUrl && !itemData.children) {
+                } else if (itemData.projectUrl && (!itemData.children || itemData.itemType === 'spec')) {
                     vscode.postMessage({
                         command: 'selectItem',
                         item: itemData

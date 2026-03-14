@@ -30,7 +30,7 @@ config_doc = {
     "scan_max_size": "don't scan files bigger than this (in bytes)",
     "remote_artifact_status": "whether to check status for remote artifacts",
     "capture_artifact_output": (
-        "if True, capture and enqueue output from spawned Process artifacts."
+        "if True, capture and enqueue output from spawned Process artifacts. "
         "Otherwise, output appears on stdout/err."
     ),
 }
