@@ -11,6 +11,7 @@ import weakref
 
 from projspec.artifact import BaseArtifact
 from projspec.config import get_conf
+from projspec.utils import run_subprocess
 
 
 logger = logging.getLogger("projspec")
@@ -51,9 +52,10 @@ class Process(BaseArtifact):
                 kwargs["stdout"] = subprocess.PIPE
                 kwargs["stderr"] = subprocess.STDOUT
                 kwargs["close_fds"] = ON_POSIX
-            proc = subprocess.Popen(
+            proc = run_subprocess(
                 self.cmd,
                 cwd=self.proj.url,
+                popen=True,
                 **kwargs,
             )
             if enq:

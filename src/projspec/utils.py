@@ -208,7 +208,7 @@ class IsInstalled:
 is_installed = IsInstalled()
 
 
-def run_subprocess(cmd, cwd=None, env=None, output=True, popen=False):
+def run_subprocess(cmd, cwd=None, env=None, output=True, popen=False, **kwargs):
     """Common way to run subprocesses, first checking for command existence
 
     This is convenient because command existence can be cached, and so it's much
@@ -217,13 +217,17 @@ def run_subprocess(cmd, cwd=None, env=None, output=True, popen=False):
     # TODO: we want to swap out direct calls to subprocess
     logger.debug("Running subprocess: %s", cmd)
     if cmd[0] not in is_installed:
-        raise RuntimeError(f"Command {cmd[0]} not installed in current environment")
+        from projspec.tools import suggest
+
+        raise RuntimeError(f"Not installed: {suggest(cmd[0])}")
     if popen:
-        return subprocess.Popen(
-            cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-        )
+        kwargs.setdefault("stdout", subprocess.PIPE)
+        kwargs.setdefault("stderr", subprocess.STDOUT)
+        return subprocess.Popen(cmd, cwd=cwd, env=env, **kwargs)
     # returns CompletedProcess with stdout, stderr as attributes
-    return subprocess.run(cmd, cwd=cwd, env=env, capture_output=output, check=True)
+    if "stdout" not in kwargs and "stderr" not in kwargs:
+        kwargs.setdefault("capture_output", output)
+    return subprocess.run(cmd, cwd=cwd, env=env, check=True, **kwargs)
 
 
 # {% set sha256 = "fff" %}
@@ -400,7 +404,7 @@ def class_infos():
 
 
 @contextlib.contextmanager
-def make_and_copy(path):
+def make_and_copy(path, sub=None, mkdir=False):
     """Provide a temporary directory to create and write into, and then copy to destination"""
     # TODO: path could be remote, add optional fs= rather than assume local
     import fsspec
@@ -409,8 +413,11 @@ def make_and_copy(path):
 
     fs = fsspec.filesystem("file")
     tmp = f"{tempfile.mkdtemp()}/{uuid.uuid4()}/"
+    if mkdir:
+        fs.mkdir(tmp)
     yield tmp
-    fs.copy(tmp, path, recursive=True)
+    src = f"{tmp}/{sub}/*" if sub else tmp
+    fs.copy(src, path, recursive=True)
     fs.rm(tmp, recursive=True)
 
 

@@ -1,8 +1,7 @@
 import os
-import subprocess
 
 from projspec.proj import ProjectSpec, ParseFailed
-from projspec.utils import _ipynb_to_py
+from projspec.utils import _ipynb_to_py, run_subprocess
 
 # TODO: webapp Servers should (optionally?) call threading.Timer(0.5, webbrowser.open(..));
 #  but then it must not block, and we need to set/infer the URL including port.
@@ -48,9 +47,9 @@ class Django(ProjectSpec):
     def _create(path, sitename="mysite", appname="myapp"):
         os.makedirs(path, exist_ok=True)
         cmd = ["python", "-m", "django", "startproject", sitename, path]
-        subprocess.check_call(cmd, cwd=path)
+        run_subprocess(cmd, cwd=path, output=False)
         cmd = ["python", f"{path}/manage.py", "startapp", appname]
-        subprocess.check_call(cmd, cwd=path)
+        run_subprocess(cmd, cwd=path, output=False)
 
 
 class Streamlit(ProjectSpec):

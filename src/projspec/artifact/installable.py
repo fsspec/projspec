@@ -1,11 +1,10 @@
 from enum import auto
 import logging
 import os.path
-import subprocess
 from platform import architecture
 
 from projspec.artifact import FileArtifact
-from projspec.utils import Enum
+from projspec.utils import Enum, run_subprocess
 
 logger = logging.getLogger("projspec")
 
@@ -54,7 +53,7 @@ class CondaPackage(FileArtifact):
         import re
 
         logger.debug(" ".join(self.cmd))
-        out = subprocess.check_output(self.cmd).decode("utf-8")
+        out = run_subprocess(self.cmd, cwd=self.proj.url).stdout.decode("utf-8")
         if fn := re.match(r"'(.*?\.conda)'\n", out):
             if os.path.exists(fn.group(1)):
                 self.fn = fn.group(1)
