@@ -33,6 +33,12 @@ class Process(BaseArtifact):
     """A simple process where we know nothing about what it does, only if it's running.
 
     Can include batch jobs and long-running services.
+
+    While running the process, the output can be "enqueued", meaning that
+    the .queue attribute will be populated with lines of output (from
+    stdout and stderr, by default). This can be controlled by passing
+    `enqueue=` to the .make() method; or disabled by setting the config
+    value `capture_artifact_output` to False.
     """
 
     term: bool = False
@@ -52,6 +58,8 @@ class Process(BaseArtifact):
                 kwargs["stdout"] = subprocess.PIPE
                 kwargs["stderr"] = subprocess.STDOUT
                 kwargs["close_fds"] = ON_POSIX
+            else:
+                kwargs["output"] = False
             proc = run_subprocess(
                 self.cmd,
                 cwd=self.proj.url,
