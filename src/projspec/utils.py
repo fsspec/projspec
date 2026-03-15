@@ -221,8 +221,10 @@ def run_subprocess(cmd, cwd=None, env=None, output=True, popen=False, **kwargs):
 
         raise RuntimeError(f"Not installed: {suggest(cmd[0])}")
     if popen:
-        kwargs.setdefault("stdout", subprocess.PIPE)
-        kwargs.setdefault("stderr", subprocess.STDOUT)
+        if "stdout" not in kwargs and output:
+            kwargs["stdout"] = subprocess.PIPE
+        if "stderr" not in kwargs and output:
+            kwargs["stderr"] = subprocess.STDOUT
         return subprocess.Popen(cmd, cwd=cwd, env=env, **kwargs)
     # returns CompletedProcess with stdout, stderr as attributes
     if "stdout" not in kwargs and "stderr" not in kwargs:
