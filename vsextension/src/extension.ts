@@ -753,9 +753,15 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
             margin-bottom: 8px;
         }
 
+        .search-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
         #search-input {
             width: 100%;
-            padding: 4px 8px;
+            padding: 4px 24px 4px 8px;
             box-sizing: border-box;
             background-color: var(--vscode-settings-textInputBackground);
             color: var(--vscode-settings-textInputForeground);
@@ -768,6 +774,24 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         #search-input:focus {
             outline: 1px solid var(--vscode-focusBorder);
             border-color: var(--vscode-focusBorder);
+        }
+
+        #search-clear {
+            position: absolute;
+            right: 4px;
+            background: none;
+            border: none;
+            padding: 0 2px;
+            cursor: pointer;
+            color: var(--vscode-settings-textInputForeground);
+            opacity: 0.6;
+            font-size: 14px;
+            line-height: 1;
+            display: none;
+        }
+
+        #search-clear:hover {
+            opacity: 1;
         }
 
         /* Button Styles */
@@ -962,7 +986,10 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         <button id="create-project" class="control-button">Create</button>
     </div>
     <div class="search-container">
-        <input type="text" id="search-input" placeholder="Search projects..." aria-label="Search projects">
+        <div class="search-input-wrapper">
+            <input type="text" id="search-input" placeholder="Search projects..." aria-label="Search projects">
+            <button id="search-clear" title="Clear search" aria-label="Clear search">&#x2715;</button>
+        </div>
     </div>
     <div class="controls-bottom-container">
         <button id="expand-all" class="control-button">Expand All</button>
@@ -1007,6 +1034,7 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         const popupTitle = document.getElementById('popup-title');
         const popupContent = document.getElementById('popup-content');
         const searchInput = document.getElementById('search-input');
+        const searchClear = document.getElementById('search-clear');
         const createModal = document.getElementById('create-modal');
         const typeInput = document.getElementById('project-type-input');
         const suggestionsContainer = document.getElementById('autocomplete-suggestions');
@@ -1142,6 +1170,7 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         // Handle search
         searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.toLowerCase();
+            searchClear.style.display = e.target.value ? 'block' : 'none';
             const projectNodes = document.querySelectorAll('.tree > .tree-item');
 
             projectNodes.forEach(projectItem => {
@@ -1162,6 +1191,16 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
                     projectItem.style.display = 'none';
                 }
             });
+        });
+
+        // Handle search clear button
+        searchClear.addEventListener('click', () => {
+            searchInput.value = '';
+            searchClear.style.display = 'none';
+            document.querySelectorAll('.tree > .tree-item').forEach(projectItem => {
+                projectItem.style.display = '';
+            });
+            searchInput.focus();
         });
 
         // Handle expand/collapse all
