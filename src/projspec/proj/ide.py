@@ -1,5 +1,5 @@
 """Code project container config within IDEs"""
-
+from projspec.artifact import BaseArtifact
 from projspec.proj import ProjectSpec
 
 
@@ -12,7 +12,16 @@ class NvidiaAIWorkbench(ProjectSpec):
         return self.proj.fs.exists(f"{self.proj.url}/.project/spec.yaml")
 
     def parse(self) -> None:
-        ...
+        from projspec.artifact.process import Process
+
+        # "opens" the project in the sense that it is set as the current context.
+        # Editing still happens in jupyter/vscode/etc
+        self.artifacts["set_project"] = Process(
+            self.proj, cmd=["nvwb", "open", self.proj.url]
+        )
+
+    # create:
+    # https://docs.nvidia.com/ai-workbench/user-guide/latest/reference/user-interface/cli.html#create-project
 
 
 class JetbrainsIDE(ProjectSpec):
@@ -20,7 +29,11 @@ class JetbrainsIDE(ProjectSpec):
         return self.proj.fs.exists(f"{self.proj.url}/.idea")
 
     def parse(self) -> None:
-        ...
+        from projspec.artifact.process import Process
+
+        self.artifacts["launch"] = Process(
+            self.proj, cmd=["pycharm", self.proj.url, "nosplash", "dontReopenProjects"]
+        )
 
 
 class VSCode(ProjectSpec):
@@ -32,7 +45,9 @@ class VSCode(ProjectSpec):
         return self.proj.fs.exists(f"{self.proj.url}/.vscode/settings.json")
 
     def parse(self) -> None:
-        ...
+        from projspec.artifact.process import Process
+
+        self.artifacts["launch"] = Process(self.proj, cmd=["code", self.proj.url])
 
 
 class Zed(ProjectSpec):
@@ -42,4 +57,6 @@ class Zed(ProjectSpec):
         return self.proj.fs.exists(f"{self.proj.url}/.zed/settings.json")
 
     def parse(self) -> None:
-        ...
+        from projspec.artifact.process import Process
+
+        self.artifacts["launch"] = Process(self.proj, cmd=["zed", self.proj.url])

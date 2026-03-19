@@ -1,6 +1,6 @@
 import yaml
 
-from projspec import ProjectSpec
+from projspec.proj.base import ProjectSpec
 
 
 class Citation(ProjectSpec):

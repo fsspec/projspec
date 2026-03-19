@@ -1,4 +1,4 @@
-from projspec import ProjectSpec
+from projspec.proj.base import ProjectSpec
 
 
 class AIEnabled(ProjectSpec):

@@ -151,7 +151,8 @@ class Project:
         :param types: names of types to allow while parsing. If empty or None, allow all
         :param xtypes: names of types to disallow while parsing.
         """
-        if types and set(types) - set(registry):
+        types = set(camel_to_snake(_) for _ in types or ())
+        if types and types - set(registry):
             raise ValueError(f"Unknown types: {set(types) - set(registry)}")
         # sorting to ensure consistency
         for name in sorted(registry):
@@ -405,6 +406,7 @@ class Project:
             spec, artifact, name = None, qname, None
         else:
             spec, artifact, *name = qname.split(".")
+            spec = camel_to_snake(spec)
         specs = [self.specs[spec]] if spec else self.specs.values()
         art = None
         for spec in specs:
