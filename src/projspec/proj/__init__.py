@@ -1,7 +1,8 @@
 """Project and spec classes"""
 
-from projspec.proj.ai import AIEnabled
 from projspec.proj.base import ParseFailed, Project, ProjectSpec, ProjectExtra
+
+from projspec.proj.ai import AIEnabled
 from projspec.proj.briefcase import Briefcase
 from projspec.proj.conda_package import CondaRecipe, RattlerRecipe
 from projspec.proj.conda_project import CondaProject
