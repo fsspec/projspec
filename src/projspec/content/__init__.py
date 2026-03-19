@@ -1,3 +1,5 @@
+"""Contents classes - information declared in project specs"""
+
 from projspec.content.base import BaseContent
 from projspec.content.data import FrictionlessData, IntakeSource
 from projspec.content.env_var import EnvironmentVariables
