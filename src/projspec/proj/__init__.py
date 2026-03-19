@@ -1,3 +1,6 @@
+"""Project and spec classes"""
+
+from projspec.proj.ai import AIEnabled
 from projspec.proj.base import ParseFailed, Project, ProjectSpec, ProjectExtra
 from projspec.proj.briefcase import Briefcase
 from projspec.proj.conda_package import CondaRecipe, RattlerRecipe
@@ -11,6 +14,7 @@ from projspec.proj.ide import JetbrainsIDE, NvidiaAIWorkbench, VSCode
 from projspec.proj.node import JLabExtension, Node, Yarn
 from projspec.proj.pixi import Pixi
 from projspec.proj.poetry import Poetry
+from projspec.proj.published import Citation, Zenodo
 from projspec.proj.pyscript import PyScript
 from projspec.proj.python_code import PythonCode, PythonLibrary
 from projspec.proj.rust import Rust, RustPython
@@ -22,7 +26,9 @@ __all__ = [
     "ParseFailed",
     "Project",
     "ProjectSpec",
+    "AIEnabled",
     "Briefcase",
+    "Citation",
     "CondaRecipe",
     "CondaProject",
     "Golang",
@@ -49,4 +55,5 @@ __all__ = [
     "Uv",
     "VSCode",
     "Yarn",
+    "Zenodo",
 ]
