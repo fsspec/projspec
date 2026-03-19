@@ -81,3 +81,13 @@ def test_library(temp_conf_dir, capsys):
     main(["library", "delete", path], standalone_mode=False)
     main(["library", "list"], standalone_mode=False)
     assert capsys.readouterr().out == ""
+
+
+def test_create_cant(tmpdir, capsys):
+    try:
+        main(["create", "project_extra", str(tmpdir)], standalone_mode=False)
+    except SystemExit:
+        pass
+    out = capsys.readouterr().out
+    assert "does not support creation" in out
+    assert "python_code" in out

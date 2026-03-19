@@ -390,7 +390,11 @@ def class_infos():
 
     return {
         "specs": {
-            name: {"doc": cls.__doc__, "link": cls.spec_doc}
+            name: {
+                "doc": cls.__doc__,
+                "link": cls.spec_doc,
+                "create": cls._create is not projspec.ProjectSpec._create,
+            }
             for name, cls in projspec.proj.base.registry.items()
         },
         "content": {

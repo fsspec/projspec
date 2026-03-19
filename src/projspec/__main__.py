@@ -163,10 +163,26 @@ def create(type, path):
     (Path must be local, no storage_options)
     """
     from projspec.proj import Project
+    from projspec.proj.base import ProjectSpec, registry
 
+    if type not in registry:
+        print(f"Unknown spec type: {type}")
+        sys.exit(1)
     proj = Project(path)
     if type not in proj:
-        files = proj.create(type)
+        try:
+            files = proj.create(type)
+        except NotImplementedError:
+            supported = sorted(
+                name
+                for name, cls in registry.items()
+                if cls._create is not ProjectSpec._create
+            )
+            print(
+                f"Spec type '{type}' does not support creation.\n"
+                f"Types that support creation: {', '.join(supported)}"
+            )
+            sys.exit(1)
         for afile in files:
             print(afile)
     else:
