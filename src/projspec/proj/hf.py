@@ -101,6 +101,7 @@ class HuggingFaceDataset(ProjectSpec):
         Present when a ``license`` key is found in the front-matter.
     """
 
+    # detailed spec: https://raw.githubusercontent.com/huggingface/hub-docs/refs/heads/main/datasetcard.md
     spec_doc = "https://huggingface.co/docs/hub/datasets-cards"
 
     def match(self) -> bool:
