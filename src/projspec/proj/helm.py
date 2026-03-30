@@ -24,6 +24,7 @@ class HelmChart(ProjectSpec):
 
     def parse(self) -> None:
         from projspec.artifact.base import FileArtifact
+        from projspec.artifact.deployment import HelmDeployment
         from projspec.artifact.process import Process
         from projspec.content.metadata import DescriptiveMetadata
 
@@ -80,16 +81,12 @@ class HelmChart(ProjectSpec):
         arts = AttrDict()
 
         # helm package . → produces <name>-<version>.tgz
-        tgz_pattern = (
-            f"{self.proj.url}/{name}-{version}.tgz"
-            if name and version
-            else f"{self.proj.url}/*.tgz"
-        )
-        arts["packaged_chart"] = FileArtifact(
-            proj=self.proj,
-            cmd=["helm", "package", "."],
-            fn=tgz_pattern,
-        )
+        if name and version:
+            arts["packaged_chart"] = FileArtifact(
+                proj=self.proj,
+                cmd=["helm", "package", "."],
+                fn=f"{self.proj.url}/{name}-{version}.tgz",
+            )
 
         # helm dependency update → populates charts/ and writes Chart.lock
         arts["chart_lock"] = FileArtifact(
@@ -100,9 +97,9 @@ class HelmChart(ProjectSpec):
 
         # helm install / upgrade → deploys to the active k8s cluster
         release = name or "release"
-        arts["release"] = Process(
+        arts["release"] = HelmDeployment(
             proj=self.proj,
-            cmd=["helm", "upgrade", "--install", release, "."],
+            release=release,
         )
 
         # helm lint — validates chart structure and values
