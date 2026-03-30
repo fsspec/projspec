@@ -10,6 +10,7 @@ from projspec.proj.datapackage import DataPackage, DVCRepo
 from projspec.proj.documentation import RTD, MDBook
 from projspec.proj.git import GitRepo
 from projspec.proj.golang import Golang
+from projspec.proj.helm import HelmChart
 from projspec.proj.hf import HuggingFaceRepo
 from projspec.proj.ide import JetbrainsIDE, NvidiaAIWorkbench, VSCode
 from projspec.proj.node import JLabExtension, Node, Yarn
@@ -34,6 +35,7 @@ __all__ = [
     "CondaProject",
     "Golang",
     "GitRepo",
+    "HelmChart",
     "HuggingFaceRepo",
     "JetbrainsIDE",
     "JLabExtension",
