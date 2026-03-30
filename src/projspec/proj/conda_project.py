@@ -1,3 +1,5 @@
+import os
+
 import yaml
 
 from projspec.proj import ProjectSpec
@@ -12,6 +14,22 @@ class CondaProject(ProjectSpec):
 
     # not a spec, but a howto:
     spec_doc = "https://conda-incubator.github.io/conda-project/tutorial.html"
+
+    @staticmethod
+    def _create(path: str) -> None:
+        name = os.path.basename(path)
+        env_file = "environment.yml"
+        with open(f"{path}/{env_file}", "wt") as f:
+            f.write("channels:\n  - conda-forge\ndependencies:\n  - python >=3.10\n")
+        with open(f"{path}/conda-project.yml", "wt") as f:
+            f.write(
+                f"name: {name}\n"
+                "environments:\n"
+                f"  default:\n"
+                f"  - {env_file}\n"
+                "variables: {}\n"
+                "commands: {}\n"
+            )
 
     def match(self) -> bool:
         # TODO: a .condarc or environment.yml file is actually enough, e.g.,

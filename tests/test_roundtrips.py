@@ -30,6 +30,7 @@ from projspec.utils import get_cls
         "pixi",
         "uv",
         "briefcase",
+        "conda_project",
     ],
 )
 def test_compliant(tmpdir, cls_name):

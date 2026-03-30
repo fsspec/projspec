@@ -77,6 +77,9 @@ class Project:
         else:
             storage_options = fs.storage_options
         self.storage_options = storage_options or {}
+        assert (
+            fs is not None
+        )  # guaranteed by the if/else above; url_to_fs lacks return annotation
         self.fs = fs
         self.url = path  # this is the FS-specific variant
         self.specs = AttrDict()
