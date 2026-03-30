@@ -33,6 +33,7 @@ default_excludes = {
     "env",
     "envs",  # conda-project
     "htmlcov",
+    "node_modules",
 }
 
 

@@ -1,4 +1,12 @@
-This extension "Projspec scan" command, which calls projspec as a subprocess
-on the current project root, and displays the output HTML in an editor tab.
+VSCode extension for projspec
+-----------------------------
+
+This extension provides the "Show project library" command,
+which calls projspec as a subprocess. It can scan and add the current
+code window to the library, show details (and search) any library entry,
+open a new Code window for a given library entry or "make" any
+artifact.
+
+![screenshot](./im.png)
 
 Like the qt-app, this is POC experimental only.

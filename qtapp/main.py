@@ -23,6 +23,8 @@ from PyQt5.QtCore import Qt, pyqtSignal  # just Signal in PySide
 from projspec.library import ProjectLibrary
 import projspec
 
+library = ProjectLibrary()
+
 
 class FileBrowserWindow(QMainWindow):
     """A mini filesystem browser with project information
