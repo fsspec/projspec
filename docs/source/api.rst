@@ -42,6 +42,7 @@ User Classes
     proj.documentation.MDBook
     proj.documentation.RTD
     proj.git.GitRepo
+    proj.helm.HelmChart
     proj.hf.HuggingFaceRepo
     proj.ide.JetbrainsIDE
     proj.ide.NvidiaAIWorkbench
@@ -79,6 +80,7 @@ User Classes
 .. autoclass:: projspec.proj.documentation.MDBook
 .. autoclass:: projspec.proj.documentation.RTD
 .. autoclass:: projspec.proj.git.GitRepo
+.. autoclass:: projspec.proj.helm.HelmChart
 .. autoclass:: projspec.proj.hf.HuggingFaceRepo
 .. autoclass:: projspec.proj.ide.JetbrainsIDE
 .. autoclass:: projspec.proj.ide.NvidiaAIWorkbench
@@ -166,6 +168,8 @@ User Classes
 .. autosummary::
     artifact.container.DockerImage
     artifact.container.DockerRuntime
+    artifact.deployment.Deployment
+    artifact.deployment.HelmDeployment
     artifact.installable.CondaPackage
     artifact.installable.SystemInstallablePackage
     artifact.installable.Wheel
@@ -179,6 +183,10 @@ User Classes
 
 .. autoclass:: projspec.artifact.container.DockerImage
 .. autoclass:: projspec.artifact.container.DockerRuntime
+.. autoclass:: projspec.artifact.deployment.Deployment
+   :members:
+.. autoclass:: projspec.artifact.deployment.HelmDeployment
+   :members:
 .. autoclass:: projspec.artifact.installable.CondaPackage
 .. autoclass:: projspec.artifact.installable.SystemInstallablePackage
 .. autoclass:: projspec.artifact.installable.Wheel
