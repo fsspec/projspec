@@ -31,6 +31,7 @@ __all__ = [
     "AIEnabled",
     "Briefcase",
     "Cited",
+    "Zenodo",
     "CondaRecipe",
     "CondaProject",
     "Golang",
@@ -58,5 +59,4 @@ __all__ = [
     "Uv",
     "VSCode",
     "Yarn",
-    "Zenodo",
 ]

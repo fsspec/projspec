@@ -2,6 +2,8 @@ from projspec.proj import ProjectSpec
 
 
 class Golang(ProjectSpec):
+    """A Go language module project"""
+
     spec_doc = "https://go.dev/doc/modules/gomod-ref"
 
     def match(self) -> bool:

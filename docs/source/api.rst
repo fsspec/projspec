@@ -33,6 +33,7 @@ User Classes
     content.environment.CondaEnv
     content.environment.PythonRequirements
     content.metadata.Licensed
+    proj.ai.AIEnabled
     proj.briefcase.Briefcase
     proj.conda_package.CondaRecipe
     proj.conda_package.RattlerRecipe
@@ -42,6 +43,7 @@ User Classes
     proj.documentation.MDBook
     proj.documentation.RTD
     proj.git.GitRepo
+    proj.golang.Golang
     proj.helm.HelmChart
     proj.hf.HuggingFaceDataset
     proj.hf.HuggingFaceRepo
@@ -54,6 +56,8 @@ User Classes
     proj.node.Yarn
     proj.pixi.Pixi
     proj.poetry.Poetry
+    proj.published.Cited
+    proj.published.Zenodo
     proj.pyscript.PyScript
     proj.python_code.PythonCode
     proj.python_code.PythonLibrary
@@ -72,6 +76,7 @@ User Classes
 .. autoclass:: projspec.content.environment.CondaEnv
 .. autoclass:: projspec.content.environment.PythonRequirements
 .. autoclass:: projspec.content.metadata.Licensed
+.. autoclass:: projspec.proj.ai.AIEnabled
 .. autoclass:: projspec.proj.briefcase.Briefcase
 .. autoclass:: projspec.proj.conda_package.CondaRecipe
 .. autoclass:: projspec.proj.conda_package.RattlerRecipe
@@ -81,6 +86,7 @@ User Classes
 .. autoclass:: projspec.proj.documentation.MDBook
 .. autoclass:: projspec.proj.documentation.RTD
 .. autoclass:: projspec.proj.git.GitRepo
+.. autoclass:: projspec.proj.golang.Golang
 .. autoclass:: projspec.proj.helm.HelmChart
 .. autoclass:: projspec.proj.hf.HuggingFaceDataset
 .. autoclass:: projspec.proj.hf.HuggingFaceRepo
@@ -93,6 +99,8 @@ User Classes
 .. autoclass:: projspec.proj.node.Yarn
 .. autoclass:: projspec.proj.pixi.Pixi
 .. autoclass:: projspec.proj.poetry.Poetry
+.. autoclass:: projspec.proj.published.Cited
+.. autoclass:: projspec.proj.published.Zenodo
 .. autoclass:: projspec.proj.pyscript.PyScript
 .. autoclass:: projspec.proj.python_code.PythonCode
 .. autoclass:: projspec.proj.python_code.PythonLibrary
@@ -127,6 +135,7 @@ User Classes
 .. autosummary::
     content.data.FrictionlessData
     content.data.IntakeSource
+    content.data.TabularData
     content.env_var.EnvironmentVariables
     content.environment.Environment
     content.executable.Command
@@ -138,6 +147,7 @@ User Classes
 
 .. autoclass:: projspec.content.data.FrictionlessData
 .. autoclass:: projspec.content.data.IntakeSource
+.. autoclass:: projspec.content.data.TabularData
 .. autoclass:: projspec.content.env_var.EnvironmentVariables
 .. autoclass:: projspec.content.environment.Environment
 .. autoclass:: projspec.content.executable.Command
