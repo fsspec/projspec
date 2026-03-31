@@ -33,6 +33,9 @@ from projspec.utils import get_cls
         "briefcase",
         "conda_project",
         "helm_chart",
+        "MDBook",
+        "RTD",
+        "BackstageCatalog",
     ],
 )
 def test_compliant(tmpdir, cls_name):
