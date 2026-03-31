@@ -3,6 +3,7 @@
 from projspec.proj.base import ParseFailed, Project, ProjectSpec, ProjectExtra
 
 from projspec.proj.ai import AIEnabled
+from projspec.proj.backstage import BackstageCatalog
 from projspec.proj.briefcase import Briefcase
 from projspec.proj.conda_package import CondaRecipe, RattlerRecipe
 from projspec.proj.conda_project import CondaProject
@@ -29,6 +30,7 @@ __all__ = [
     "Project",
     "ProjectSpec",
     "AIEnabled",
+    "BackstageCatalog",
     "Briefcase",
     "Cited",
     "Zenodo",
