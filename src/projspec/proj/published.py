@@ -1,9 +1,9 @@
 import yaml
 
-from projspec.proj.base import ProjectSpec
+from projspec.proj.base import ProjectExtra
 
 
-class Citation(ProjectSpec):
+class Cited(ProjectExtra):
     """A github-specified format to say how this project should be cited."""
 
     spec_doc = "https://citation-file-format.github.io/"
@@ -12,7 +12,7 @@ class Citation(ProjectSpec):
         return "CITATION.cff" in self.proj.basenames
 
     def parse(self) -> None:
-        from projspec.content.metadata import DescriptiveMetadata
+        from projspec.content.metadata import Citation
 
         with self.proj.fs.open(self.proj.basenames["CITATION.cff"], "rt") as f:
             meta = yaml.safe_load(f)
@@ -21,7 +21,7 @@ class Citation(ProjectSpec):
         )
 
 
-class Zenodo(ProjectSpec):
+class Zenodo(ProjectExtra):
     """This project has been published on Zenodo"""
 
     spec_doc = "https://help.zenodo.org/docs/github/describe-software/zenodo-json/"

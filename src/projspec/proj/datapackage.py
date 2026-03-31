@@ -15,7 +15,7 @@ class DataPackage(ProjectSpec):
         return "datapackage.json" in self.proj.basenames
 
     def parse(self) -> None:
-        from projspec.content import DescriptiveMetadata, License, FrictionlessData
+        from projspec.content import DescriptiveMetadata, License, TabularData
 
         import json
 
@@ -36,7 +36,7 @@ class DataPackage(ProjectSpec):
             )
         if "resources" in conf:
             self.contents["frictionless_data"] = [
-                FrictionlessData(
+                TabularData(
                     proj=self.proj,
                     name=_["name"],
                     schema=_.get("schema", {}),

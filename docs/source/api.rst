@@ -43,6 +43,7 @@ User Classes
     proj.documentation.RTD
     proj.git.GitRepo
     proj.helm.HelmChart
+    proj.hf.HuggingFaceDataset
     proj.hf.HuggingFaceRepo
     proj.ide.JetbrainsIDE
     proj.ide.NvidiaAIWorkbench
@@ -81,6 +82,7 @@ User Classes
 .. autoclass:: projspec.proj.documentation.RTD
 .. autoclass:: projspec.proj.git.GitRepo
 .. autoclass:: projspec.proj.helm.HelmChart
+.. autoclass:: projspec.proj.hf.HuggingFaceDataset
 .. autoclass:: projspec.proj.hf.HuggingFaceRepo
 .. autoclass:: projspec.proj.ide.JetbrainsIDE
 .. autoclass:: projspec.proj.ide.NvidiaAIWorkbench

@@ -135,6 +135,8 @@ class Project:
         return self._scanned_files
 
     def get_file(self, name: str, text=True) -> io.IOBase:
+        # TODO: possibly cache files that are read by some parser and might be
+        #  needed again
         if name in self.scanned_files:
             if text:
                 return io.StringIO(self.scanned_files[name].decode())

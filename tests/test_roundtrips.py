@@ -23,6 +23,7 @@ from projspec.utils import get_cls
         "panel",
         "Golang",
         "HuggingFaceRepo",
+        "HuggingFaceDataset",
         "uv_script",
         "MLFlow",
         "Rust",

@@ -15,7 +15,7 @@ def conf_dir():
 def defaults():
     return {
         "library_path": f"{conf_dir()}/library.json",
-        "scan_types": [".py", ".yaml", ".yml", ".toml", ".json"],
+        "scan_types": [".py", ".yaml", ".yml", ".toml", ".json", ".md"],
         "scan_max_files": 100,
         "scan_max_size": 5 * 2**10,
         "remote_artifact_status": False,
