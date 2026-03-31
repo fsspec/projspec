@@ -5,8 +5,8 @@ from projspec.content import BaseContent
 
 
 @dataclass
-class FrictionlessData(BaseContent):
-    """A datapackage spec, as defined by frictionlessdata
+class TabularData(BaseContent):
+    """A tabular dataset, columns and rows
 
     This lists loadable tabular files with defined schema, typically from formats such as
     JSON, CSV, and parquet.
@@ -15,7 +15,13 @@ class FrictionlessData(BaseContent):
     """
 
     name: str
-    schema: dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
+    # allowed schema formats:
+    #  - dtype-like {fieldname: string-type}
+    #  - dtype-complex {fieldname: {...}}
+    #  - list like [{name:, ...}]
+    # We may choose to normalise to just one of these eventually
+    schema: dict | list = field(default_factory=dict)
 
 
 @dataclass

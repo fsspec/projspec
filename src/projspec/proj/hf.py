@@ -29,11 +29,10 @@ class HuggingFaceRepo(ProjectSpec):
     # Dataset names are the same as the repo names in HF.
 
     def match(self) -> bool:
-        readme = f"{self.proj.url}/README.md"
-        return self.proj.fs.exists(readme)
+        return "README.md" in self.proj.basenames
 
     def parse(self) -> None:
-        from projspec.content.metadata import DescriptiveMetadata, License
+        from projspec.content.metadata import DescriptiveMetadata, License, Citation
         import yaml
 
         with self.get_file("README.md") as f:
@@ -45,6 +44,14 @@ class HuggingFaceRepo(ProjectSpec):
             meta = yaml.safe_load(StringIO(meta))
         except yaml.YAMLError:
             raise ParseFailed
+        if {
+            "dataset_info",
+            "source_datasets",
+            "task_categories",
+            "task_ids",
+        }.intersection(meta):
+            raise ParseFailed("README.md is a dataset card")
+
         if "licence" in meta:
             self.contents["license"] = License(
                 proj=self.proj,
@@ -52,10 +59,26 @@ class HuggingFaceRepo(ProjectSpec):
                 fullname=meta.get("license_name"),
                 url=meta.get("license_link"),
             )
+        for tag in meta.get("tags", []):
+            if tag.startswith("arxiv:"):
+                self._contents.setdefault("citations", []).append(
+                    Citation(
+                        proj=self.proj, meta=dict(arxiv=tag.removeprefix("arxiv:"))
+                    )
+                )
+        # TODO: datasets are links to other repos
         self.contents["descriptive_metadata"] = DescriptiveMetadata(
             proj=self.proj,
             meta={
-                k: meta[k] for k in ["language", "library_name", "tags"] if k in meta
+                k: meta[k]
+                for k in [
+                    "language",
+                    "library_name",
+                    "tags",
+                    "base_model",
+                    "new_version",
+                ]
+                if k in meta
             },
         )
 
@@ -85,11 +108,7 @@ class HuggingFaceDataset(ProjectSpec):
 
     A HuggingFace dataset repo is identified by a ``README.md`` whose YAML
     front-matter contains at least one dataset-specific key (e.g.
-    ``task_categories``, ``dataset_info``, ``size_categories``).  The card
-    format is defined at
-    https://huggingface.co/docs/hub/datasets-cards and the full metadata
-    specification is at
-    https://github.com/huggingface/hub-docs/blob/main/datasetcard.md
+    ``task_categories``, ``dataset_info``, ``size_categories``).
 
     Parsed contents
     ---------------
@@ -109,7 +128,8 @@ class HuggingFaceDataset(ProjectSpec):
 
     def parse(self) -> None:
         import yaml
-        from projspec.content.metadata import DescriptiveMetadata, License
+        from projspec.content.metadata import DescriptiveMetadata, License, Citation
+        from projspec.content.data import TabularData
 
         try:
             with self.get_file("README.md") as f:
@@ -125,6 +145,8 @@ class HuggingFaceDataset(ProjectSpec):
             raise ParseFailed(f"Invalid YAML front-matter: {exc}") from exc
         if not isinstance(meta, dict):
             raise ParseFailed("YAML front-matter did not parse to a mapping")
+        if {"library_name", "base_model", "new_version"}.intersection(meta):
+            raise ParseFailed("README.md is a dataset card")
 
         if "license" in meta:
             self._contents["license"] = License(
@@ -133,7 +155,15 @@ class HuggingFaceDataset(ProjectSpec):
                 fullname=meta.get("license_name", "unknown"),
                 url=meta.get("license_link", ""),
             )
+        for tag in meta.get("tags", []):
+            if tag.startswith("arxiv:"):
+                self._contents.setdefault("citations", []).append(
+                    Citation(
+                        proj=self.proj, meta=dict(arxiv=tag.removeprefix("arxiv:"))
+                    )
+                )
 
+        # TODO: source_datasets are links to other datasets
         descriptive_keys = [
             "pretty_name",
             "language",
@@ -151,6 +181,35 @@ class HuggingFaceDataset(ProjectSpec):
             proj=self.proj,
             meta=card_meta,
         )
+        if datasets := meta.get("dataset_info"):
+            # only including configured tabular data for now
+            if "config_name" in datasets[0]:
+                self._contents["tabular_data"] = [
+                    TabularData(
+                        name=data["config_name"],
+                        proj=self.proj,
+                        schema=data["features"],
+                        metadata={
+                            k: data[k]
+                            for k in ("splits", "download_size", "dataset_size")
+                            if k in data
+                        },
+                    )
+                    for data in datasets
+                    if "features" in data
+                ]
+            else:
+                if "features" in datasets:
+                    self._contents["tabular_data"] = TabularData(
+                        name="data",
+                        proj=self.proj,
+                        schema=datasets["features"],
+                        metadata={
+                            k: datasets[k]
+                            for k in ("splits", "download_size", "dataset_size")
+                            if k in datasets
+                        },
+                    )
 
     @staticmethod
     def _create(path: str) -> None:

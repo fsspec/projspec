@@ -16,7 +16,7 @@ from projspec.proj.ide import JetbrainsIDE, NvidiaAIWorkbench, VSCode
 from projspec.proj.node import JLabExtension, Node, Yarn
 from projspec.proj.pixi import Pixi
 from projspec.proj.poetry import Poetry
-from projspec.proj.published import Citation, Zenodo
+from projspec.proj.published import Cited, Zenodo
 from projspec.proj.pyscript import PyScript
 from projspec.proj.python_code import PythonCode, PythonLibrary
 from projspec.proj.rust import Rust, RustPython
@@ -30,7 +30,7 @@ __all__ = [
     "ProjectSpec",
     "AIEnabled",
     "Briefcase",
-    "Citation",
+    "Cited",
     "CondaRecipe",
     "CondaProject",
     "Golang",

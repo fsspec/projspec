@@ -16,6 +16,13 @@ class DescriptiveMetadata(BaseContent):
 
 
 @dataclass
+class Citation(BaseContent):
+    """A citation for the project, or associated publication"""
+
+    meta: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class License(BaseContent):
     """A legal description of what the given project (code and other assets) can be used for.
 
