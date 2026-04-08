@@ -78,8 +78,9 @@ Nodes are colour-coded:
 
 | Element | Action |
 |---------|--------|
-| Click a **project** node | Opens the project folder in a new VS Code window (same behaviour as `projspec.openProject`). |
-| Click a **spec / content / artifact** node | Fetches fresh project data (`projspec library list --json-out`), opens `projspec-details:/Project details.json` in the side column, and scrolls to the selected item. |
+| Click a **project** node | Selects the node (no other action). Right-click to open the context menu. |
+| Right-click a **project** node | Opens a context menu with an **Open** option that opens the project folder in a new VS Code window. |
+| Click a **spec / content / artifact** node | Opens `projspec-details:/Project details.json` in the side column and scrolls to the selected item. |
 | **▶ / ▼ arrow** on any node | Toggles the visibility of that node's children. |
 | **"Make" button** on an artifact node | Runs `projspec make <qname> "<projectPath>"` in a dedicated **projspec** terminal panel. |
 | **"i" info button** on a spec / content / artifact node | Shows an inline popup with the item's doc string and, when available, a link to the upstream specification documentation. Press **Escape** or click elsewhere to dismiss. |

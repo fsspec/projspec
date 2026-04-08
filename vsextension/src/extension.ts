@@ -205,25 +205,6 @@ async function handleOpenProject(item: TreeNode) {
 	}
 }
 
-async function handleSelectProject(item: TreeNode) {
-	if (!item || !item.infoData || item.infoData.trim() === '') {
-		return;
-	}
-
-	const projectUrl = item.infoData;
-
-	// Only handle file:// URLs
-	if (projectUrl.startsWith('file://')) {
-		const fsPath = projectUrl.replace('file://', '');
-		const uri = vscode.Uri.file(fsPath);
-		await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
-	} else if (projectUrl.startsWith('gs://')) {
-		vscode.window.showErrorMessage('Cannot open GCS buckets directly. Clone the repository locally first.');
-	} else {
-		vscode.window.showErrorMessage(`Unsupported project URL scheme: ${projectUrl}`);
-	}
-}
-
 function flattenDeep(data: any): any {
 	if (data === null || typeof data !== 'object') {
 		return data;
@@ -343,13 +324,10 @@ export function activate(context: vscode.ExtensionContext) {
 							}
 						}
 						break;
-					case 'openProject':
-						await handleOpenProject(message.item);
-						break;
-					case 'selectProject':
-						await handleSelectProject(message.item);
-						break;
-					case 'selectItem':
+				case 'openProject':
+					await handleOpenProject(message.item);
+					break;
+				case 'selectItem':
 						await handleSelectItem(message.item);
 						break;
 					case 'createProject':
@@ -954,6 +932,37 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         .modal-button-secondary:hover {
             background: var(--vscode-button-secondaryHoverBackground);
         }
+
+        /* Context menu styles */
+        .context-menu {
+            position: fixed;
+            background: var(--vscode-menu-background);
+            border: 1px solid var(--vscode-menu-border);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            padding: 4px 0;
+            z-index: 3000;
+            display: none;
+            min-width: 140px;
+        }
+
+        .context-menu.visible {
+            display: block;
+        }
+
+        .context-menu-item {
+            padding: 6px 16px;
+            cursor: pointer;
+            color: var(--vscode-menu-foreground);
+            font-family: inherit;
+            font-size: var(--vscode-font-size);
+            white-space: nowrap;
+        }
+
+        .context-menu-item:hover {
+            background: var(--vscode-menu-selectionBackground);
+            color: var(--vscode-menu-selectionForeground);
+        }
     </style>
 </head>
 <body>
@@ -984,6 +993,11 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
             <h3 class="popup-title" id="popup-title"></h3>
         </div>
         <div class="popup-content" id="popup-content"></div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="context-menu" class="context-menu">
+        <div class="context-menu-item" id="context-open">Open</div>
     </div>
 
     <!-- Create Project Modal -->
@@ -1020,6 +1034,10 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         const collapseAllBtn = document.getElementById('collapse-all');
         const scanProjectBtn = document.getElementById('scan-project');
         const createProjectBtn = document.getElementById('create-project');
+        const contextMenu = document.getElementById('context-menu');
+        const contextOpenBtn = document.getElementById('context-open');
+
+        let contextMenuItem = null;
 
         const specNames = ${JSON.stringify(specNames)};
         let activeSuggestionIndex = -1;
@@ -1049,12 +1067,6 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
 
                         // Scroll into view
                         node.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                        // Select it in the extension too (to show the JSON if that's the behavior)
-                        vscode.postMessage({
-                            command: 'selectProject',
-                            item: itemData
-                        });
 
                         break;
                     }
@@ -1278,16 +1290,59 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
 
                 // Send message for actions (open project, show JSON, etc.)
                 if (itemData.isProject) {
-                    vscode.postMessage({
-                        command: 'selectProject',
-                        item: itemData
-                    });
+                    // Project nodes are opened via right-click context menu
                 } else if (itemData.projectUrl && (!itemData.children || itemData.itemType === 'spec')) {
                     vscode.postMessage({
                         command: 'selectItem',
                         item: itemData
                     });
                 }
+            }
+        });
+
+        // Right-click context menu for project nodes
+        document.addEventListener('contextmenu', (e) => {
+            const treeNode = e.target.closest?.('.tree-node');
+            if (treeNode) {
+                const itemData = JSON.parse(treeNode.dataset.item || '{}');
+                if (itemData.isProject) {
+                    e.preventDefault();
+                    contextMenuItem = itemData;
+
+                    // Remove previous selection and select this node
+                    document.querySelectorAll('.tree-node.selected').forEach(node => {
+                        node.classList.remove('selected');
+                    });
+                    treeNode.classList.add('selected');
+
+                    // Position and show the context menu
+                    contextMenu.style.left = e.clientX + 'px';
+                    contextMenu.style.top = e.clientY + 'px';
+                    contextMenu.classList.add('visible');
+                    return;
+                }
+            }
+            hideContextMenu();
+        });
+
+        contextOpenBtn.addEventListener('click', () => {
+            if (contextMenuItem) {
+                vscode.postMessage({
+                    command: 'openProject',
+                    item: contextMenuItem
+                });
+            }
+            hideContextMenu();
+        });
+
+        function hideContextMenu() {
+            contextMenu.classList.remove('visible');
+            contextMenuItem = null;
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!contextMenu.contains(e.target)) {
+                hideContextMenu();
             }
         });
 
