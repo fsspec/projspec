@@ -80,7 +80,7 @@ Nodes are colour-coded:
 |---------|--------|
 | Click a **project** node | Selects the node (no other action). Right-click to open the context menu. |
 | Right-click a **project** node | Opens a context menu with two options: **Open** opens the project folder in a new VS Code window; **Remove** runs `projspec library delete <project-URL>` and refreshes the panel. |
-| Click a **spec / content / artifact** node | Opens `projspec-details:/Project details.json` in the side column and scrolls to the selected item. |
+| Click a **spec / content / artifact** node | Opens (or updates) the **Project Details** panel in the side column, showing the project's full spec/content/artifact tree with the clicked item highlighted. |
 | **▶ / ▼ arrow** on any node | Toggles the visibility of that node's children. |
 | **"Make" button** on an artifact node | Runs `projspec make <qname> "<projectPath>"` in a dedicated **projspec** terminal panel. |
 | **"i" info button** on a spec / content / artifact node | Shows an inline popup with the item's doc string and, when available, a link to the upstream specification documentation. Press **Escape** or click elsewhere to dismiss. |
@@ -97,10 +97,14 @@ Opened by the **Create** button in the toolbar.
 
 ---
 
-## Virtual Document Providers
+## Project Details Panel
 
-The extension registers one read-only document scheme:
+Opened when a spec, content, or artifact node is clicked in the Library panel. A single panel is reused and updated on each click.
 
-| Scheme | URI example | Content |
-|--------|-------------|---------|
-| `projspec-details:` | `projspec-details:/Project details.json` | In-memory JSON, updated each time a spec/content/artifact node is selected in the Project Library panel |
+The panel displays a header with the project name and URL, followed by a colour-coded tree of all the project's specs, contents, and artifacts — using the same visual conventions as the Library panel.
+
+| Element | Action |
+|---------|--------|
+| **▶ / ▼ arrow** on any node | Toggles the visibility of that node's children. |
+| **"Make" button** on an artifact node | Runs `projspec make <qname> "<projectPath>"` in a dedicated **projspec** terminal panel. |
+| **"i" info button** on a spec / content / artifact node | Shows an inline popup with the item's doc string and a link to specification documentation. Press **Escape** or click elsewhere to dismiss. |
