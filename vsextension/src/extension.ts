@@ -297,35 +297,7 @@ async function handleSelectItem(item: TreeNode) {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-	// register a content provider for scheme
-	const myScheme = 'projspec';
-	const myProvider = new class implements vscode.TextDocumentContentProvider {
-
-		// emitter and its event
-		onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
-		onDidChange = this.onDidChangeEmitter.event;
-
-		provideTextDocumentContent(uri: vscode.Uri): string {
-			const out = execSync("projspec --html-out " + uri.toString().substring(18), { stdio: 'pipe' });
-			return uri.toString().substring(18) + out;
-		}
-	};
-
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(projectDetailsScheme, projectDetailsProvider));
-	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(myScheme, myProvider));
-
-	context.subscriptions.push(vscode.commands.registerCommand('projspec.scan', async () => {
-		if (vscode.workspace.workspaceFolders !== undefined) {
-			const folderPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-			const uri = vscode.Uri.file(folderPath);
-			let text = vscode.Uri.parse("projspec:" + uri);
-
-			const panel = vscode.window.createWebviewPanel("projspec", folderPath, vscode.ViewColumn.One, {});
-			panel.webview.html = "<!DOCTYPE html><html><body>" + to_html(text.toString()) + "</body></html>";
-			console.log(folderPath);
-		}
-		else {return;};
-	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('projspec.showTree', async () => {
 		const treeData = getExampleData();
@@ -1571,8 +1543,3 @@ function getInfoWebviewContent(title: string, infoData: string): string {
 
 // This method is called when your extension is deactivated
 export function deactivate() {}
-
-function to_html(path: String): String {
-	let out = execSync("projspec --html-out " + path.substring(18), { stdio: 'pipe' });
-	return out.toString();
-}

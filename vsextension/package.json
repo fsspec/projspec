@@ -17,10 +17,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "projspec.scan",
-        "title": "Projspec scan"
-      },
-      {
         "command": "projspec.showTree",
         "title": "Show Project Library"
       },
