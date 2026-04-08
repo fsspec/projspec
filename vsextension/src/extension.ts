@@ -327,6 +327,19 @@ export function activate(context: vscode.ExtensionContext) {
 				case 'openProject':
 					await handleOpenProject(message.item);
 					break;
+				case 'removeProject':
+					if (message.item && message.item.infoData) {
+						try {
+							execSync(`projspec library delete ${message.item.infoData}`, { stdio: 'pipe', encoding: 'utf-8' });
+							const treeData = getExampleData();
+							const infoData = getInfoData();
+							const specNames = infoData ? Object.keys(infoData.specs) : [];
+							panel.webview.html = getTreeWebviewContent(treeData, specNames);
+						} catch (error) {
+							vscode.window.showErrorMessage(`Remove failed: ${error}`);
+						}
+					}
+					break;
 				case 'selectItem':
 						await handleSelectItem(message.item);
 						break;
@@ -963,6 +976,36 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
             background: var(--vscode-menu-selectionBackground);
             color: var(--vscode-menu-selectionForeground);
         }
+
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.35);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 4000;
+            cursor: wait;
+        }
+
+        .loading-overlay.visible {
+            display: flex;
+        }
+
+        .loading-spinner {
+            width: 28px;
+            height: 28px;
+            border: 3px solid var(--vscode-foreground);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            opacity: 0.8;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -986,6 +1029,11 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         </ul>
     </div>
 
+    <!-- Loading overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
     <!-- Info Popup -->
     <div id="info-popup" class="info-popup">
         <div class="popup-header">
@@ -998,6 +1046,7 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
     <!-- Context Menu -->
     <div id="context-menu" class="context-menu">
         <div class="context-menu-item" id="context-open">Open</div>
+        <div class="context-menu-item" id="context-remove">Remove</div>
     </div>
 
     <!-- Create Project Modal -->
@@ -1036,6 +1085,7 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         const createProjectBtn = document.getElementById('create-project');
         const contextMenu = document.getElementById('context-menu');
         const contextOpenBtn = document.getElementById('context-open');
+        const contextRemoveBtn = document.getElementById('context-remove');
 
         let contextMenuItem = null;
 
@@ -1043,6 +1093,10 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
         let activeSuggestionIndex = -1;
 
         const scrollToProjectUrl = ${scrollToProjectUrl ? `'${scrollToProjectUrl}'` : 'null'};
+
+        function setLoading(active) {
+            document.getElementById('loading-overlay').classList.toggle('visible', active);
+        }
 
         if (scrollToProjectUrl) {
             window.addEventListener('DOMContentLoaded', () => {
@@ -1076,6 +1130,7 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
 
         // Handle scan project
         scanProjectBtn.addEventListener('click', () => {
+            setLoading(true);
             vscode.postMessage({
                 command: 'scan'
             });
@@ -1329,6 +1384,17 @@ function getTreeWebviewContent(treeData: TreeNode, specNames: string[] = [], scr
             if (contextMenuItem) {
                 vscode.postMessage({
                     command: 'openProject',
+                    item: contextMenuItem
+                });
+            }
+            hideContextMenu();
+        });
+
+        contextRemoveBtn.addEventListener('click', () => {
+            if (contextMenuItem) {
+                setLoading(true);
+                vscode.postMessage({
+                    command: 'removeProject',
                     item: contextMenuItem
                 });
             }

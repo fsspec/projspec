@@ -79,7 +79,7 @@ Nodes are colour-coded:
 | Element | Action |
 |---------|--------|
 | Click a **project** node | Selects the node (no other action). Right-click to open the context menu. |
-| Right-click a **project** node | Opens a context menu with an **Open** option that opens the project folder in a new VS Code window. |
+| Right-click a **project** node | Opens a context menu with two options: **Open** opens the project folder in a new VS Code window; **Remove** runs `projspec library delete <project-URL>` and refreshes the panel. |
 | Click a **spec / content / artifact** node | Opens `projspec-details:/Project details.json` in the side column and scrolls to the selected item. |
 | **▶ / ▼ arrow** on any node | Toggles the visibility of that node's children. |
 | **"Make" button** on an artifact node | Runs `projspec make <qname> "<projectPath>"` in a dedicated **projspec** terminal panel. |
