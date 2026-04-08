@@ -16,6 +16,7 @@ interface TreeNode {
 }
 
 let cachedInfo: { specs: Record<string, { doc: string | null; link: string }>; content: Record<string, { doc: string | null; link: string }>; artifact: Record<string, { doc: string | null; link: string }> } | null = null;
+let cachedLibraryData: Record<string, any> | null = null;
 let projectDocument: vscode.TextDocument | undefined = undefined;
 let projectJsonContent: string = "";
 
@@ -157,12 +158,12 @@ function buildTreeNodes(projectUrl: string, project: any): TreeNode[] {
 function getExampleData(): TreeNode {
 	try {
 		const out = execSync("projspec library list --json-out", { stdio: 'pipe', encoding: 'utf-8' });
-		const data = JSON.parse(out) as Record<string, any>;
+		cachedLibraryData = JSON.parse(out) as Record<string, any>;
 
 		const children: TreeNode[] = [];
 
 		// Data is a dict of project_url -> project_data
-		for (const [projectUrl, project] of Object.entries(data)) {
+		for (const [projectUrl, project] of Object.entries(cachedLibraryData)) {
 			const projectChildren = buildTreeNodes(projectUrl, project);
 
 			// Extract basename from project URL for display
@@ -252,8 +253,11 @@ async function handleSelectItem(item: TreeNode) {
 	}
 
 	try {
-		const out = execSync("projspec library list --json-out", { stdio: 'pipe', encoding: 'utf-8' });
-		const data = JSON.parse(out) as Record<string, any>;
+		const data = cachedLibraryData;
+		if (!data) {
+			vscode.window.showErrorMessage('Project library data is not loaded yet.');
+			return;
+		}
 		const projectData = data[item.projectUrl];
 
 		if (!projectData) {
