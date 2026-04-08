@@ -354,9 +354,6 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('projspec.showInfo', async (...args: any[]) => {
-		console.log('showInfo command called with args:', args);
-		console.log('args length:', args.length);
-		console.log('arg types:', args.map(arg => typeof arg));
 
 		let item: TreeNode | undefined;
 
@@ -368,12 +365,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 		if (!item || typeof item !== 'object') {
 			vscode.window.showErrorMessage('No valid item provided to showInfo command');
-			console.error('Invalid item received:', item);
 			return;
 		}
-
-		console.log('Using item:', item);
-		console.log('Item properties:', Object.keys(item));
 
 		let infoContent = '';
 		if (item.infoData && item.infoData.trim() !== '') {
@@ -401,8 +394,6 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('projspec.showItem', (item: TreeNode) => {
 		handleSelectItem(item);
 	}));
-
-	console.log('Congratulations, your extension "projspec" is now active!');
 }
 
 function getDetailsWebviewContent(projectBasename: string, projectUrl: string, project: any, highlightKey?: string): string {
