@@ -10,3 +10,5 @@ artifact.
 ![screenshot](./im.png)
 
 Like the qt-app, this is POC experimental only.
+
+The user actions available are documented in ACTIONS.md (in LLM-friendly text).
