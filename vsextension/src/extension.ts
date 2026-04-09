@@ -19,6 +19,7 @@ let cachedInfo: { specs: Record<string, { doc: string | null; link: string }>; c
 let cachedLibraryData: Record<string, any> | null = null;
 let detailsPanel: vscode.WebviewPanel | undefined = undefined;
 let detailsPanelProjectUrl: string | undefined = undefined;
+let extensionLogoUri: vscode.Uri | undefined = undefined;
 
 function getInfoData(): { specs: Record<string, { doc: string | null; link: string }>; content: Record<string, { doc: string | null; link: string }>; artifact: Record<string, { doc: string | null; link: string }> } | null {
 	if (cachedInfo === null) {
@@ -233,6 +234,7 @@ function handleSelectItem(item: TreeNode) {
 			{ viewColumn: vscode.ViewColumn.Two, preserveFocus: true },
 			{ enableScripts: true, retainContextWhenHidden: true }
 		);
+		if (extensionLogoUri) { detailsPanel.iconPath = extensionLogoUri; }
 		detailsPanel.onDidDispose(() => { detailsPanel = undefined; detailsPanelProjectUrl = undefined; });
 		detailsPanel.webview.onDidReceiveMessage(message => {
 			if (message.command === 'makeArtifact') { handleMakeArtifact(message.item); }
@@ -245,6 +247,8 @@ function handleSelectItem(item: TreeNode) {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+	extensionLogoUri = vscode.Uri.joinPath(context.extensionUri, 'logo.png');
+
 	context.subscriptions.push(vscode.commands.registerCommand('projspec.showTree', async () => {
 		const treeData = getExampleData();
 		const infoData = getInfoData();
@@ -260,6 +264,8 @@ export function activate(context: vscode.ExtensionContext) {
 				retainContextWhenHidden: true
 			}
 		);
+
+		if (extensionLogoUri) { panel.iconPath = extensionLogoUri; }
 
 		// Set the HTML content for the webview
 		panel.webview.html = getTreeWebviewContent(treeData, specNames);
@@ -309,7 +315,7 @@ export function activate(context: vscode.ExtensionContext) {
 							const folderPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
 							try {
 								const out = execSync(`projspec create ${message.projectType} ${folderPath}`, { stdio: 'pipe', encoding: 'utf-8' });
-								const files = out.split('\n').map(f => f.trim()).filter(f => f.length > 0);
+								const files = out.split('\n').map((f: string) => f.trim()).filter((f: string) => f.length > 0);
 
 								for (const file of files) {
 									const filePath = vscode.Uri.file(file);
@@ -458,13 +464,76 @@ function getDetailsWebviewContent(projectBasename: string, projectUrl: string, p
 			// Determine child role based on structural key names
 			let childRole: NodeRole = role;
 			if (key === 'specs' || key === '_contents' || key === 'contents' || key === '_artifacts' || key === 'artifacts') {
-				// These are container keys — their children take a specific role
+				// These are container keys — their children take a specific role.
+				// Pass qnamePath (not childPath) so the container key itself is NOT
+				// included in the qname used by `projspec make`.
 				childRole = key === 'specs' ? 'spec'
 					: (key === '_contents' || key === 'contents') ? 'content'
 					: 'artifact';
 				// Don't emit a wrapper node for these containers, just inline their children with the right role
-				const children = buildNodes(value, childRole, childPath);
+				const children = buildNodes(value, childRole, qnamePath);
 				nodes.push(...children);
+				continue;
+			}
+
+				// ── Artifact special handling ──────────────────────────────────
+			// Artifacts in the serialised JSON take one of two shapes:
+			//   1. string leaf:  { "launch": "<cmd>, <state>" }
+			//   2. named dict:   { "conda_env": { "default": "<cmd>, <state>", "another": "..." } }
+			// In both cases the "leaf" artifact nodes must carry a qname so
+			// the Make button can invoke `projspec make <qname> "<path>"`.
+			if (role === 'artifact') {
+				// Attach info popup data for this artifact type
+				let artInfoData: string | null = null;
+				const artInfo = infoData?.artifact?.[key];
+				if (artInfo) { artInfoData = buildTooltip(artInfo.doc, artInfo.link); }
+
+				if (typeof value === 'string' || value === null) {
+					// Shape 1: single string artifact — childPath is the qname
+					nodes.push({
+						label: key,
+						role: 'artifact',
+						qname: childPath,
+						projectUrl,
+						infoData: artInfoData,
+						itemType: 'artifact',
+					});
+				} else if (value && typeof value === 'object' && !Array.isArray(value)) {
+					// Inspect the values: if they are all strings/null this is shape 2
+					// (named artifacts); otherwise it's an artifact object with fields.
+					const entries = Object.entries(value as Record<string, any>);
+					const allStrings = entries.every(([, v]) => typeof v === 'string' || v === null);
+					if (allStrings) {
+						// Shape 2: named artifacts — emit one node per name
+						const namedChildren: DetailNode[] = entries.map(([name, cmd]) => ({
+							label: name,
+							role: 'artifact' as NodeRole,
+							qname: `${childPath}.${name}`,
+							projectUrl,
+							itemType: 'artifact',
+						}));
+						nodes.push({
+							label: key,
+							role: 'artifact',
+							children: namedChildren.length > 0 ? namedChildren : undefined,
+							infoData: artInfoData,
+							itemType: 'artifact',
+						});
+					} else {
+						// Artifact object with fields (unusual) — recurse normally,
+						// treating the whole object as one artifact leaf.
+						const children = buildNodes(value, 'field', childPath);
+						nodes.push({
+							label: key,
+							role: 'artifact',
+							qname: childPath,
+							projectUrl,
+							children: children.length > 0 ? children : undefined,
+							infoData: artInfoData,
+							itemType: 'artifact',
+						});
+					}
+				}
 				continue;
 			}
 
@@ -473,11 +542,11 @@ function getDetailsWebviewContent(projectBasename: string, projectUrl: string, p
 				if (Array.isArray(value) && value.every(v => v === null || typeof v !== 'object')) {
 					// Array of scalars: show as expandable list
 					const arrayChildren: DetailNode[] = (value as any[]).map(v => ({ label: scalarLabel(v), role: 'field' as NodeRole }));
-					nodes.push({ label: key, role: role === 'artifact' ? 'artifact' : role === 'content' ? 'content' : role === 'spec' ? 'spec' : 'field', children: arrayChildren.length > 0 ? arrayChildren : undefined });
+					nodes.push({ label: key, role: role === 'content' ? 'content' : role === 'spec' ? 'spec' : 'field', children: arrayChildren.length > 0 ? arrayChildren : undefined });
 				} else if (Array.isArray(value)) {
 					nodes.push({ label: key, role, children: buildNodes(value, role, childPath) });
 				} else {
-					nodes.push({ label: key, value: scalarLabel(value), role: role === 'artifact' ? 'artifact' : role === 'content' ? 'content' : role === 'spec' ? 'spec' : 'field' });
+					nodes.push({ label: key, value: scalarLabel(value), role: role === 'content' ? 'content' : role === 'spec' ? 'spec' : 'field' });
 				}
 				continue;
 			}
@@ -485,14 +554,7 @@ function getDetailsWebviewContent(projectBasename: string, projectUrl: string, p
 			// Object value
 			const children = buildNodes(value, role, childPath);
 
-			// Attach qname and Make capability to artifact leaf nodes
-			// An artifact leaf is a node at role=artifact whose children are all fields (no further artifact nesting)
-			let qname: string | undefined;
-			let nodeProjectUrl: string | undefined;
-			if (role === 'artifact') {
-				qname = childPath;
-				nodeProjectUrl = projectUrl;
-			}
+			// (qname is only relevant for artifacts, handled above)
 
 			// Attach info popup data based on role
 			let nodeInfoData: string | null = null;
@@ -502,19 +564,12 @@ function getDetailsWebviewContent(projectBasename: string, projectUrl: string, p
 			} else if (role === 'content') {
 				const info = infoData?.content?.[key];
 				if (info) { nodeInfoData = buildTooltip(info.doc, info.link); }
-			} else if (role === 'artifact') {
-				// artifact type is the parent key when role just became artifact
-				const artType = qnamePath.split('.').pop() || key;
-				const info = infoData?.artifact?.[artType] || infoData?.artifact?.[key];
-				if (info) { nodeInfoData = buildTooltip(info.doc, info.link); }
 			}
 
 			nodes.push({
 				label: key,
 				role,
 				children: children.length > 0 ? children : undefined,
-				qname,
-				projectUrl: nodeProjectUrl,
 				infoData: nodeInfoData,
 				itemType: role !== 'none' && role !== 'field' ? role : undefined,
 			});
