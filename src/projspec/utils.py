@@ -112,6 +112,8 @@ def from_dict(dic, proj=None):
                 return Project.from_dict(dic)
             category, name = dic.pop("klass")
             cls = get_cls(name, category)
+            if category == "enum":
+                return cls(dic["value"])
             obj = object.__new__(cls)
             obj.proj = proj
             obj.__dict__.update({k: from_dict(v, proj=proj) for k, v in dic.items()})
@@ -375,7 +377,7 @@ def spec_class_qnames(registry="proj"):
             for cls in reg.values()
         )
     ):
-        print("   ", s),
+        (print("   ", s),)
     for s in sorted(
         (
             ".. autoclass:: " + ".".join([cls.__module__, cls.__name__])

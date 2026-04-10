@@ -213,6 +213,13 @@ def list(json_out):
             print(f"{proj.text_summary(bare=True)}")
 
 
+@library.command("clear")
+def clear():
+    from projspec.library import ProjectLibrary
+
+    ProjectLibrary().clear()
+
+
 @library.command("delete")
 @click.argument("url")
 def delete(url):

@@ -46,5 +46,5 @@ class BaseContent:
         dic["klass"] = ["content", self.snake_name()]
         for k in list(dic):
             if isinstance(dic[k], Enum):
-                dic[k] = dic[k].value
+                dic[k] = dic[k].to_dict(compact=False)
         return dic

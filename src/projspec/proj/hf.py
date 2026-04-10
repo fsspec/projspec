@@ -42,7 +42,9 @@ class HuggingFaceRepo(ProjectSpec):
         meta = txt.split("---\n")[1]
         try:
             meta = yaml.safe_load(StringIO(meta))
-        except yaml.YAMLError:
+        except Exception as e:
+            raise ParseFailed from e
+        if not isinstance(meta, dict):
             raise ParseFailed
         if {
             "dataset_info",
