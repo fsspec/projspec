@@ -545,7 +545,8 @@ def get_library_html(
     {_INFO_POPUP_HTML}
 
     <div id="context-menu" class="context-menu">
-        <div class="context-menu-item" id="context-open">Open in file manager</div>
+        <div class="context-menu-item" id="context-open">Set browser path</div>
+        <div class="context-menu-item" id="context-file-browser">Open in system file browser</div>
         <div class="context-menu-item" id="context-remove">Remove from library</div>
     </div>
 
@@ -768,7 +769,11 @@ def get_library_html(
             hideContextMenu();
         }});
         document.getElementById('context-open').addEventListener('click', () => {{
-            if (contextMenuItem) postMessage({{ command: 'openProject', item: contextMenuItem }});
+            if (contextMenuItem) postMessage({{ command: 'setBrowserPath', item: contextMenuItem }});
+            hideContextMenu();
+        }});
+        document.getElementById('context-file-browser').addEventListener('click', () => {{
+            if (contextMenuItem) postMessage({{ command: 'openInFileBrowser', item: contextMenuItem }});
             hideContextMenu();
         }});
         document.getElementById('context-remove').addEventListener('click', () => {{

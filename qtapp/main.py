@@ -408,21 +408,29 @@ class LibraryWidget(QWidget):
                         f"Failed to create '{project_type}':\n{e}",
                     )
 
-        elif cmd == "openProject":
-            # Open in the file-browser tree by updating path_text
+        elif cmd == "setBrowserPath":
             item = msg.get("item", {})
             project_url = item.get("infoData", "")
+            this = self
+            while this is not None:
+                this = this.parent()
+                if isinstance(this, FileBrowserWindow) and project_url:
+                    this.path_text.setText(project_url)
+                    this.path_set()
+                    break
+        elif cmd == "openInFileBrowser":
+            item = msg.get("item", {})
+            project_url = item.get("infoData", "")
+            window = self.parent()
             if project_url:
-                if project_url.startswith("file://"):
-                    open_path(project_url)
-
-            # this = self
-            # while this is not None:
-            #     this = this.parent()
-            #     if isinstance(this, FileBrowserWindow) and project_url:
-            #         this.path_text.setText(project_url)
-            #         this.path_set()
-            #         break
+                if project_url.startswith("file:///") or not "://" in project_url:
+                    local_path = project_url.replace("file://", "")
+                    open_path(local_path)
+                else:
+                    if isinstance(window, FileBrowserWindow):
+                        window.statusBar().showMessage(
+                            f"Cannot open in file browser: not a local path ({project_url})"
+                        )
 
 
 # ---------------------------------------------------------------------------
