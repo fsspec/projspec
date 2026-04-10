@@ -1,5 +1,6 @@
 import json
 import os.path
+import posixpath
 import sys
 
 import fsspec
@@ -102,17 +103,32 @@ class FileBrowserWindow(QMainWindow):
 
         # Left pane — file browser
         left = QVBoxLayout()
+
+        nav_bar = QHBoxLayout()
+        home_btn = QPushButton("⌂")
+        home_btn.setToolTip("Home")
+        home_btn.setFixedWidth(32)
+        home_btn.clicked.connect(self.go_home)
+        up_btn = QPushButton("↑")
+        up_btn.setToolTip("Up")
+        up_btn.setFixedWidth(32)
+        up_btn.clicked.connect(self.go_up)
         self.path_text = QLineEdit(path)
         self.path_text.returnPressed.connect(self.path_set)
+        nav_bar.addWidget(home_btn)
+        nav_bar.addWidget(up_btn)
+        nav_bar.addWidget(self.path_text)
+
         self.tree = QTreeWidget(self)
         self.tree.setHeaderLabels(["Name", "Size"])
         self.tree.setColumnWidth(0, 250)
         self.tree.setColumnWidth(1, 50)
-        left.addWidget(self.path_text)
+        left.addLayout(nav_bar)
         left.addWidget(self.tree)
 
         self.tree.itemExpanded.connect(self.on_item_expanded)
         self.tree.currentItemChanged.connect(self.on_item_changed)
+        self.tree.itemDoubleClicked.connect(self.on_item_double_clicked)
 
         left_widget = QWidget(self)
         left_widget.setLayout(left)
@@ -157,6 +173,27 @@ class FileBrowserWindow(QMainWindow):
             return
         self.path = self.path_text.text()
         self.populate_tree()
+
+    def go_home(self):
+        self.path_text.setText(os.path.expanduser("~"))
+        self.path_set()
+
+    def go_up(self):
+        # Strip protocol so dirname doesn't eat into "bucket" or the leading slash.
+        stripped = str(self.fs._strip_protocol(self.path))
+        parent_stripped = posixpath.dirname(stripped.rstrip("/"))
+        # If stripping consumed everything (e.g. already at root), stay put.
+        if not parent_stripped or parent_stripped == stripped:
+            return
+        self.path_text.setText(self.fs.unstrip_protocol(parent_stripped))
+        self.path_set()
+
+    def on_item_double_clicked(self, item: QTreeWidgetItem, column: int):
+        detail = item.data(0, Qt.ItemDataRole.UserRole)
+        if detail and detail.get("type") == "directory":
+            path = self.fs.unstrip_protocol(detail["name"])
+            self.path_text.setText(path)
+            self.path_set()
 
     def populate_tree(self):
         self.tree.clear()
@@ -369,59 +406,17 @@ class LibraryWidget(QWidget):
             # Open in the file-browser tree by updating path_text
             item = msg.get("item", {})
             project_url = item.get("infoData", "")
-            this = self
-            while this is not None:
-                this = this.parent()
-                if isinstance(this, FileBrowserWindow) and project_url:
-                    this.path_text.setText(project_url)
-                    this.path_set()
-                    break
+            if project_url:
+                if project_url.startswith("file://"):
+                    open_path(project_url)
 
-
-# ---------------------------------------------------------------------------
-# SearchDialog  (unchanged from original)
-# ---------------------------------------------------------------------------
-
-
-class SearchItem(QWidget):
-    """A single search criterion"""
-
-    removed = pyqtSignal(QWidget)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        layout = QHBoxLayout()
-        self.which = QComboBox(parent=self)
-        self.which.addItems(["..", "spec", "artifact", "content"])
-        self.which.currentTextChanged.connect(self.on_which_changed)
-        layout.addWidget(self.which, 1)
-
-        self.select = QComboBox(parent=self)
-        self.select.addItem("..")
-        layout.addWidget(self.select, 1)
-
-        self.x = QPushButton("❌")
-        self.x.clicked.connect(self.on_x_clicked)
-        layout.addWidget(self.x)
-        self.setLayout(layout)
-
-    @property
-    def criterion(self):
-        sel = self.select.currentText()
-        return (self.which.currentText(), sel) if sel != ".." else None
-
-    def on_x_clicked(self, _):
-        self.removed.emit(self)
-
-    def on_which_changed(self, text):
-        self.select.clear()
-        self.select.addItem("..")
-        if text == "spec":
-            self.select.addItems([str(_) for _ in projspec.proj.base.registry])
-        elif text == "artifact":
-            self.select.addItems([str(_) for _ in projspec.artifact.base.registry])
-        elif text == "content":
-            self.select.addItems([str(_) for _ in projspec.content.base.registry])
+            # this = self
+            # while this is not None:
+            #     this = this.parent()
+            #     if isinstance(this, FileBrowserWindow) and project_url:
+            #         this.path_text.setText(project_url)
+            #         this.path_set()
+            #         break
 
 
 # ---------------------------------------------------------------------------
@@ -443,6 +438,17 @@ def _empty_detail_html() -> str:
     return """<!DOCTYPE html><html><body style="background:#1e1e1e;color:#666;
 font-family:-apple-system,sans-serif;padding:20px;">
 <p>Select a project directory to see its details.</p></body></html>"""
+
+
+def open_path(path: str):
+    import subprocess
+
+    if sys.platform == "darwin":
+        subprocess.call(["open", path])
+    elif sys.platform == "win32":
+        os.startfile(path)
+    else:
+        subprocess.call(["xdg-open", path])
 
 
 # ---------------------------------------------------------------------------
