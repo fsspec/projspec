@@ -423,14 +423,24 @@ class LibraryWidget(QWidget):
             project_url = item.get("infoData", "")
             window = self.parent()
             if project_url:
-                if project_url.startswith("file:///") or not "://" in project_url:
-                    local_path = project_url.replace("file://", "")
-                    open_path(local_path)
-                else:
-                    if isinstance(window, FileBrowserWindow):
-                        window.statusBar().showMessage(
-                            f"Cannot open in file browser: not a local path ({project_url})"
-                        )
+                if project_url.startswith("file:///") or "://" not in project_url:
+                    open_path(project_url.replace("file://", ""))
+                elif isinstance(window, FileBrowserWindow):
+                    window.statusBar().showMessage(
+                        f"Cannot open in file browser: not a local path ({project_url})"
+                    )
+
+        elif cmd == "openInVSCode":
+            item = msg.get("item", {})
+            project_url = item.get("infoData", "")
+            window = self.parent()
+            _open_local_with(project_url, ["code"], "VSCode")
+
+        elif cmd == "openInJupyter":
+            item = msg.get("item", {})
+            project_url = item.get("infoData", "")
+            window = self.parent()
+            _open_local_with(project_url, ["jupyter", "lab"], "Jupyter")
 
 
 # ---------------------------------------------------------------------------
@@ -465,13 +475,33 @@ def open_path(path: str):
         subprocess.call(["xdg-open", path])
 
 
+def _open_local_with(project_url: str, cmd: list, app_name: str):
+    """Launch cmd + local_path for a project URL, showing a status message on error."""
+    import subprocess
+
+    if not project_url:
+        return
+    if project_url.startswith("file:///") or "://" not in project_url:
+        local_path = project_url.replace("file://", "")
+        try:
+            subprocess.call(cmd + [local_path])
+        except Exception as e:
+            if isinstance(window, FileBrowserWindow):
+                window.statusBar().showMessage(f"Could not open in {app_name}: {e}")
+    else:
+        if isinstance(window, FileBrowserWindow):
+            window.statusBar().showMessage(
+                f"Cannot open in {app_name}: not a local path ({project_url})"
+            )
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 
 def main():
-    global app
+    global app, window
     app = QApplication(sys.argv)
     icon = QIcon(os.path.join(os.path.dirname(__file__), "..", "logo.png"))
     app.setWindowIcon(icon)

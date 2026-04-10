@@ -547,6 +547,8 @@ def get_library_html(
     <div id="context-menu" class="context-menu">
         <div class="context-menu-item" id="context-open">Set browser path</div>
         <div class="context-menu-item" id="context-file-browser">Open in system file browser</div>
+        <div class="context-menu-item" id="context-vscode">Open in VSCode</div>
+        <div class="context-menu-item" id="context-jupyter">Open in Jupyter</div>
         <div class="context-menu-item" id="context-remove">Remove from library</div>
     </div>
 
@@ -774,6 +776,14 @@ def get_library_html(
         }});
         document.getElementById('context-file-browser').addEventListener('click', () => {{
             if (contextMenuItem) postMessage({{ command: 'openInFileBrowser', item: contextMenuItem }});
+            hideContextMenu();
+        }});
+        document.getElementById('context-vscode').addEventListener('click', () => {{
+            if (contextMenuItem) postMessage({{ command: 'openInVSCode', item: contextMenuItem }});
+            hideContextMenu();
+        }});
+        document.getElementById('context-jupyter').addEventListener('click', () => {{
+            if (contextMenuItem) postMessage({{ command: 'openInJupyter', item: contextMenuItem }});
             hideContextMenu();
         }});
         document.getElementById('context-remove').addEventListener('click', () => {{

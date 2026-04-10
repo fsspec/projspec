@@ -20,20 +20,21 @@ class Rust(ProjectSpec):
         self.contents["desciptive_metadata"] = DescriptiveMetadata(
             proj=self.proj, meta=meta.get("package")
         )
-        bin = AttrDict()
-        bin["debug"] = FileArtifact(
-            proj=self.proj,
-            cmd=["cargo", "build"],
-            # extension is platform specific
-            fn=f"{self.proj.url}/target/debug/{meta['package']['name']}.*",
-        )
-        bin["release"] = FileArtifact(
-            proj=self.proj,
-            cmd=["cargo", "build", "--release"],
-            # extension is platform specific
-            fn=f"{self.proj.url}/target/release/{meta['package']['name']}.*",
-        )
-        self.artifacts["file"] = bin
+        if "package" in meta:
+            bin = AttrDict()
+            bin["debug"] = FileArtifact(
+                proj=self.proj,
+                cmd=["cargo", "build"],
+                # extension is platform specific
+                fn=f"{self.proj.url}/target/debug/{meta['package']['name']}.*",
+            )
+            bin["release"] = FileArtifact(
+                proj=self.proj,
+                cmd=["cargo", "build", "--release"],
+                # extension is platform specific
+                fn=f"{self.proj.url}/target/release/{meta['package']['name']}.*",
+            )
+            self.artifacts["file"] = bin
 
     @staticmethod
     def _create(path: str) -> None:
