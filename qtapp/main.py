@@ -2,6 +2,7 @@ import json
 import os.path
 import posixpath
 import sys
+import webbrowser
 
 import fsspec
 from PyQt5.QtWidgets import (
@@ -276,7 +277,9 @@ class FileBrowserWindow(QMainWindow):
 
     def _on_detail_message(self, msg: dict):
         cmd = msg.get("command")
-        if cmd == "makeArtifact":
+        if cmd == "openUrl":
+            webbrowser.open(msg.get("url", ""))
+        elif cmd == "makeArtifact":
             item = msg.get("item", {})
             qname = item.get("qname")
             project_url = item.get("projectUrl")
@@ -341,7 +344,10 @@ class LibraryWidget(QWidget):
     def _on_message(self, msg: dict):
         cmd = msg.get("command")
 
-        if cmd == "scan":
+        if cmd == "openUrl":
+            webbrowser.open(msg.get("url", ""))
+
+        elif cmd == "scan":
             # Scan the current workspace (use the first top-level path in the tree)
             window = self.parent()
             if isinstance(window, FileBrowserWindow):

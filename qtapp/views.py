@@ -131,6 +131,12 @@ _TREE_SHARED_CSS = """
     .section-content { white-space: pre-wrap; word-wrap: break-word; }
     .popup-link { color: #3794ff; text-decoration: none; word-break: break-all; }
     .popup-link:hover { text-decoration: underline; }
+    .popup-link-btn {
+        background: none; border: none; padding: 0; cursor: pointer;
+        color: #3794ff; font-family: inherit; font-size: inherit;
+        text-align: left; word-break: break-all; white-space: normal;
+    }
+    .popup-link-btn:hover { text-decoration: underline; }
     .no-info { color: #9e9e9e; font-style: italic; }
     .info-popup::before { content: none; }
     .info-popup::after  { content: none; }
@@ -185,7 +191,7 @@ _INFO_POPUP_JS = """
             const extra = docParts.slice(1);
             if (summary) contentHtml += '<div class="popup-section"><div class="section-content" style="font-weight:bold;margin-bottom:8px;">' + summary + '</div></div>';
             if (extra.length > 0) contentHtml += '<div class="popup-section"><div class="section-content">' + extra.map(p => '<p style="margin-top:0;margin-bottom:8px;">' + p + '</p>').join('') + '</div></div>';
-            if (link) contentHtml += '<div class="popup-section"><div class="section-title">More Information</div><div class="section-content"><a href="' + link + '" class="popup-link" target="_blank">' + link + '</a></div></div>';
+            if (link) contentHtml += '<div class="popup-section"><div class="section-title">More Information</div><div class="section-content"><button class="popup-link-btn" onclick="postMessage({command:\\'openUrl\\',url:\\'' + link.replace(/'/g, '%27') + '\\'})">&#x1F517; ' + link + '</button></div></div>';
         }
         if (!contentHtml) {
             contentHtml = '<div class="no-info">Information for ' + (itemData.itemType || 'item') + ' type "' + (itemData.key || itemData.label || '') + '" is not currently available.</div>';
