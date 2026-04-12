@@ -42,18 +42,37 @@ class DataResource(BaseContent):
 
     Describes one logical dataset — which may be a flat collection of files, a
     Hive-partitioned tree, an Iceberg/Delta table, a Zarr store, or any other
-    recognised on-disk layout.  The ``schema`` field is format-specific:
+    recognised on-disk layout.
+
+    The ``modality`` field classifies the broad nature of the data using the
+    vocabulary established by intake's ``structure`` tags and napari's layer
+    type system:
+
+    - ``"tabular"``    — row/column data (CSV, Parquet, ORC, Excel, …)
+    - ``"array"``      — N-dimensional arrays (NumPy, HDF5, NetCDF, Zarr, …)
+    - ``"image"``      — 2-D/3-D images (PNG, JPEG, TIFF, DICOM, NIfTI, …)
+    - ``"timeseries"`` — time-indexed signals (WAV, GRIB, …)
+    - ``"geospatial"`` — vector/raster geodata (Shapefile, GeoJSON, GeoTIFF, …)
+    - ``"model"``      — ML model weights (GGUF, SafeTensors, PyTorch, …)
+    - ``"nested"``     — hierarchical / JSON-like (Avro, YAML, XML, …)
+    - ``"document"``   — human-readable documents (PDF, DOCX, …)
+    - ``"video"``      — video streams (MP4, AVI, …)
+    - ``"archive"``    — compressed bundles (ZIP, tar.gz, …)
+    - ``""``           — unknown / mixed
+
+    The ``schema`` field is format-specific:
 
     - Tabular (Parquet, Arrow, CSV, …): ``{column_name: dtype_str, …}``
-    - Image collection: ``{"width": int, "height": int, "channels": int, "mode": str}``
-    - Audio collection: ``{"sample_rate": int, "channels": int, "frames": int}``
+    - Image / array: ``{"width": int, "height": int, "channels": int, "mode": str}``
+    - Audio: ``{"sample_rate": int, "channels": int, "frames": int}``
     - HDF5 / Zarr / NetCDF: ``{"variables": [...], "dims": {...}, "attrs": {...}}``
     - Unknown / library not available: ``{}``
     """
 
     name: str
     format: str  # canonical format string, e.g. "parquet", "csv", "png", "hdf5"
-    layout: str = ""  # "flat" | "hive" | "iceberg" | "delta" | "zarr_store" | ""
+    modality: str = ""  # broad data nature; see docstring for vocabulary
+    layout: str = ""  # "flat"|"hive"|"iceberg"|"delta"|"zarr_store"|"tiledarray"|""
     file_count: int = 0
     total_size: int = 0  # bytes; 0 when unknown (e.g. remote FS without size info)
     schema: dict | list = field(default_factory=dict)

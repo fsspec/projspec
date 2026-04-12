@@ -15,76 +15,163 @@ from projspec.proj import ProjectSpec, ParseFailed
 from projspec.utils import AttrDict
 
 # ---------------------------------------------------------------------------
-# Extension → canonical format name
-# Only extensions that are unambiguously data files (not config/code/docs).
-# .json is excluded intentionally — it is too common in non-data contexts.
+# Extension → (canonical format name, modality)
+#
+# Modality vocabulary from intake's `structure` tags + napari's layer types:
+#   "tabular"    — row/column data
+#   "array"      — N-dimensional arrays
+#   "image"      — 2-D/3-D images (raster)
+#   "timeseries" — time-indexed signals
+#   "geospatial" — vector or raster geodata
+#   "model"      — ML model weights / configs
+#   "nested"     — hierarchical / JSON-like
+#   "document"   — human-readable documents
+#   "video"      — video streams
+#   "archive"    — compressed bundles
+#
+# .json is excluded — too common in non-data contexts (configs, manifests).
 # ---------------------------------------------------------------------------
-_EXT_TO_FORMAT: dict[str, str] = {
-    # Tabular / columnar
-    ".csv": "csv",
-    ".tsv": "tsv",
-    ".psv": "psv",
-    ".parquet": "parquet",
-    ".pq": "parquet",
-    ".arrow": "arrow",
-    ".ipc": "arrow",
-    ".feather": "arrow",
-    ".orc": "orc",
-    ".avro": "avro",
-    ".xls": "excel",
-    ".xlsx": "excel",
-    ".xlsb": "excel",
-    ".jsonl": "jsonlines",
-    ".ndjson": "jsonlines",
-    # Hierarchical / scientific
-    ".hdf5": "hdf5",
-    ".h5": "hdf5",
-    ".he5": "hdf5",
-    ".nc": "netcdf",
-    ".nc4": "netcdf",
-    # Geospatial
-    ".shp": "shapefile",
-    ".geojson": "geojson",
-    ".gpkg": "geopackage",
-    ".tif": "tiff",
-    ".tiff": "tiff",
-    # Image
-    ".jpg": "jpeg",
-    ".jpeg": "jpeg",
-    ".png": "png",
-    ".bmp": "bmp",
-    ".gif": "gif",
-    ".webp": "webp",
-    # Audio
-    ".wav": "wav",
-    ".flac": "flac",
-    ".mp3": "mp3",
-    ".ogg": "ogg",
-    # Video
-    ".mp4": "mp4",
-    ".avi": "avi",
-    ".mov": "mov",
-    ".mkv": "mkv",
-    # Array / ML
-    ".npy": "numpy",
-    ".npz": "numpy",
-    ".pt": "pytorch",
-    ".pth": "pytorch",
-    # Opaque binary
-    ".pkl": "pickle",
-    ".bin": "binary",
+_EXT_TO_FORMAT: dict[str, tuple[str, str]] = {
+    # Tabular / columnar -------------------------------------------------------
+    ".csv": ("csv", "tabular"),
+    ".tsv": ("tsv", "tabular"),
+    ".psv": ("psv", "tabular"),
+    ".parquet": ("parquet", "tabular"),
+    ".parq": ("parquet", "tabular"),
+    ".pq": ("parquet", "tabular"),
+    ".arrow": ("arrow", "tabular"),
+    ".ipc": ("arrow", "tabular"),
+    ".feather": ("arrow", "tabular"),  # Feather v1/v2 (magic: FEA1 / ARROW1)
+    ".orc": ("orc", "tabular"),
+    ".avro": ("avro", "tabular"),
+    ".xls": ("excel", "tabular"),
+    ".xlsx": ("excel", "tabular"),
+    ".xlsm": ("excel", "tabular"),
+    ".xlsb": ("excel", "tabular"),
+    ".jsonl": ("jsonlines", "tabular"),
+    ".ndjson": ("jsonlines", "tabular"),
+    ".db": ("sqlite", "tabular"),  # DuckDB / SQLite (disambiguated by magic)
+    ".sqlite": ("sqlite", "tabular"),
+    ".sqlitedb": ("sqlite", "tabular"),
+    ".duckdb": ("duckdb", "tabular"),
+    # Array / scientific -------------------------------------------------------
+    ".npy": ("numpy", "array"),
+    ".npz": ("numpy", "array"),
+    ".hdf5": ("hdf5", "array"),
+    ".hdf": ("hdf5", "array"),
+    ".h5": ("hdf5", "array"),
+    ".h4": ("hdf5", "array"),
+    ".he5": ("hdf5", "array"),
+    ".nc": ("netcdf", "array"),
+    ".nc3": ("netcdf", "array"),
+    ".nc4": ("netcdf", "array"),
+    ".mat": ("matlab", "array"),
+    ".fits": ("fits", "array"),
+    ".grib": ("grib", "timeseries"),
+    ".grb": ("grib", "timeseries"),
+    ".grib2": ("grib", "timeseries"),
+    ".grb2": ("grib", "timeseries"),
+    ".asdf": ("asdf", "array"),
+    ".zarr": ("zarr", "array"),
+    # Image / biomedical imaging -----------------------------------------------
+    ".png": ("png", "image"),
+    ".jpg": ("jpeg", "image"),
+    ".jpeg": ("jpeg", "image"),
+    ".tif": ("tiff", "image"),  # also geotiff — ambiguous; image wins
+    ".tiff": ("tiff", "image"),
+    ".cog": ("tiff", "geospatial"),  # Cloud-Optimised GeoTIFF
+    ".bmp": ("bmp", "image"),
+    ".gif": ("gif", "image"),
+    ".webp": ("webp", "image"),
+    ".dcm": ("dicom", "image"),
+    ".dicom": ("dicom", "image"),
+    ".nii": ("nifti", "image"),
+    ".nrrd": ("nrrd", "image"),
+    ".nhdr": ("nrrd", "image"),
+    ".mha": ("metaimage", "image"),
+    ".mhd": ("metaimage", "image"),
+    ".svs": ("svs", "image"),  # Aperio whole-slide image
+    ".ndpi": ("ndpi", "image"),  # Hamamatsu whole-slide image
+    ".scn": ("scn", "image"),  # Leica whole-slide image
+    ".lsm": ("lsm", "image"),  # Zeiss confocal
+    ".exr": ("exr", "image"),  # OpenEXR HDR
+    ".qptiff": ("qptiff", "image"),  # PerkinElmer whole-slide
+    # Geospatial ---------------------------------------------------------------
+    ".shp": ("shapefile", "geospatial"),
+    ".shx": ("shapefile", "geospatial"),
+    ".dbf": ("shapefile", "geospatial"),
+    ".geojson": ("geojson", "geospatial"),
+    ".gpkg": ("geopackage", "geospatial"),
+    ".fgb": ("flatgeobuf", "geospatial"),
+    ".kml": ("kml", "geospatial"),
+    ".pmtiles": ("pmtiles", "geospatial"),
+    # Audio --------------------------------------------------------------------
+    ".wav": ("wav", "timeseries"),
+    ".flac": ("flac", "timeseries"),
+    ".mp3": ("mp3", "timeseries"),
+    ".ogg": ("ogg", "timeseries"),
+    # Video --------------------------------------------------------------------
+    ".mp4": ("mp4", "video"),
+    ".avi": ("avi", "video"),
+    ".mov": ("mov", "video"),
+    ".mkv": ("mkv", "video"),
+    ".webm": ("webm", "video"),
+    # ML model weights ---------------------------------------------------------
+    ".safetensors": ("safetensors", "model"),
+    ".gguf": ("gguf", "model"),
+    ".pt": ("pytorch", "model"),
+    ".pth": ("pytorch", "model"),
+    ".onnx": ("onnx", "model"),
+    ".tfrec": ("tfrecord", "model"),
+    # Archive / bundle ---------------------------------------------------------
+    ".pkl": ("pickle", "archive"),
+    ".bin": ("binary", "archive"),
 }
 
 _DATA_EXTENSIONS: frozenset[str] = frozenset(_EXT_TO_FORMAT)
 
-# Magic-byte signatures for common binary formats (first 4–6 bytes).
-_MAGIC: dict[bytes, str] = {
-    b"PAR1": "parquet",
-    b"\x89HDF": "hdf5",
-    b"ORC\x00": "orc",
-    b"Obj\x01": "avro",
-    b"ARROW1": "arrow",
-}
+# ---------------------------------------------------------------------------
+# Magic-byte signatures (format, modality, offset, bytes_pattern).
+#
+# Each entry: (format_str, modality_str, offset, pattern)
+#   offset = int  → match at that fixed byte offset
+#   offset = None → scan anywhere in the first 1 KiB (re.search)
+#
+# Ordered from most-specific to least-specific (longer / more-offset patterns
+# first so they shadow shorter ones that match the same header).
+# ---------------------------------------------------------------------------
+_MAGIC: list[tuple[str, str, int | None, bytes]] = [
+    # Fixed-offset signatures
+    ("dicom", "image", 128, b"DICM"),  # DICOM preamble
+    ("nifti", "image", 344, b"ni1\x00"),  # NIfTI-1
+    ("nifti", "image", 344, b"n+1\x00"),  # NIfTI-1 single file
+    ("duckdb", "tabular", 8, b"DUCK"),
+    ("safetensors", "model", 8, b"{"),  # SafeTensors JSON header
+    ("wav", "timeseries", 8, b"WAVE"),  # RIFF…WAVE
+    # Offset-0 signatures
+    ("parquet", "tabular", 0, b"PAR1"),
+    ("hdf5", "array", 0, b"\x89HDF"),
+    ("netcdf", "array", 0, b"CDF\x01"),  # NetCDF classic
+    ("netcdf", "array", 0, b"CDF\x02"),  # NetCDF-64bit
+    ("orc", "tabular", 0, b"ORC"),
+    ("avro", "tabular", 0, b"Obj\x01"),
+    ("arrow", "tabular", 0, b"ARROW1"),  # IPC stream
+    ("arrow", "tabular", 0, b"FEA1"),  # Feather v1
+    ("numpy", "array", 0, b"\x93NUMPY"),
+    ("matlab", "array", 0, b"MATLAB"),
+    ("fits", "array", 0, b"SIMPLE"),
+    ("grib", "timeseries", 0, b"GRIB"),
+    ("asdf", "array", 0, b"#ASDF"),
+    ("flatgeobuf", "geospatial", 0, b"fgb"),
+    ("gguf", "model", 0, b"GGUF"),
+    ("png", "image", 0, b"\x89PNG"),
+    ("jpeg", "image", 0, b"\xff\xd8\xff"),
+    ("tiff", "image", 0, b"II*\x00"),  # little-endian TIFF
+    ("tiff", "image", 0, b"MM\x00*"),  # big-endian TIFF
+    ("sqlite", "tabular", 0, b"SQLite format"),
+    ("shapefile", "geospatial", 0, b"\x00\x00\x27\x0a"),
+    ("pmtiles", "geospatial", 0, b"PMTiles"),
+]
 
 # Regex that matches Hive-style partition directory names (e.g. "year=2024").
 _HIVE_DIR_RE = re.compile(r"^[^=]+=.+$")
@@ -208,22 +295,33 @@ def _filelist_files(filelist: list[dict]) -> list[dict]:
     return [e for e in filelist if e.get("type", "") != "directory"]
 
 
-def _fmt_from_path(path: str) -> str | None:
+def _fmt_from_path(path: str) -> tuple[str, str] | None:
+    """Return (format, modality) for *path* by extension, or None if unknown."""
     ext = os.path.splitext(path)[1].lower()
     return _EXT_TO_FORMAT.get(ext)
 
 
-def _confirm_magic(path: str, fmt: str, fs) -> str:
-    """Try to confirm *fmt* via magic bytes; return *fmt* unchanged on failure."""
+def _identify_by_magic(path: str, fs) -> tuple[str, str] | None:
+    """Return (format, modality) by probing *path*'s header bytes, or None.
+
+    Reads up to 1 KiB.  Checks fixed-offset patterns first (longer offsets
+    first, to avoid short patterns shadowing longer ones), then scans for
+    anywhere-patterns via re.search.
+    """
     try:
         with fs.open(path, "rb") as fh:
-            header = fh.read(6)
-        for magic, magic_fmt in _MAGIC.items():
-            if header[: len(magic)] == magic:
-                return magic_fmt
+            head = fh.read(1024)
     except Exception:
-        pass
-    return fmt
+        return None
+
+    for fmt, modality, offset, pattern in _MAGIC:
+        if offset is None:
+            if re.search(re.escape(pattern), head):
+                return fmt, modality
+        else:
+            if head[offset : offset + len(pattern)] == pattern:
+                return fmt, modality
+    return None
 
 
 # Token that may vary across files in a series: digits, dashes, underscores, dots.
@@ -336,7 +434,7 @@ class Data(ProjectSpec):
             if layout in ("iceberg", "delta"):
                 root_resources = self._parse_flat()
                 resources = resources + root_resources
-        elif layout == "zarr_store":
+        elif layout in ("zarr_store", "tiledarray"):
             resources = [self._parse_zarr_root()]
         else:
             resources = self._parse_flat()
@@ -356,17 +454,28 @@ class Data(ProjectSpec):
     # ------------------------------------------------------------------
 
     def _detect_layout(self) -> str:
-        """Return a layout string, or '' if none of the known layouts match."""
+        """Return a layout string, or '' if none of the known layouts match.
+
+        Uses the `contains` sentinel approach from intake: certain well-known
+        files/directories at the root identify a directory as a logical dataset.
+        """
         basenames = self.proj.basenames
-        # Zarr store: .zattrs or .zgroup at the root
-        if ".zattrs" in basenames or ".zgroup" in basenames:
+        # Zarr store: .zattrs, .zgroup, or zarr.json at the root
+        # (zarr.json is the Zarr v3 sentinel; .zattrs/.zgroup are v2)
+        if any(s in basenames for s in (".zattrs", ".zgroup", "zarr.json")):
             return "zarr_store"
-        # Delta Lake: _delta_log/ directory
         dir_names = {_basename(e["name"]) for e in _filelist_dirs(self.proj.filelist)}
+        # Delta Lake
         if "_delta_log" in dir_names:
             return "delta"
+        # TileDB array directory
+        if "__meta" in dir_names and "__schema" in dir_names:
+            return "tiledarray"
         # Apache Iceberg: metadata/ directory present
         if "metadata" in dir_names:
+            return "iceberg"
+        # Partitioned Parquet: _metadata sentinel file at root (written by Spark/Dask)
+        if "_metadata" in basenames:
             return "iceberg"
         # Hive: any top-level subdirectory whose name matches key=value
         if any(_HIVE_DIR_RE.match(d) for d in dir_names):
@@ -377,7 +486,9 @@ class Data(ProjectSpec):
     # Parsing helpers
     # ------------------------------------------------------------------
 
-    def _resource_from_entries(self, entries: list[dict], fmt: str, layout: str):
+    def _resource_from_entries(
+        self, entries: list[dict], fmt: str, modality: str, layout: str
+    ):
         """Build a DataResource from a list of same-format file entries.
 
         The resource name is the shared stem prefix when the entries form a
@@ -408,6 +519,7 @@ class Data(ProjectSpec):
             proj=self.proj,
             name=name,
             format=fmt,
+            modality=modality,
             layout=layout,
             file_count=len(entries),
             total_size=total_size,
@@ -425,21 +537,25 @@ class Data(ProjectSpec):
         stems vary in alphabetic content (e.g. ``users.csv``, ``orders.csv``)
         each become their own DataResource.
         """
-        from projspec.content.data import DataResource
+        from projspec.content.data import (
+            DataResource,
+        )  # (used via _resource_from_entries)
 
-        # First bucket by format
-        fmt_groups: dict[str, list[dict]] = {}
+        # First bucket by (fmt, modality)
+        fmt_groups: dict[tuple[str, str], list[dict]] = {}
         for entry in _filelist_files(self.proj.filelist):
-            fmt = _fmt_from_path(entry["name"])
-            if fmt is None:
+            fmt_info = _fmt_from_path(entry["name"])
+            if fmt_info is None:
                 continue
-            fmt_groups.setdefault(fmt, []).append(entry)
+            fmt_groups.setdefault(fmt_info, []).append(entry)
 
         resources = []
-        for fmt, entries in fmt_groups.items():
+        for (fmt, modality), entries in fmt_groups.items():
             # Split each format-group into naming series
             for series in _group_by_naming_series(entries):
-                resources.append(self._resource_from_entries(series, fmt, "flat"))
+                resources.append(
+                    self._resource_from_entries(series, fmt, modality, "flat")
+                )
         return resources
 
     def _parse_layout_dirs(self, layout: str) -> list:
@@ -448,8 +564,6 @@ class Data(ProjectSpec):
         Within each subdirectory the dominant format is determined, then files
         are checked for a consistent naming series before collating.
         """
-        from projspec.content.data import DataResource
-
         dir_entries = _filelist_dirs(self.proj.filelist)
         resources = []
         for dir_entry in dir_entries:
@@ -467,52 +581,67 @@ class Data(ProjectSpec):
                 continue
 
             sub_files = _filelist_files(sub_filelist)
-            # Determine dominant format (most common extension)
-            fmt_counts: dict[str, int] = {}
+            # Determine dominant (fmt, modality) by file count
+            fmt_counts: dict[tuple[str, str], int] = {}
             for e in sub_files:
-                fmt = _fmt_from_path(e["name"])
-                if fmt:
-                    fmt_counts[fmt] = fmt_counts.get(fmt, 0) + 1
+                fmt_info = _fmt_from_path(e["name"])
+                if fmt_info:
+                    fmt_counts[fmt_info] = fmt_counts.get(fmt_info, 0) + 1
             if not fmt_counts:
                 continue
-            dominant_fmt = max(fmt_counts, key=lambda k: fmt_counts[k])
+            dominant = max(fmt_counts, key=lambda k: fmt_counts[k])
+            dominant_fmt, dominant_modality = dominant
             dominant_files = [
-                e for e in sub_files if _fmt_from_path(e["name"]) == dominant_fmt
+                e for e in sub_files if _fmt_from_path(e["name"]) == dominant
             ]
             # Use the directory name as the resource name regardless of series
             # (partition dirs are already logically grouped by the directory)
-            resource = self._resource_from_entries(dominant_files, dominant_fmt, layout)
+            resource = self._resource_from_entries(
+                dominant_files, dominant_fmt, dominant_modality, layout
+            )
             # Override the name with the directory name
             resource.name = dir_name
             resources.append(resource)
         return resources
 
     def _parse_zarr_root(self):
-        """Describe the whole directory as a single Zarr store resource."""
+        """Describe the whole directory as a single array-store resource.
+
+        Used for Zarr stores and TileDB arrays — both are directory-as-dataset
+        layouts with no individual data files at the root.
+        """
         from projspec.content.data import DataResource
 
         url = self.proj.url
-        schema: dict | list = {}
-        try:
-            import zarr  # type: ignore[import]
+        layout = self._detect_layout()
+        # TileDB directories are not Zarr; distinguish the format accordingly
+        if layout == "tiledarray":
+            fmt, modality = "tiledb", "array"
+            schema: dict | list = {}
+        else:
+            fmt, modality = "zarr", "array"
+            schema = {}
+            try:
+                import zarr  # type: ignore[import]
 
-            store = zarr.open(url, mode="r")
-            schema = {
-                "arrays": list(store.array_keys()),
-                "groups": list(store.group_keys()),
-                "attrs": dict(store.attrs),
-            }
-        except (ImportError, Exception):
-            pass
+                store = zarr.open(url, mode="r")
+                schema = {
+                    "arrays": list(store.array_keys()),
+                    "groups": list(store.group_keys()),
+                    "attrs": dict(store.attrs),
+                }
+            except (ImportError, Exception):
+                pass
 
         total_size = sum(
             e.get("size", 0) or 0 for e in _filelist_files(self.proj.filelist)
         )
         return DataResource(
             proj=self.proj,
-            name=_basename(url) or "zarr_store",
-            format="zarr",
-            layout="zarr_store",
+            name=_basename(url) or fmt,
+            format=fmt,
+            modality=modality,
+            layout=layout,
             file_count=len(_filelist_files(self.proj.filelist)),
             total_size=total_size,
             schema=schema,
