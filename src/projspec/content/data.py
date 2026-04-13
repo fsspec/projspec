@@ -78,3 +78,13 @@ class DataResource(BaseContent):
     schema: dict | list = field(default_factory=dict)
     sample_paths: list = field(default_factory=list)  # up to 3 representative paths
     metadata: dict = field(default_factory=dict)  # catch-all extras
+
+    def __repr__(self) -> str:
+        from projspec.content.data_html import repr_text
+
+        return repr_text(self)
+
+    def _repr_html_(self) -> str:
+        from projspec.content.data_html import repr_html
+
+        return repr_html(self)
