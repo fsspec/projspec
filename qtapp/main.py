@@ -272,7 +272,9 @@ class FileBrowserWindow(QMainWindow):
         if proj is None:
             return
         basename = project_url.split("/")[-1] or project_url
-        html = get_details_html(basename, project_url, proj.to_dict(), highlight_key)
+        html = get_details_html(
+            basename, project_url, proj.to_dict(compact=False), highlight_key
+        )
         self.detail.setHtml(html)
 
     def _on_detail_message(self, msg: dict):
@@ -335,7 +337,9 @@ class LibraryWidget(QWidget):
 
     def refresh(self, scroll_to: str | None = None):
         """Re-render the library HTML panel."""
-        data = {url: proj.to_dict() for url, proj in library.entries.items()}
+        data = {
+            url: proj.to_dict(compact=False) for url, proj in library.entries.items()
+        }
         info_data = class_infos()
         spec_names = list(info_data.get("specs", {}).keys())
         html = get_library_html(data, spec_names, scroll_to_project_url=scroll_to)

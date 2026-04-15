@@ -44,6 +44,12 @@ class DataResource(BaseContent):
     Hive-partitioned tree, an Iceberg/Delta table, a Zarr store, or any other
     recognised on-disk layout.
 
+    The ``path`` field is a human-readable basename that identifies the resource:
+
+    - Single file: ``"data.csv"``
+    - Multi-file series: ``"part*.parquet"`` (glob-style, common prefix + ``*`` + ext)
+    - Directory-as-dataset (Hive partition, Zarr store, …): ``"year=2024/"``
+
     The ``modality`` field classifies the broad nature of the data using the
     vocabulary established by intake's ``structure`` tags and napari's layer
     type system:
@@ -69,15 +75,17 @@ class DataResource(BaseContent):
     - Unknown / library not available: ``{}``
     """
 
-    name: str
+    path: str  # basename (or glob pattern / dir/ ) identifying this resource
     format: str  # canonical format string, e.g. "parquet", "csv", "png", "hdf5"
     modality: str = ""  # broad data nature; see docstring for vocabulary
     layout: str = ""  # "flat"|"hive"|"iceberg"|"delta"|"zarr_store"|"tiledarray"|""
     file_count: int = 0
     total_size: int = 0  # bytes; 0 when unknown (e.g. remote FS without size info)
     schema: dict | list = field(default_factory=dict)
-    sample_paths: list = field(default_factory=list)  # up to 3 representative paths
+    # full path to one representative file, for use by preview loaders
+    sample_path: str = ""
     metadata: dict = field(default_factory=dict)  # catch-all extras
+    _html = None
 
     def __repr__(self) -> str:
         from projspec.content.data_html import repr_text
@@ -85,6 +93,15 @@ class DataResource(BaseContent):
         return repr_text(self)
 
     def _repr_html_(self) -> str:
-        from projspec.content.data_html import repr_html
+        """Jupyter rich display — returns cached HTML, rendering on first call."""
+        if self._html is None:
+            from projspec.content.data_html import repr_html
 
-        return repr_html(self)
+            self._html = repr_html(self)
+        return self._html
+
+    def to_dict(self, compact=False):
+        d = super().to_dict(compact=compact)
+        if not compact:
+            d["_html"] = self._repr_html_()
+        return d

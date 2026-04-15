@@ -79,11 +79,14 @@ class CondaEnv(ProjectExtra):
 
     def parse(self) -> None:
         import yaml
+        from projspec.artifact.python_env import CondaEnv
 
-        u = self.proj.basenames.get(
-            "environment.yaml", self.proj.basenames.get("environment.yml")
+        u = (
+            "environment.yaml"
+            if "environment.yaml" in self.proj.basenames
+            else "environment.yml"
         )
-        deps = yaml.safe_load(self.proj.fs.open(u, "rt"))
+        deps = yaml.safe_load(self.proj.get_file(u, text=True))
         # TODO: split out pip deps
         self.contents["environment"] = Environment(
             stack=Stack.CONDA,
@@ -91,4 +94,7 @@ class CondaEnv(ProjectExtra):
             packages=deps["dependencies"],
             channels=deps.get("channels"),
             proj=self.proj,
+        )
+        self.artifacts["conda_env"] = CondaEnv(
+            proj=self.proj, fn=u, cmd=["conda", "env", "create", "-f", u]
         )

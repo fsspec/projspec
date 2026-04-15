@@ -446,7 +446,7 @@ class Data(ProjectSpec):
             self._contents["data_resource"] = resources[0]
         else:
             self._contents["data_resource"] = AttrDict(
-                {_safe_key(r.name): r for r in resources}
+                {_safe_key(r.path): r for r in resources}
             )
 
     # ------------------------------------------------------------------
@@ -491,40 +491,39 @@ class Data(ProjectSpec):
     ):
         """Build a DataResource from a list of same-format file entries.
 
-        The resource name is the shared stem prefix when the entries form a
-        multi-file series (e.g. ``part`` for ``part0.csv``, ``part1.csv``), or
-        the bare filename stem for a single file, or the format string as a
-        last resort.
+        The ``path`` field is set to:
+
+        - Single file: the bare basename, e.g. ``"data.csv"``.
+        - Multi-file series: a glob pattern, e.g. ``"part*.csv"``, built from
+          the shared prefix/suffix of the basenames.
         """
         from projspec.content.data import DataResource
 
-        sample_paths = [e["name"] for e in entries[:3]]
+        full_paths = [e["name"] for e in entries]
         total_size = sum(e.get("size", 0) or 0 for e in entries)
-        schema = (
-            _read_schema(sample_paths[0], fmt, self.proj.fs) if sample_paths else {}
-        )
+        sample_path = full_paths[0] if full_paths else ""
+        schema = _read_schema(sample_path, fmt, self.proj.fs) if sample_path else {}
+
+        ext = os.path.splitext(_basename(full_paths[0]))[1] if full_paths else ""
 
         if len(entries) == 1:
-            # Single file: use the stem as the name
-            stem = os.path.splitext(_basename(entries[0]["name"]))[0]
-            name = stem or fmt
+            path = _basename(full_paths[0]) or fmt
         else:
-            # Multi-file series: use the shared prefix (stripped of trailing
-            # separator chars), falling back to the format string
-            stems = [os.path.splitext(_basename(e["name"]))[0] for e in entries]
-            prefix, _ = _common_affix(stems)
-            name = prefix.rstrip("-_.") or fmt
+            stems = [os.path.splitext(_basename(p))[0] for p in full_paths]
+            prefix, suffix = _common_affix(stems)
+            stem_pattern = (prefix.rstrip("-_.") or fmt) + "*" + suffix
+            path = stem_pattern + ext
 
         return DataResource(
             proj=self.proj,
-            name=name,
+            path=path,
             format=fmt,
             modality=modality,
             layout=layout,
             file_count=len(entries),
             total_size=total_size,
             schema=schema,
-            sample_paths=sample_paths,
+            sample_path=sample_path,
         )
 
     def _parse_flat(self) -> list:
@@ -594,13 +593,12 @@ class Data(ProjectSpec):
             dominant_files = [
                 e for e in sub_files if _fmt_from_path(e["name"]) == dominant
             ]
-            # Use the directory name as the resource name regardless of series
-            # (partition dirs are already logically grouped by the directory)
             resource = self._resource_from_entries(
                 dominant_files, dominant_fmt, dominant_modality, layout
             )
-            # Override the name with the directory name
-            resource.name = dir_name
+            # Override path with the directory basename + trailing slash
+            # (partition dirs are already logically grouped by the directory)
+            resource.path = dir_name + "/"
             resources.append(resource)
         return resources
 
@@ -638,14 +636,14 @@ class Data(ProjectSpec):
         )
         return DataResource(
             proj=self.proj,
-            name=_basename(url) or fmt,
+            path=(_basename(url) or fmt) + "/",
             format=fmt,
             modality=modality,
             layout=layout,
             file_count=len(_filelist_files(self.proj.filelist)),
             total_size=total_size,
             schema=schema,
-            sample_paths=[],
+            sample_path="",
         )
 
 

@@ -406,7 +406,7 @@ function getDetailsWebviewContent(projectBasename: string, projectUrl: string, p
 	const infoData = getInfoData();
 
 	// Keys that are internal implementation details and add no user-facing value
-	const SKIP_KEYS = new Set(['klass', 'proc', 'storage_options', 'children', 'url']);
+	const SKIP_KEYS = new Set(['klass', 'proc', 'storage_options', 'children', 'url', '_html']);
 
 	// Classify what type of colour-coding a node should get based on where it sits in the tree
 	type NodeRole = 'spec' | 'content' | 'artifact' | 'field' | 'none';
@@ -422,6 +422,8 @@ function getDetailsWebviewContent(projectBasename: string, projectUrl: string, p
 		// For info popups:
 		infoData?: string | null;
 		itemType?: string;
+		// Pre-rendered HTML from a content object's _html field
+		htmlContent?: string;
 	}
 
 	function escapeHtml(s: string): string {
@@ -572,6 +574,9 @@ function getDetailsWebviewContent(projectBasename: string, projectUrl: string, p
 				children: children.length > 0 ? children : undefined,
 				infoData: nodeInfoData,
 				itemType: role !== 'none' && role !== 'field' ? role : undefined,
+				htmlContent: (role === 'content' && value && typeof value === 'object' && !Array.isArray(value) && typeof (value as any)._html === 'string')
+					? (value as any)._html
+					: undefined,
 			});
 		}
 
@@ -620,6 +625,43 @@ function getDetailsWebviewContent(projectBasename: string, projectUrl: string, p
 			? `<ul class="tree-children" data-depth="${depth + 1}">${node.children!.map(c => renderDetailNode(c, depth + 1)).join('')}</ul>`
 			: '';
 
+		const htmlPreview = node.htmlContent
+			? (() => {
+				const css = `<style>
+:root{--bg:#0d1117;--bg-hd:#161b22;--bg-alt:#111820;--grn:#39d353;--grn-d:#26a641;--grn-m:#196127;--bd:#21262d;--bd-d:#161b22;--fg:#c9d1d9;--fg-d:#8b949e;--bb:#1f6feb;--bg2:#30363d;--fn:ui-monospace,'Cascadia Code','Fira Mono',monospace}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);margin:0;font-family:var(--fn);font-size:12px}
+.ps-data-card{border:1px solid var(--bd);border-radius:6px;overflow:hidden;background:var(--bg);color:var(--fg)}
+.ps-data-card-header{background:var(--bg-hd);padding:7px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--bd)}
+.ps-data-card-header .ps-icon{font-size:16px}
+.ps-data-card-header .ps-name{font-weight:bold;font-size:13px;color:var(--grn)}
+.ps-data-card-header .ps-badge{background:var(--bb);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px}
+.ps-data-card-header .ps-badge-gray{background:var(--bg2);color:var(--fg);border-radius:10px;padding:1px 7px;font-size:10px}
+.ps-data-meta{padding:8px 12px;border-bottom:1px solid var(--bd-d)}
+.ps-data-meta table{border-collapse:collapse;width:100%}
+.ps-data-meta td{padding:2px 8px 2px 0;vertical-align:top}
+.ps-data-meta td:first-child{color:var(--fg-d);white-space:nowrap;width:110px}
+details>summary{list-style:none;cursor:pointer;color:var(--grn-d);font-size:11px;margin-top:4px}
+details>summary::-webkit-details-marker{display:none}
+.ps-schema-table{font-size:11px;border-collapse:collapse;margin-top:4px;width:100%}
+.ps-schema-table th{background:var(--bg-hd);color:var(--grn-d);padding:2px 8px;text-align:left;border:1px solid var(--bd)}
+.ps-schema-table td{padding:2px 8px;border:1px solid var(--bd-d);font-family:var(--fn);color:var(--fg)}
+.ps-schema-table td strong{color:var(--grn)}
+.ps-preview{padding:8px 12px}
+.ps-preview-title{font-weight:bold;font-size:10px;color:var(--grn-m);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px}
+.ps-df-wrap{overflow-x:auto}
+.ps-df-wrap table,.dataframe{font-size:11px!important;border-collapse:collapse!important;width:100%!important;color:var(--fg)!important;background:var(--bg)!important}
+.ps-df-wrap th,.dataframe thead th{background:var(--bg-hd)!important;color:var(--grn-d)!important;padding:3px 10px!important;border:1px solid var(--bd)!important;white-space:nowrap;text-align:left!important}
+.ps-df-wrap td,.dataframe tbody td{padding:2px 10px!important;border:1px solid var(--bd-d)!important;color:var(--fg)!important;background:var(--bg)!important;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.dataframe tbody tr:nth-child(even) td{background:var(--bg-alt)!important}
+.ps-img-preview{max-width:100%;max-height:200px;border-radius:4px}
+</style>`;
+				const srcdoc = (css + node.htmlContent)
+					.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+				return `<iframe class="html-preview" sandbox="allow-scripts" srcdoc="${srcdoc}"></iframe>`;
+			})()
+			: '';
+
 		return `<li class="tree-item">
 			<div class="${nodeClass}" data-item="${nodeData}">
 				<span class="${iconClass}"></span>
@@ -627,6 +669,7 @@ function getDetailsWebviewContent(projectBasename: string, projectUrl: string, p
 				${canMake ? `<button class="make-button" data-item="${nodeData}" title="Make artifact">Make</button>` : ''}
 				${hasInfoPopup ? `<button class="info-button" data-item="${nodeData}" title="Show information">i</button>` : ''}
 			</div>
+			${htmlPreview}
 			${childrenHtml}
 		</li>`;
 	}
@@ -725,6 +768,17 @@ function getDetailsWebviewContent(projectBasename: string, projectUrl: string, p
         .content-node { color: #4ec9b0; }
         .artifact-node { color: #ce9178; }
         .field-node { color: var(--vscode-foreground); }
+
+        .html-preview {
+            display: block;
+            width: 100%;
+            border: none;
+            margin-top: 4px;
+            margin-left: 20px;
+            /* height is set by the resize observer in JS */
+            min-height: 40px;
+            max-height: 600px;
+        }
 
         .info-button {
             width: 20px; height: 20px; border-radius: 50%;
