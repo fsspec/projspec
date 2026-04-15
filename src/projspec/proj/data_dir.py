@@ -387,6 +387,56 @@ def _group_by_naming_series(entries: list[dict]) -> list[list[dict]]:
 # Data spec
 # ---------------------------------------------------------------------------
 
+# Sentinel files / directories whose presence indicates a non-data project
+# type is also present in this directory.  When any of these are found,
+# Data.parse() applies the byte-majority test instead of parsing
+# unconditionally.
+#
+# Notably absent: datapackage.json, catalog.yaml/yml, .dvc/ — those belong
+# to projspec.proj.datapackage and are treated as compatible companions.
+_NON_DATA_SENTINELS: frozenset[str] = frozenset(
+    {
+        # Python
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "hatch.toml",
+        # Rust
+        "Cargo.toml",
+        # JavaScript / Node
+        "package.json",
+        # Go
+        "go.mod",
+        # Container / infra
+        "Dockerfile",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        # Helm
+        "Chart.yaml",
+        # Ruby / Java / .NET
+        "Gemfile",
+        "pom.xml",
+        "build.gradle",
+        "*.csproj",
+        # R
+        "DESCRIPTION",
+        # Conda
+        "environment.yml",
+        "environment.yaml",
+        "meta.yaml",
+        # Pixi
+        "pixi.toml",
+        # Mkdocs / Sphinx / RTD
+        "mkdocs.yml",
+        "mkdocs.yaml",
+        "conf.py",
+        ".readthedocs.yaml",
+        ".readthedocs.yml",
+        # Scripts / notebooks that imply code-first dirs
+        "Makefile",
+    }
+)
+
 
 class Data(ProjectSpec):
     """A directory whose primary contents are data files.
@@ -397,6 +447,15 @@ class Data(ProjectSpec):
     - A recognised directory layout: Hive partitioning (``key=value/`` subdirs),
       Apache Iceberg (``metadata/`` directory), Delta Lake (``_delta_log/``), or
       a Zarr store (``.zattrs`` / ``.zgroup`` at the root).
+
+    Parsing behaviour
+    -----------------
+    If no non-datapackage project signals are present in the directory the spec
+    parses unconditionally.  If sentinel files that indicate another project type
+    (``pyproject.toml``, ``Cargo.toml``, ``package.json``, …) are found, parsing
+    succeeds only when the majority of bytes in the root file listing belong to
+    recognised data files; otherwise ``ParseFailed`` is raised so that the
+    directory is not double-counted as both a code project and a data project.
     """
 
     spec_doc = "https://opencode.ai/docs"  # placeholder — no single upstream spec
@@ -424,6 +483,15 @@ class Data(ProjectSpec):
             DataResource,
         )  # local import keeps startup fast
 
+        # If non-datapackage project sentinels are present, only keep this
+        # spec when data files account for the majority of bytes at the root.
+        if self._has_non_data_sentinels():
+            if not self._data_bytes_majority():
+                raise ParseFailed(
+                    "Non-data project sentinels found and data files are not "
+                    "the majority of bytes — skipping Data spec"
+                )
+
         layout = self._detect_layout()
         resources: list
 
@@ -448,6 +516,35 @@ class Data(ProjectSpec):
             self._contents["data_resource"] = AttrDict(
                 {_safe_key(r.path): r for r in resources}
             )
+
+    # ------------------------------------------------------------------
+    # Sentinel / byte-majority helpers
+    # ------------------------------------------------------------------
+
+    def _has_non_data_sentinels(self) -> bool:
+        """Return True if any non-datapackage project sentinel is present."""
+        basenames = self.proj.basenames
+        return any(name in _NON_DATA_SENTINELS for name in basenames)
+
+    def _data_bytes_majority(self) -> bool:
+        """Return True if data files account for >50 % of root-listing bytes.
+
+        Files with unknown / zero size are excluded from both totals so they
+        do not unfairly skew the ratio.
+        """
+        total_bytes = 0
+        data_bytes = 0
+        for entry in self.proj.filelist:
+            size = entry.get("size") or 0
+            if size <= 0:
+                continue
+            total_bytes += size
+            ext = os.path.splitext(entry["name"].rsplit("/", 1)[-1])[1].lower()
+            if ext in _DATA_EXTENSIONS:
+                data_bytes += size
+        if total_bytes == 0:
+            return False
+        return data_bytes > total_bytes / 2
 
     # ------------------------------------------------------------------
     # Layout detection

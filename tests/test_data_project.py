@@ -209,3 +209,154 @@ class TestDataResourceRoundTrip:
         dr2 = self._roundtrip(dr)
         # sample_path is gone — but HTML was cached in the dict
         assert dr2._repr_html_() == html_original
+
+
+# ---------------------------------------------------------------------------
+# Conditional parse: sentinel / byte-majority logic
+# ---------------------------------------------------------------------------
+
+
+class TestDataConditionalParse:
+    """Tests for the 'other project types present' guard in Data.parse()."""
+
+    # -- helpers --
+
+    def _big_csv(self, path, rows=500):
+        """Write a CSV large enough to dominate byte counts."""
+        content = "id,value\n" + "\n".join(f"{i},{i * 2}" for i in range(rows))
+        path.write_text(content)
+
+    # -- pure data directories (no sentinels) --
+
+    def test_pure_data_dir_no_sentinel(self, tmp_path):
+        """No sentinel → Data always parsed regardless of byte ratios."""
+        (tmp_path / "data.csv").write_text("x\n1\n")
+        proj = _data_project(tmp_path)
+        assert "data" in proj.specs
+
+    def test_datapackage_companion_not_a_sentinel(self, tmp_path):
+        """datapackage.json is a compatible companion — not a sentinel."""
+        self._big_csv(tmp_path / "data.csv")
+        (tmp_path / "datapackage.json").write_text('{"resources": []}')
+        proj = _data_project(tmp_path)
+        assert "data" in proj.specs
+
+    def test_dvc_companion_not_a_sentinel(self, tmp_path):
+        """catalog.yaml (IntakeCatalog / DVCRepo companion) is not a sentinel."""
+        self._big_csv(tmp_path / "data.csv")
+        (tmp_path / "catalog.yaml").write_text("sources: {}")
+        proj = _data_project(tmp_path)
+        assert "data" in proj.specs
+
+    # -- mixed dirs where data dominates --
+
+    def test_sentinel_present_data_majority(self, tmp_path):
+        """Sentinel present but data files are majority of bytes → Data parsed."""
+        self._big_csv(tmp_path / "data.csv")  # large data file
+        (tmp_path / "pyproject.toml").write_text(
+            "[project]\nname='x'\n"
+        )  # tiny sentinel
+        proj = _data_project(tmp_path)
+        assert "data" in proj.specs
+
+    def test_sentinel_present_data_majority_parquet(self, tmp_path):
+        pytest.importorskip("pyarrow")
+        import pyarrow as pa, pyarrow.parquet as pq
+
+        pq.write_table(
+            pa.table({"x": list(range(1000)), "y": list(range(1000))}),
+            str(tmp_path / "data.parquet"),
+        )
+        (tmp_path / "Cargo.toml").write_text('[package]\nname="x"\n')
+        proj = _data_project(tmp_path)
+        assert "data" in proj.specs
+
+    # -- mixed dirs where non-data dominates --
+
+    def test_sentinel_present_code_majority(self, tmp_path):
+        """Sentinel present and code files dominate → Data spec suppressed."""
+        # Large Python source file
+        (tmp_path / "main.py").write_text("x = 1\n" * 5000)
+        # Tiny CSV
+        (tmp_path / "tiny.csv").write_text("a,b\n1,2\n")
+        (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
+        proj = _data_project(tmp_path)
+        assert "data" not in proj.specs
+
+    def test_sentinel_present_equal_split_not_majority(self, tmp_path):
+        """Exactly 50/50 bytes is not a majority — Data suppressed."""
+        payload = "x" * 1000
+        (tmp_path / "code.py").write_text(payload)
+        (tmp_path / "data.csv").write_text(payload)
+        (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
+        proj = _data_project(tmp_path)
+        assert "data" not in proj.specs
+
+    # -- helpers / unit tests for the private methods --
+
+    def test_has_non_data_sentinels_true(self, tmp_path):
+        from projspec.proj.data_dir import Data
+
+        (tmp_path / "data.csv").write_text("x\n1\n")
+        (tmp_path / "pyproject.toml").write_text("")
+        proj = projspec.Project.__new__(projspec.Project)
+        import fsspec
+
+        proj.fs = fsspec.filesystem("file")
+        proj.url = str(tmp_path)
+        proj.__dict__["basenames"] = {
+            e["name"].rsplit("/", 1)[-1]: e["name"]
+            for e in proj.fs.ls(str(tmp_path), detail=True)
+        }
+        proj.__dict__["filelist"] = proj.fs.ls(str(tmp_path), detail=True)
+        inst = Data.__new__(Data)
+        inst.proj = proj
+        assert inst._has_non_data_sentinels() is True
+
+    def test_has_non_data_sentinels_false(self, tmp_path):
+        from projspec.proj.data_dir import Data
+
+        (tmp_path / "data.csv").write_text("x\n1\n")
+        proj = projspec.Project.__new__(projspec.Project)
+        import fsspec
+
+        proj.fs = fsspec.filesystem("file")
+        proj.url = str(tmp_path)
+        proj.__dict__["basenames"] = {
+            e["name"].rsplit("/", 1)[-1]: e["name"]
+            for e in proj.fs.ls(str(tmp_path), detail=True)
+        }
+        proj.__dict__["filelist"] = proj.fs.ls(str(tmp_path), detail=True)
+        inst = Data.__new__(Data)
+        inst.proj = proj
+        assert inst._has_non_data_sentinels() is False
+
+    def test_data_bytes_majority_true(self, tmp_path):
+        from projspec.proj.data_dir import Data
+
+        self._big_csv(tmp_path / "data.csv")
+        (tmp_path / "small.py").write_text("x = 1\n")
+        proj = projspec.Project.__new__(projspec.Project)
+        import fsspec
+
+        proj.fs = fsspec.filesystem("file")
+        proj.url = str(tmp_path)
+        proj.__dict__["filelist"] = proj.fs.ls(str(tmp_path), detail=True)
+        inst = Data.__new__(Data)
+        inst.proj = proj
+        assert inst._data_bytes_majority() is True
+
+    def test_data_bytes_majority_false(self, tmp_path):
+        from projspec.proj.data_dir import Data
+
+        (tmp_path / "main.py").write_text("x = 1\n" * 5000)
+        (tmp_path / "tiny.csv").write_text("a\n1\n")
+        proj = projspec.Project.__new__(projspec.Project)
+        import fsspec
+
+        proj.fs = fsspec.filesystem("file")
+        proj.url = str(tmp_path)
+        proj.__dict__["filelist"] = proj.fs.ls(str(tmp_path), detail=True)
+        inst = Data.__new__(Data)
+        inst.proj = proj
+        assert inst._data_bytes_majority() is False
