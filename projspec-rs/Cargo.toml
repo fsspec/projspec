@@ -1,0 +1,41 @@
+[package]
+name = "projspec-rs"
+version = "0.1.0"
+edition = "2024"
+description = "Rust port of the projspec project-introspection library and CLI"
+authors = ["projspec contributors"]
+
+[[bin]]
+name = "projspec"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Serialisation
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# TOML parsing
+toml = "0.8"
+
+# YAML parsing
+serde_yaml = "0.9"
+
+# Regex
+regex = "1"
+
+# Filesystem helpers
+walkdir = "2"
+glob = "0.3"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Home dir (~/.config)
+dirs = "6"
+
+[dev-dependencies]
+tempfile = "3"
