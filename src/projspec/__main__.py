@@ -89,16 +89,30 @@ def version():
     help="List of spec types to ignore (comma-separated list in camel or snake case)",
 )
 @click.option(
-    "--json-out", is_flag=True, default=False, help="JSON output, for projects only"
+    "--json-out",
+    is_flag=True,
+    default=False,
+    help="JSON output, for projects only",
 )
 @click.option(
-    "--html-out", is_flag=True, default=False, help="HTML output, for projects only"
+    "--html-out",
+    is_flag=True,
+    default=False,
+    help="HTML output, for projects only",
 )
 @click.option("--walk", is_flag=True, help="To descend into all child directories")
 @click.option("--summary", is_flag=True, help="Show abbreviated output")
 @click.option("--library", is_flag=True, help="Add to library")
 def scan(
-    path, storage_options, types, xtypes, json_out, html_out, walk, summary, library
+    path,
+    storage_options,
+    types,
+    xtypes,
+    json_out,
+    html_out,
+    walk,
+    summary,
+    library,
 ):
     """Scan the given path for projects, and display
 
@@ -109,13 +123,17 @@ def scan(
     else:
         types = types.split(",")
     proj = projspec.Project(
-        path, storage_options=storage_options, types=types, xtypes=xtypes, walk=walk
+        path,
+        storage_options=storage_options,
+        types=types,
+        xtypes=xtypes,
+        walk=walk,
     )
     if summary:
         print(proj.text_summary())
     else:
         if json_out:
-            print(json.dumps(proj.to_dict(compact=True)))
+            print(json.dumps(proj.to_dict(compact=False)))
         elif html_out:
             print(proj._repr_html_())
         else:
@@ -199,14 +217,21 @@ def library():
 
 @library.command("list")
 @click.option(
-    "--json-out", is_flag=True, default=False, help="JSON output, for projects only"
+    "--json-out",
+    is_flag=True,
+    default=False,
+    help="JSON output, for projects only",
 )
 def list(json_out):
     from projspec.library import ProjectLibrary
 
     library = ProjectLibrary()
     if json_out:
-        print(json.dumps({k: v.to_dict() for k, v in library.entries.items()}))
+        print(
+            json.dumps(
+                {k: v.to_dict(compact=False) for k, v in library.entries.items()}
+            )
+        )
     else:
         for url in sorted(library.entries):
             proj = library.entries[url]

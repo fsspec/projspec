@@ -287,7 +287,7 @@ class Project:
 
     def all_artifacts(self, names: str | None = None) -> list:
         """A flat list of all the artifact objects nested in this project."""
-        arts = list(self.artifacts.values())
+        arts = list()
         for spec in self.specs.values():
             arts.extend(flatten(spec.artifacts))
         for child in self.children.values():

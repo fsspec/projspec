@@ -7,6 +7,7 @@ from projspec.proj.backstage import BackstageCatalog
 from projspec.proj.briefcase import Briefcase
 from projspec.proj.conda_package import CondaRecipe, RattlerRecipe
 from projspec.proj.conda_project import CondaProject
+from projspec.proj.data_dir import Data
 from projspec.proj.datapackage import DataPackage, DVCRepo
 from projspec.proj.documentation import RTD, MDBook
 from projspec.proj.git import GitRepo
@@ -36,6 +37,7 @@ __all__ = [
     "Zenodo",
     "CondaRecipe",
     "CondaProject",
+    "Data",
     "Golang",
     "GitRepo",
     "HelmChart",

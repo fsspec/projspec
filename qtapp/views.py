@@ -163,6 +163,16 @@ _TREE_SHARED_CSS = """
         border-radius: 50%; animation: spin 0.7s linear infinite; opacity: 0.8;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    .html-preview {
+        display: block;
+        width: 100%;
+        border: none;
+        margin-top: 4px;
+        margin-left: 20px;
+        min-height: 40px;
+        max-height: 600px;
+    }
 """
 
 _INFO_POPUP_JS = """
@@ -815,7 +825,7 @@ def get_library_html(
 # Details panel
 # ---------------------------------------------------------------------------
 
-_SKIP_KEYS = {"klass", "proc", "storage_options", "children", "url"}
+_SKIP_KEYS = {"klass", "proc", "storage_options", "children", "url", "_html"}
 
 
 def _build_tooltip(doc, link):
@@ -1002,6 +1012,13 @@ def _build_detail_nodes(
                 "children": children or None,
                 "infoData": node_info_data,
                 "itemType": role if role not in ("none", "field") else None,
+                "htmlContent": (
+                    value["_html"]
+                    if role == "content"
+                    and isinstance(value, dict)
+                    and isinstance(value.get("_html"), str)
+                    else None
+                ),
             }
         )
 
@@ -1015,6 +1032,52 @@ def _is_leaf_artifact(node: dict) -> bool:
     if not children:
         return True
     return not any(c.get("role") == "artifact" for c in children)
+
+
+# Dark console-green stylesheet injected into every html-preview srcdoc.
+_HTML_PREVIEW_CSS = (
+    "<style>"
+    ":root{--bg:#0d1117;--bg-hd:#161b22;--bg-alt:#111820;--grn:#39d353;--grn-d:#26a641;"
+    "--grn-m:#196127;--bd:#21262d;--bd-d:#161b22;--fg:#c9d1d9;--fg-d:#8b949e;"
+    "--bb:#1f6feb;--bg2:#30363d;--fn:ui-monospace,'Cascadia Code','Fira Mono',monospace}"
+    "*{box-sizing:border-box}"
+    "body{background:var(--bg);color:var(--fg);margin:0;font-family:var(--fn);font-size:12px}"
+    ".ps-data-card{border:1px solid var(--bd);border-radius:6px;overflow:hidden;"
+    "background:var(--bg);color:var(--fg)}"
+    ".ps-data-card-header{background:var(--bg-hd);padding:7px 12px;display:flex;"
+    "align-items:center;gap:8px;border-bottom:1px solid var(--bd)}"
+    ".ps-data-card-header .ps-icon{font-size:16px}"
+    ".ps-data-card-header .ps-name{font-weight:bold;font-size:13px;color:var(--grn)}"
+    ".ps-data-card-header .ps-badge{background:var(--bb);color:#fff;border-radius:10px;"
+    "padding:1px 7px;font-size:10px}"
+    ".ps-data-card-header .ps-badge-gray{background:var(--bg2);color:var(--fg);"
+    "border-radius:10px;padding:1px 7px;font-size:10px}"
+    ".ps-data-meta{padding:8px 12px;border-bottom:1px solid var(--bd-d)}"
+    ".ps-data-meta table{border-collapse:collapse;width:100%}"
+    ".ps-data-meta td{padding:2px 8px 2px 0;vertical-align:top}"
+    ".ps-data-meta td:first-child{color:var(--fg-d);white-space:nowrap;width:110px}"
+    "details>summary{list-style:none;cursor:pointer;color:var(--grn-d);font-size:11px;margin-top:4px}"
+    "details>summary::-webkit-details-marker{display:none}"
+    ".ps-schema-table{font-size:11px;border-collapse:collapse;margin-top:4px;width:100%}"
+    ".ps-schema-table th{background:var(--bg-hd);color:var(--grn-d);padding:2px 8px;"
+    "text-align:left;border:1px solid var(--bd)}"
+    ".ps-schema-table td{padding:2px 8px;border:1px solid var(--bd-d);font-family:var(--fn);color:var(--fg)}"
+    ".ps-schema-table td strong{color:var(--grn)}"
+    ".ps-preview{padding:8px 12px}"
+    ".ps-preview-title{font-weight:bold;font-size:10px;color:var(--grn-m);margin-bottom:5px;"
+    "text-transform:uppercase;letter-spacing:.8px}"
+    ".ps-df-wrap{overflow-x:auto}"
+    ".ps-df-wrap table,.dataframe{font-size:11px!important;border-collapse:collapse!important;"
+    "width:100%!important;color:var(--fg)!important;background:var(--bg)!important}"
+    ".ps-df-wrap th,.dataframe thead th{background:var(--bg-hd)!important;color:var(--grn-d)!important;"
+    "padding:3px 10px!important;border:1px solid var(--bd)!important;white-space:nowrap;text-align:left!important}"
+    ".ps-df-wrap td,.dataframe tbody td{padding:2px 10px!important;border:1px solid var(--bd-d)!important;"
+    "color:var(--fg)!important;background:var(--bg)!important;white-space:nowrap;"
+    "max-width:200px;overflow:hidden;text-overflow:ellipsis}"
+    ".dataframe tbody tr:nth-child(even) td{background:var(--bg-alt)!important}"
+    ".ps-img-preview{max-width:100%;max-height:200px;border-radius:4px}"
+    "</style>"
+)
 
 
 def _render_detail_node(node: dict, depth: int) -> str:
@@ -1067,6 +1130,19 @@ def _render_detail_node(node: dict, depth: int) -> str:
             f'<ul class="tree-children" data-depth="{depth + 1}">{inner}</ul>'
         )
 
+    html_content = node.get("htmlContent")
+    if html_content:
+        srcdoc = (
+            (_HTML_PREVIEW_CSS + html_content)
+            .replace("&", "&amp;")
+            .replace('"', "&quot;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+        html_preview = f'<iframe class="html-preview" sandbox="allow-scripts" srcdoc="{srcdoc}"></iframe>'
+    else:
+        html_preview = ""
+
     make_btn = (
         f'<button class="make-button" data-item="{node_data}" title="Make artifact">Make</button>'
         if can_make
@@ -1085,6 +1161,7 @@ def _render_detail_node(node: dict, depth: int) -> str:
             {make_btn}
             {info_btn}
         </div>
+        {html_preview}
         {children_html}
     </li>"""
 
