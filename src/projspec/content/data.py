@@ -11,8 +11,6 @@ class TabularData(BaseContent):
 
     This lists loadable tabular files with defined schema, typically from formats such as
     JSON, CSV, and parquet.
-
-    See https://specs.frictionlessdata.io/data-package/
     """
 
     name: str
@@ -44,35 +42,35 @@ class DataResource(BaseContent):
     Hive-partitioned tree, an Iceberg/Delta table, a Zarr store, or any other
     recognised on-disk layout.
 
-    The ``path`` field is a human-readable basename that identifies the resource:
+    The `path` field is a human-readable basename that identifies the resource:
 
-    - Single file: ``"data.csv"``
-    - Multi-file series: ``"part*.parquet"`` (glob-style, common prefix + ``*`` + ext)
-    - Directory-as-dataset (Hive partition, Zarr store, …): ``"year=2024/"``
+    - Single file: `"data.csv"`
+    - Multi-file series: `"part*.parquet"` (glob-style, common prefix + `*` + ext)
+    - Directory-as-dataset (Hive partition, Zarr store, …): `"year=2024/"`
 
-    The ``modality`` field classifies the broad nature of the data using the
-    vocabulary established by intake's ``structure`` tags and napari's layer
+    The `modality` field classifies the broad nature of the data using the
+    vocabulary established by intake's `structure` tags and napari's layer
     type system:
 
-    - ``"tabular"``    — row/column data (CSV, Parquet, ORC, Excel, …)
-    - ``"array"``      — N-dimensional arrays (NumPy, HDF5, NetCDF, Zarr, …)
-    - ``"image"``      — 2-D/3-D images (PNG, JPEG, TIFF, DICOM, NIfTI, …)
-    - ``"timeseries"`` — time-indexed signals (WAV, GRIB, …)
-    - ``"geospatial"`` — vector/raster geodata (Shapefile, GeoJSON, GeoTIFF, …)
-    - ``"model"``      — ML model weights (GGUF, SafeTensors, PyTorch, …)
-    - ``"nested"``     — hierarchical / JSON-like (Avro, YAML, XML, …)
-    - ``"document"``   — human-readable documents (PDF, DOCX, …)
-    - ``"video"``      — video streams (MP4, AVI, …)
-    - ``"archive"``    — compressed bundles (ZIP, tar.gz, …)
-    - ``""``           — unknown / mixed
+    - `"tabular"`    — row/column data (CSV, Parquet, ORC, Excel, …)
+    - `"array"`      — N-dimensional arrays (NumPy, HDF5, NetCDF, Zarr, …)
+    - `"image"`      — 2-D/3-D images (PNG, JPEG, TIFF, DICOM, NIfTI, …)
+    - `"timeseries"` — time-indexed signals (WAV, GRIB, …)
+    - `"geospatial"` — vector/raster geodata (Shapefile, GeoJSON, GeoTIFF, …)
+    - `"model"`      — ML model weights (GGUF, SafeTensors, PyTorch, …)
+    - `"nested"`     — hierarchical / JSON-like (Avro, YAML, XML, …)
+    - `"document"`   — human-readable documents (PDF, DOCX, …)
+    - `"video"`      — video streams (MP4, AVI, …)
+    - `"archive"`    — compressed bundles (ZIP, tar.gz, …)
+    - `""`           — unknown / mixed
 
-    The ``schema`` field is format-specific:
+    The `schema` field is format-specific:
 
-    - Tabular (Parquet, Arrow, CSV, …): ``{column_name: dtype_str, …}``
-    - Image / array: ``{"width": int, "height": int, "channels": int, "mode": str}``
-    - Audio: ``{"sample_rate": int, "channels": int, "frames": int}``
-    - HDF5 / Zarr / NetCDF: ``{"variables": [...], "dims": {...}, "attrs": {...}}``
-    - Unknown / library not available: ``{}``
+    - Tabular (Parquet, Arrow, CSV, …): `{column_name: dtype_str, …}`
+    - Image / array: `{"width": int, "height": int, "channels": int, "mode": str}`
+    - Audio: `{"sample_rate": int, "channels": int, "frames": int}`
+    - HDF5 / Zarr / NetCDF: `{"variables": [...], "dims": {...}, "attrs": {...}}`
+    - Unknown / library not available: `{}`
     """
 
     path: str  # basename (or glob pattern / dir/ ) identifying this resource

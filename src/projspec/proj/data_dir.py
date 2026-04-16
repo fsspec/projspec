@@ -444,25 +444,19 @@ class Data(ProjectSpec):
     Matches on any of:
     - At least one file with an unambiguous data extension (CSV, Parquet, Arrow,
       HDF5, images, audio, etc.) — without requiring a metadata sidecar.
-    - A recognised directory layout: Hive partitioning (``key=value/`` subdirs),
-      Apache Iceberg (``metadata/`` directory), Delta Lake (``_delta_log/``), or
-      a Zarr store (``.zattrs`` / ``.zgroup`` at the root).
+    - A recognised directory layout: Hive partitioning (`key=value/` subdirs),
+      Apache Iceberg (`metadata/` directory), Delta Lake (`_delta_log/`), or
+      a Zarr store (`.zattrs` / `.zgroup` at the root).
 
     Parsing behaviour
     -----------------
     If no non-datapackage project signals are present in the directory the spec
     parses unconditionally.  If sentinel files that indicate another project type
-    (``pyproject.toml``, ``Cargo.toml``, ``package.json``, …) are found, parsing
+    (`pyproject.toml`, `Cargo.toml`, `package.json`, …) are found, parsing
     succeeds only when the majority of bytes in the root file listing belong to
-    recognised data files; otherwise ``ParseFailed`` is raised so that the
+    recognised data files; otherwise `ParseFailed` is raised so that the
     directory is not double-counted as both a code project and a data project.
     """
-
-    spec_doc = "https://opencode.ai/docs"  # placeholder — no single upstream spec
-
-    # ------------------------------------------------------------------
-    # match()
-    # ------------------------------------------------------------------
 
     def match(self) -> bool:
         # Fast path: structural layout signals (no file-content inspection needed)
@@ -474,17 +468,7 @@ class Data(ProjectSpec):
             for name in self.proj.basenames
         )
 
-    # ------------------------------------------------------------------
-    # parse()
-    # ------------------------------------------------------------------
-
     def parse(self) -> None:
-        from projspec.content.data import (
-            DataResource,
-        )  # local import keeps startup fast
-
-        # If non-datapackage project sentinels are present, only keep this
-        # spec when data files account for the majority of bytes at the root.
         if self._has_non_data_sentinels():
             if not self._data_bytes_majority():
                 raise ParseFailed(
@@ -517,10 +501,6 @@ class Data(ProjectSpec):
                 {_safe_key(r.path): r for r in resources}
             )
 
-    # ------------------------------------------------------------------
-    # Sentinel / byte-majority helpers
-    # ------------------------------------------------------------------
-
     def _has_non_data_sentinels(self) -> bool:
         """Return True if any non-datapackage project sentinel is present."""
         basenames = self.proj.basenames
@@ -545,10 +525,6 @@ class Data(ProjectSpec):
         if total_bytes == 0:
             return False
         return data_bytes > total_bytes / 2
-
-    # ------------------------------------------------------------------
-    # Layout detection
-    # ------------------------------------------------------------------
 
     def _detect_layout(self) -> str:
         """Return a layout string, or '' if none of the known layouts match.
@@ -579,19 +555,15 @@ class Data(ProjectSpec):
             return "hive"
         return ""
 
-    # ------------------------------------------------------------------
-    # Parsing helpers
-    # ------------------------------------------------------------------
-
     def _resource_from_entries(
         self, entries: list[dict], fmt: str, modality: str, layout: str
     ):
         """Build a DataResource from a list of same-format file entries.
 
-        The ``path`` field is set to:
+        The `path` field is set to:
 
-        - Single file: the bare basename, e.g. ``"data.csv"``.
-        - Multi-file series: a glob pattern, e.g. ``"part*.csv"``, built from
+        - Single file: the bare basename, e.g. `"data.csv"`.
+        - Multi-file series: a glob pattern, e.g. `"part*.csv"`, built from
           the shared prefix/suffix of the basenames.
         """
         from projspec.content.data import DataResource
@@ -628,15 +600,11 @@ class Data(ProjectSpec):
 
         Files of the same format are only collated into a single DataResource
         when they share a consistent naming schema — i.e. their stems differ
-        only in a numeric or date-like segment (e.g. ``part0.csv``,
-        ``part1.csv`` or ``2024-02.tiff``, ``2024-03.tiff``).  Files whose
-        stems vary in alphabetic content (e.g. ``users.csv``, ``orders.csv``)
+        only in a numeric or date-like segment (e.g. `part0.csv`,
+        `part1.csv` or `2024-02.tiff`, `2024-03.tiff`).  Files whose
+        stems vary in alphabetic content (e.g. `users.csv`, `orders.csv`)
         each become their own DataResource.
         """
-        from projspec.content.data import (
-            DataResource,
-        )  # (used via _resource_from_entries)
-
         # First bucket by (fmt, modality)
         fmt_groups: dict[tuple[str, str], list[dict]] = {}
         for entry in _filelist_files(self.proj.filelist):
