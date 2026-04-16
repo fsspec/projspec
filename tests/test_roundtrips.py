@@ -36,6 +36,29 @@ from projspec.utils import get_cls
         "MDBook",
         "RTD",
         "BackstageCatalog",
+        # CI/CD — file-only _create()
+        "GitHubActions",
+        "GitLabCI",
+        "CircleCI",
+        "Taskfile",
+        "JustFile",
+        "Tox",
+        # Data / ML workflows — file-only _create()
+        "Dbt",
+        "Quarto",
+        "Nox",
+        # Documentation — file-only _create()
+        "MkDocs",
+        "Sphinx",
+        # Infrastructure — file-only _create()
+        "DockerCompose",
+        "Terraform",
+        "Ansible",
+        "Pulumi",
+        "CDK",
+        "Earthfile",
+        "Nixpacks",
+        "Vagrant",
     ],
 )
 def test_compliant(tmpdir, cls_name):
