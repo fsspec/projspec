@@ -27,8 +27,7 @@ from projspec.proj.dataworkflows import (
     Quarto,
     Snakemake,
 )
-from projspec.proj.docs import Docusaurus, MkDocs, Sphinx
-from projspec.proj.documentation import RTD, MDBook
+from projspec.proj.documentation import RTD, MDBook, MkDocs, Sphinx, Docusaurus
 from projspec.proj.git import GitRepo
 from projspec.proj.golang import Golang
 from projspec.proj.helm import HelmChart

@@ -54,11 +54,11 @@ User Classes
     proj.dataworkflows.Airflow
     proj.dataworkflows.Snakemake
     proj.dataworkflows.Nox
-    proj.docs.MkDocs
-    proj.docs.Sphinx
-    proj.docs.Docusaurus
+    proj.documentation.Docusaurus
     proj.documentation.MDBook
+    proj.documentation.MkDocs
     proj.documentation.RTD
+    proj.documentation.Sphinx
     proj.git.GitRepo
     proj.golang.Golang
     proj.helm.HelmChart
@@ -131,11 +131,11 @@ User Classes
 .. autoclass:: projspec.proj.dataworkflows.Airflow
 .. autoclass:: projspec.proj.dataworkflows.Snakemake
 .. autoclass:: projspec.proj.dataworkflows.Nox
-.. autoclass:: projspec.proj.docs.MkDocs
-.. autoclass:: projspec.proj.docs.Sphinx
-.. autoclass:: projspec.proj.docs.Docusaurus
+.. autoclass:: projspec.proj.documentation.Docusaurus
 .. autoclass:: projspec.proj.documentation.MDBook
+.. autoclass:: projspec.proj.documentation.MkDocs
 .. autoclass:: projspec.proj.documentation.RTD
+.. autoclass:: projspec.proj.documentation.Sphinx
 .. autoclass:: projspec.proj.git.GitRepo
 .. autoclass:: projspec.proj.golang.Golang
 .. autoclass:: projspec.proj.helm.HelmChart
