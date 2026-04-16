@@ -92,6 +92,8 @@ class DataResource(BaseContent):
 
     def _repr_html_(self) -> str:
         """Jupyter rich display — returns cached HTML, rendering on first call."""
+        # TODO: this is probably not what we want jupyter to dysplay, but it's
+        #  convenient for now.
         if self._html is None:
             from projspec.content.data_html import repr_html
 

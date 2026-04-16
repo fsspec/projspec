@@ -8,19 +8,9 @@ from projspec.content.data import DataResource
 from projspec.utils import from_dict
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _data_project(tmp_path):
     """Return a projspec.Project rooted at *tmp_path* (no walk needed)."""
     return projspec.Project(str(tmp_path))
-
-
-# ---------------------------------------------------------------------------
-# Detection tests
-# ---------------------------------------------------------------------------
 
 
 class TestDataDetection:
@@ -43,11 +33,6 @@ class TestDataDetection:
         (tmp_path / "config.json").write_text("{}")
         proj = _data_project(tmp_path)
         assert "data" not in proj.specs
-
-
-# ---------------------------------------------------------------------------
-# Parse / DataResource field tests
-# ---------------------------------------------------------------------------
 
 
 class TestDataParse:
@@ -98,11 +83,6 @@ class TestDataParse:
         assert dr.total_size > 0
 
 
-# ---------------------------------------------------------------------------
-# Serialisation: to_dict
-# ---------------------------------------------------------------------------
-
-
 class TestDataResourceToDict:
     def _make_dr(self, tmp_path):
         (tmp_path / "items.csv").write_text("id,val\n1,a\n2,b\n")
@@ -119,11 +99,6 @@ class TestDataResourceToDict:
         dr = self._make_dr(tmp_path)
         d = dr.to_dict(compact=True)
         assert "_html" not in d
-
-
-# ---------------------------------------------------------------------------
-# Serialisation: from_dict round-trip
-# ---------------------------------------------------------------------------
 
 
 class TestDataResourceRoundTrip:
@@ -211,22 +186,13 @@ class TestDataResourceRoundTrip:
         assert dr2._repr_html_() == html_original
 
 
-# ---------------------------------------------------------------------------
-# Conditional parse: sentinel / byte-majority logic
-# ---------------------------------------------------------------------------
-
-
 class TestDataConditionalParse:
     """Tests for the 'other project types present' guard in Data.parse()."""
-
-    # -- helpers --
 
     def _big_csv(self, path, rows=500):
         """Write a CSV large enough to dominate byte counts."""
         content = "id,value\n" + "\n".join(f"{i},{i * 2}" for i in range(rows))
         path.write_text(content)
-
-    # -- pure data directories (no sentinels) --
 
     def test_pure_data_dir_no_sentinel(self, tmp_path):
         """No sentinel → Data always parsed regardless of byte ratios."""
@@ -248,10 +214,8 @@ class TestDataConditionalParse:
         proj = _data_project(tmp_path)
         assert "data" in proj.specs
 
-    # -- mixed dirs where data dominates --
-
     def test_sentinel_present_data_majority(self, tmp_path):
-        """Sentinel present but data files are majority of bytes → Data parsed."""
+        """Sentinel is present, but data files are the majority of bytes → Data parsed."""
         self._big_csv(tmp_path / "data.csv")  # large data file
         (tmp_path / "pyproject.toml").write_text(
             "[project]\nname='x'\n"
@@ -299,7 +263,7 @@ class TestDataConditionalParse:
 
         (tmp_path / "data.csv").write_text("x\n1\n")
         (tmp_path / "pyproject.toml").write_text("")
-        proj = projspec.Project.__new__(projspec.Project)
+        proj = object.__new__(projspec.Project)
         import fsspec
 
         proj.fs = fsspec.filesystem("file")
@@ -317,7 +281,7 @@ class TestDataConditionalParse:
         from projspec.proj.data_dir import Data
 
         (tmp_path / "data.csv").write_text("x\n1\n")
-        proj = projspec.Project.__new__(projspec.Project)
+        proj = object.__new__(projspec.Project)
         import fsspec
 
         proj.fs = fsspec.filesystem("file")
@@ -336,7 +300,7 @@ class TestDataConditionalParse:
 
         self._big_csv(tmp_path / "data.csv")
         (tmp_path / "small.py").write_text("x = 1\n")
-        proj = projspec.Project.__new__(projspec.Project)
+        proj = object.__new__(projspec.Project)
         import fsspec
 
         proj.fs = fsspec.filesystem("file")
@@ -351,7 +315,7 @@ class TestDataConditionalParse:
 
         (tmp_path / "main.py").write_text("x = 1\n" * 5000)
         (tmp_path / "tiny.csv").write_text("a\n1\n")
-        proj = projspec.Project.__new__(projspec.Project)
+        proj = object.__new__(projspec.Project)
         import fsspec
 
         proj.fs = fsspec.filesystem("file")
