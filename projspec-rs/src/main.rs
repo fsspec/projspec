@@ -11,6 +11,7 @@
 //   artifact   — BaseArtifact variants + execution
 //   spec       — ProjectSpec implementations (match + parse)
 //   project    — Project struct + resolve logic
+//   fs         — Virtual filesystem abstraction (opendal-backed)
 //   library    — ProjectLibrary (JSON persistence)
 //   config     — Config file read/write
 //   create     — Project scaffolding (ProjectSpec::create)
@@ -21,6 +22,7 @@ mod cli;
 mod config;
 mod content;
 mod create;
+mod fs;
 mod library;
 mod project;
 mod spec;

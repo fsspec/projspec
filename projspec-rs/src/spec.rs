@@ -22,6 +22,7 @@ use crate::content::{
     Citation, Command, Content, ContentGroup, DataResource, DescriptiveMetadata,
     Environment, IntakeSource, License, NodePackage, PythonPackage, TabularData,
 };
+use crate::fs::Vfs;
 use crate::types::{Architecture, Precision, Stack};
 
 // ---------------------------------------------------------------------------
@@ -29,12 +30,21 @@ use crate::types::{Architecture, Precision, Stack};
 // ---------------------------------------------------------------------------
 
 pub struct ParseCtx<'a> {
-    /// Absolute path to the project root.
+    /// Canonical URL / path of the project root (for building artifact paths).
     pub url: &'a str,
-    /// {basename -> full_path} for every entry at the root.
+    /// {basename -> relative_path_within_vfs} for every entry at the root.
     pub basenames: &'a HashMap<String, String>,
     /// Parsed pyproject.toml, or empty object.
     pub pyproject: &'a JsVal,
+    /// Virtual filesystem — abstracts local, S3, HTTP, memory.
+    pub vfs: &'a Vfs,
+    /// Pre-fetched file contents: {basename -> UTF-8 text}.
+    /// Populated concurrently before parsers run. Cache hit avoids a VFS round-trip.
+    pub file_cache: &'a HashMap<String, String>,
+    /// Pre-checked existence of sub-paths not visible in basenames
+    /// (e.g. ".vscode/settings.json", ".idea", ".project/spec.yaml").
+    /// Populated concurrently alongside file_cache.
+    pub exists_cache: &'a HashMap<String, bool>,
 }
 
 impl<'a> ParseCtx<'a> {
@@ -46,10 +56,17 @@ impl<'a> ParseCtx<'a> {
         names.iter().any(|n| self.has(n))
     }
 
-    /// Read a root-level text file; returns None on error.
+    /// Read a root-level text file. Returns the pre-fetched copy when available,
+    /// falls through to a live VFS read otherwise (cache miss or file not in
+    /// prefetch list).
     pub fn read_text(&self, name: &str) -> Option<String> {
-        let path = self.basenames.get(name)?;
-        std::fs::read_to_string(path).ok()
+        // Cache hit — zero network/disk cost
+        if let Some(text) = self.file_cache.get(name) {
+            return Some(text.clone());
+        }
+        // Cache miss — resolve relative path then read live
+        let rel = self.basenames.get(name)?;
+        self.vfs.read_text(rel)
     }
 
     /// Parse a root-level TOML file; returns None on error.
@@ -65,15 +82,28 @@ impl<'a> ParseCtx<'a> {
         serde_yaml::from_str(&stripped).ok()
     }
 
-    /// Read a file at an arbitrary path (not necessarily at the root).
+    /// Read a file at an arbitrary path relative to the vfs root.
+    /// Checks file_cache first (keyed by the relative path itself).
     pub fn read_text_path(&self, path: &str) -> Option<String> {
-        std::fs::read_to_string(path).ok()
+        if let Some(text) = self.file_cache.get(path) {
+            return Some(text.clone());
+        }
+        self.vfs.read_text(path)
     }
 
     pub fn read_yaml_path(&self, path: &str) -> Option<JsVal> {
         let text = self.read_text_path(path)?;
         let stripped = strip_jinja(&text);
         serde_yaml::from_str(&stripped).ok()
+    }
+
+    /// Check existence of a sub-path (e.g. ".vscode/settings.json").
+    /// Uses the pre-checked exists_cache when available, falls back to a live VFS call.
+    pub fn vfs_exists(&self, path: &str) -> bool {
+        if let Some(&result) = self.exists_cache.get(path) {
+            return result;
+        }
+        self.vfs.exists(path)
     }
 
     /// tool.[name] table from pyproject.toml.
@@ -770,8 +800,7 @@ fn parse_golang(ctx: &ParseCtx) -> Option<SpecResult> {
     r.artifacts.insert("test".into(), process_artifact(vec!["go", "test", "./..."]));
 
     // binary output if cmd/ exists
-    let cmd_dir = format!("{}/cmd", ctx.url);
-    if std::path::Path::new(&cmd_dir).is_dir() {
+    if ctx.vfs_exists("cmd") {
         r.artifacts.insert("binary".into(), file_artifact(
             vec!["go", "build", "-o", "bin/", "./cmd/..."],
             &format!("{}/bin/*", ctx.url),
@@ -888,21 +917,21 @@ fn parse_streamlit(ctx: &ParseCtx) -> Option<SpecResult> {
 }
 
 fn parse_marimo(ctx: &ParseCtx) -> Option<SpecResult> {
-    // Only match if at least one .py file contains marimo patterns (via scanned_files).
-    // Without file content scanning we check basenames for .py files.
+    // Only match if at least one .py file contains marimo patterns.
     let py_files: Vec<&String> = ctx.basenames.keys().filter(|k| k.ends_with(".py")).collect();
     if py_files.is_empty() { return None; }
-    // Try to read and check content
     let mut found = false;
     let mut servers = ArtifactGroup::new();
     for py in &py_files {
-        if let Some(full_path) = ctx.basenames.get(*py) {
-            if let Ok(content) = std::fs::read_to_string(full_path) {
-                if (content.contains("import marimo") || content.contains("from marimo")) && content.contains("marimo.App(") {
-                    let name = py.trim_end_matches(".py");
-                    servers.insert(name.to_string(), server_artifact(vec!["marimo", "run", full_path]));
-                    found = true;
-                }
+        let rel = ctx.basenames.get(*py)?;
+        // read_text_path checks file_cache first — avoids a live VFS read when
+        // .py files were pre-fetched as part of the small-file scan.
+        if let Some(content) = ctx.read_text_path(rel) {
+            if (content.contains("import marimo") || content.contains("from marimo")) && content.contains("marimo.App(") {
+                let name = py.trim_end_matches(".py");
+                let path = format!("{}/{}", ctx.url, rel);
+                servers.insert(name.to_string(), server_artifact(vec!["marimo", "run", &path]));
+                found = true;
             }
         }
     }
@@ -1110,17 +1139,19 @@ fn parse_git_repo(ctx: &ParseCtx) -> Option<SpecResult> {
     let mut r = SpecResult::new("git_repo");
     r.spec_doc = "https://git-scm.com/docs/git-config#_configuration_file".into();
 
-    // read branches from .git/refs/heads
-    let heads_dir = format!("{}/.git/refs/heads", ctx.url);
-    let branches: Vec<String> = std::fs::read_dir(&heads_dir).ok()
-        .map(|rd| rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string()).collect())
-        .unwrap_or_default();
+    // Read branches from .git/refs/heads (local fs only; skip silently for remote)
+    let branches: Vec<String> = ctx.vfs
+        .list_dir(".git/refs/heads")
+        .into_iter()
+        .map(|s| s.rsplit('/').next().unwrap_or(&s).to_string())
+        .collect();
     r.contents.insert("branches".into(), Content::Raw(JsVal::Array(branches.into_iter().map(JsVal::String).collect())));
 
-    let tags_dir = format!("{}/.git/refs/tags", ctx.url);
-    let tags: Vec<String> = std::fs::read_dir(&tags_dir).ok()
-        .map(|rd| rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string()).collect())
-        .unwrap_or_default();
+    let tags: Vec<String> = ctx.vfs
+        .list_dir(".git/refs/tags")
+        .into_iter()
+        .map(|s| s.rsplit('/').next().unwrap_or(&s).to_string())
+        .collect();
     r.contents.insert("tags".into(), Content::Raw(JsVal::Array(tags.into_iter().map(JsVal::String).collect())));
     Some(r)
 }
@@ -1137,8 +1168,7 @@ fn parse_ai_enabled(ctx: &ParseCtx) -> Option<SpecResult> {
 // --- IDEs ---
 
 fn parse_vscode(ctx: &ParseCtx) -> Option<SpecResult> {
-    let settings = format!("{}/.vscode/settings.json", ctx.url);
-    if !std::path::Path::new(&settings).exists() { return None; }
+    if !ctx.vfs_exists(".vscode/settings.json") { return None; }
     let mut r = SpecResult::new("v_s_code");
     r.spec_doc = "https://code.visualstudio.com/docs/configure/settings#_settings-json-file".into();
     r.artifacts.insert("launch".into(), process_artifact(vec!["code", ctx.url]));
@@ -1146,16 +1176,14 @@ fn parse_vscode(ctx: &ParseCtx) -> Option<SpecResult> {
 }
 
 fn parse_jetbrains(ctx: &ParseCtx) -> Option<SpecResult> {
-    let idea = format!("{}/.idea", ctx.url);
-    if !std::path::Path::new(&idea).exists() { return None; }
+    if !ctx.vfs_exists(".idea") { return None; }
     let mut r = SpecResult::new("jetbrains_i_d_e");
     r.artifacts.insert("launch".into(), process_artifact(vec!["pycharm", ctx.url, "nosplash", "dontReopenProjects"]));
     Some(r)
 }
 
 fn parse_nvidia_workbench(ctx: &ParseCtx) -> Option<SpecResult> {
-    let spec = format!("{}/.project/spec.yaml", ctx.url);
-    if !std::path::Path::new(&spec).exists() { return None; }
+    if !ctx.vfs_exists(".project/spec.yaml") { return None; }
     let mut r = SpecResult::new("nvidia_a_i_workbench");
     r.spec_doc = "https://docs.nvidia.com/ai-workbench/user-guide/latest/projects/spec.html".into();
     r.artifacts.insert("set_project".into(), process_artifact(vec!["nvwb", "open", ctx.url]));
@@ -1337,7 +1365,7 @@ fn parse_data(ctx: &ParseCtx) -> Option<SpecResult> {
                 modality: "tabular".to_string(),
                 layout: "flat".to_string(),
                 file_count: 1,
-                total_size: std::fs::metadata(full_path).map(|m| m.len()).unwrap_or(0),
+                total_size: 0, // size not available without std::fs on remote backends
                 schema: JsVal::Object(Default::default()),
                 sample_path: full_path.clone(),
                 metadata: HashMap::new(),

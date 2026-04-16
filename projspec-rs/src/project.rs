@@ -3,11 +3,13 @@
 
 use std::collections::HashMap;
 use anyhow::Result;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsVal;
 
 use crate::artifact::Artifact;
 use crate::content::Content;
+use crate::fs::{Vfs, vfs_from_url};
 use crate::spec::{all_parsers, ParseCtx};
 
 // ---------------------------------------------------------------------------
@@ -37,9 +39,9 @@ pub struct ParsedSpec {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
-    /// Original path as supplied by the caller.
+    /// Original path / URL as supplied by the caller.
     pub path: String,
-    /// Canonical absolute path.
+    /// Canonical URL (absolute local path, or s3:// / http:// URL).
     pub url: String,
     /// Matched project specs (not extras).
     pub specs: HashMap<String, ParsedSpec>,
@@ -47,12 +49,16 @@ pub struct Project {
     pub contents: HashMap<String, Content>,
     /// Artifacts from ProjectExtra specs (merged into root).
     pub artifacts: HashMap<String, Artifact>,
-    /// Child projects found by walking subdirectories.
+    /// Child projects found by walking subdirectories (local only).
     pub children: HashMap<String, Project>,
 }
 
 impl Project {
-    /// Parse a directory and return a Project.
+    // -----------------------------------------------------------------------
+    // Constructors
+    // -----------------------------------------------------------------------
+
+    /// Parse a local path or URL, building a Vfs automatically.
     pub fn new(
         path: &str,
         walk: Option<bool>,
@@ -60,53 +66,96 @@ impl Project {
         xtypes: Option<&[String]>,
         excludes: Option<&std::collections::HashSet<String>>,
     ) -> Result<Self> {
-        let canonical = std::fs::canonicalize(path)
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| path.to_string());
+        let (vfs, url) = vfs_from_url(path)?;
+        Self::new_with_vfs(path, &url, vfs, walk, types, xtypes, excludes)
+    }
 
+    /// Parse a project given an already-constructed Vfs.
+    /// `display_path` is used as the `path` field (user-facing).
+    /// `url` is the canonical location identifier.
+    /// The Vfs root must be set to the project root already.
+    pub fn new_with_vfs(
+        display_path: &str,
+        url: &str,
+        vfs: Vfs,
+        walk: Option<bool>,
+        types: Option<&[String]>,
+        xtypes: Option<&[String]>,
+        excludes: Option<&std::collections::HashSet<String>>,
+    ) -> Result<Self> {
         let default_exc = default_excludes();
         let excludes = excludes.unwrap_or(&default_exc);
 
         let mut proj = Project {
-            path: path.to_string(),
-            url: canonical.clone(),
+            path: display_path.to_string(),
+            url: url.to_string(),
             specs: HashMap::new(),
             contents: HashMap::new(),
             artifacts: HashMap::new(),
             children: HashMap::new(),
         };
 
-        proj.resolve(&canonical, walk, types, xtypes, excludes)?;
+        proj.resolve(url, &vfs, walk, types, xtypes, excludes)?;
         Ok(proj)
     }
 
     fn resolve(
         &mut self,
         url: &str,
+        vfs: &Vfs,
         walk: Option<bool>,
         types: Option<&[String]>,
         xtypes: Option<&[String]>,
         excludes: &std::collections::HashSet<String>,
     ) -> Result<()> {
-        // Build basenames map
-        let basenames = build_basenames(url)?;
+        // Build basenames map via Vfs
+        let basenames = vfs.basenames();
 
-        // Parse pyproject.toml
+        // Parse pyproject.toml via Vfs (needed before prefetch so parsers can
+        // filter on build-backend / tool table without re-reading the file).
+        // pyproject.toml is intentionally read here rather than in the prefetch
+        // because it drives which other files are worth reading.
         let pyproject: JsVal = basenames.get("pyproject.toml")
-            .and_then(|p| std::fs::read_to_string(p).ok())
+            .and_then(|rel| vfs.read_text(rel))
             .and_then(|text| toml::from_str::<toml::Value>(&text).ok())
-            .map(|v| toml_to_json(v))
+            .map(toml_to_json)
             .unwrap_or(JsVal::Object(Default::default()));
+
+        // --- Concurrent prefetch ---
+        // Build the lists of files and sub-paths to check in parallel, then
+        // fire all reads/stats concurrently via rayon.  This collapses N
+        // sequential network round-trips into ~1 round-trip worth of latency
+        // for HTTP and S3 backends.
+        let file_names = files_to_prefetch(&basenames, &pyproject);
+        let sub_paths  = subpaths_to_prefetch();
+
+        // Parallel file reads: only fetch files that are present in basenames.
+        let file_cache: HashMap<String, String> = file_names
+            .par_iter()
+            .filter_map(|name| {
+                let rel = basenames.get(*name)?;
+                let text = vfs.read_text(rel)?;
+                Some((name.to_string(), text))
+            })
+            .collect();
+
+        // Parallel existence checks for sub-paths below the root.
+        let exists_cache: HashMap<String, bool> = sub_paths
+            .par_iter()
+            .map(|path| (path.to_string(), vfs.exists(path)))
+            .collect();
 
         let ctx = ParseCtx {
             url,
             basenames: &basenames,
             pyproject: &pyproject,
+            vfs,
+            file_cache: &file_cache,
+            exists_cache: &exists_cache,
         };
 
         // Run all parsers
         for (spec_name, parser_fn) in all_parsers() {
-            // filter by types/xtypes
             if let Some(types) = types {
                 if !types.is_empty() && !types.iter().any(|t| camel_or_snake_eq(t, spec_name)) {
                     continue;
@@ -120,7 +169,6 @@ impl Project {
 
             if let Some(result) = parser_fn(&ctx) {
                 if result.is_extra {
-                    // merge into root
                     self.contents.extend(result.contents);
                     self.artifacts.extend(result.artifacts);
                 } else {
@@ -134,28 +182,38 @@ impl Project {
             }
         }
 
-        // Walk child directories
+        // Walk child directories — only supported for local Fs backend
+        // (opendal::Http and S3 list_dir would require recursive listing)
         let should_walk = match walk {
             Some(true) => true,
             Some(false) => false,
-            None => self.specs.is_empty(), // default: walk only if root matched nothing
+            None => self.specs.is_empty(),
         };
 
-        if should_walk {
-            if let Ok(rd) = std::fs::read_dir(url) {
-                for entry in rd.filter_map(|e| e.ok()) {
-                    let meta = entry.metadata();
-                    if meta.map(|m| !m.is_dir()).unwrap_or(true) { continue; }
-                    let basename = entry.file_name().to_string_lossy().to_string();
-                    if excludes.contains(&basename) || basename.starts_with('.') || basename.starts_with('_') {
-                        continue;
-                    }
-                    let child_url = entry.path().to_string_lossy().to_string();
-                    if let Ok(child) = Project::new(&child_url, walk.map(|_| false), types, xtypes, Some(excludes)) {
+        if should_walk && vfs.scheme == "file" {
+            for basename in vfs.list_dir("") {
+                if excludes.contains(&basename) || basename.starts_with('.') || basename.starts_with('_') {
+                    continue;
+                }
+                // Check it is a directory by trying to list it
+                let sub_entries = vfs.list_dir(&basename);
+                if sub_entries.is_empty() { continue; }
+
+                let child_url = format!("{url}/{basename}");
+                if let Ok(child_vfs) = Vfs::local(&child_url) {
+                    let child_result = Project::new_with_vfs(
+                        &child_url,
+                        &child_url,
+                        child_vfs,
+                        walk.map(|_| false),
+                        types,
+                        xtypes,
+                        Some(excludes),
+                    );
+                    if let Ok(child) = child_result {
                         if !child.specs.is_empty() {
                             self.children.insert(basename, child);
                         } else if !child.children.is_empty() {
-                            // flatten one level (matches Python behaviour)
                             for (s2, p) in child.children {
                                 self.children.insert(format!("{basename}/{s2}"), p);
                             }
@@ -179,26 +237,18 @@ impl Project {
     pub fn all_artifacts(&self) -> Vec<(&str, &Artifact)> {
         let mut out: Vec<(&str, &Artifact)> = vec![];
         for spec in self.specs.values() {
-            for (k, a) in &spec.artifacts {
-                out.push((k, a));
-            }
+            for (k, a) in &spec.artifacts { out.push((k, a)); }
         }
-        for (k, a) in &self.artifacts {
-            out.push((k, a));
-        }
+        for (k, a) in &self.artifacts { out.push((k, a)); }
         out
     }
 
     pub fn all_contents(&self) -> Vec<(&str, &Content)> {
         let mut out: Vec<(&str, &Content)> = vec![];
         for spec in self.specs.values() {
-            for (k, c) in &spec.contents {
-                out.push((k, c));
-            }
+            for (k, c) in &spec.contents { out.push((k, c)); }
         }
-        for (k, c) in &self.contents {
-            out.push((k, c));
-        }
+        for (k, c) in &self.contents { out.push((k, c)); }
         out
     }
 
@@ -207,7 +257,6 @@ impl Project {
         let parts: Vec<&str> = qname.splitn(3, '.').collect();
         match parts.as_slice() {
             [artifact_type] => {
-                // search all specs
                 for spec in self.specs.values() {
                     if let Some(a) = spec.artifacts.get(*artifact_type) {
                         return Some((a, &self.url));
@@ -299,13 +348,11 @@ impl Project {
     }
 
     // -----------------------------------------------------------------------
-    // JSON serialisation (compact=false for library)
+    // JSON serialisation
     // -----------------------------------------------------------------------
 
     pub fn to_json(&self) -> serde_json::Value {
-        // Build a clean JSON representation that avoids serde tag issues.
         fn content_to_json(c: &Content) -> serde_json::Value {
-            // Delegate to serde but wrap with type tag manually
             serde_json::to_value(c).unwrap_or(serde_json::Value::Null)
         }
         fn artifact_to_json(a: &Artifact) -> serde_json::Value {
@@ -345,10 +392,6 @@ impl Project {
     }
 
     pub fn from_json(v: &serde_json::Value) -> Result<Self> {
-        // Our to_json() produces a custom shape; rebuild a Project from it.
-        // We reconstruct only the fields needed for library listing and filtering.
-        // Full round-trip of Content/Artifact detail is not guaranteed — shapes
-        // are stored as Raw JSON for rich display, then deserialized on demand.
         let path = v.get("path").and_then(|x| x.as_str()).unwrap_or("").to_string();
         let url  = v.get("url").and_then(|x| x.as_str()).unwrap_or(&path).to_string();
 
@@ -359,8 +402,8 @@ impl Project {
                 (k.clone(), ParsedSpec {
                     name,
                     spec_doc,
-                    contents: HashMap::new(),  // not round-tripped for now
-                    artifacts: HashMap::new(), // not round-tripped for now
+                    contents: HashMap::new(),
+                    artifacts: HashMap::new(),
                 })
             }).collect()
         }).unwrap_or_default();
@@ -386,16 +429,85 @@ impl Project {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Build {basename: full_path} for every entry in a directory.
-pub fn build_basenames(url: &str) -> Result<HashMap<String, String>> {
-    let mut map = HashMap::new();
-    let rd = std::fs::read_dir(url)?;
-    for entry in rd.filter_map(|e| e.ok()) {
-        let basename = entry.file_name().to_string_lossy().to_string();
-        let full = entry.path().to_string_lossy().to_string();
-        map.insert(basename, full);
-    }
-    Ok(map)
+/// Return the set of root-level files to pre-fetch concurrently before parsers run.
+///
+/// Strategy: fetch every file present in `basenames` whose extension (or full name)
+/// is in the set of metadata types that parsers commonly read. This is purely
+/// extension-driven — no per-filename maintenance is required when a new parser
+/// is added, as long as it reads a recognised metadata format.
+///
+/// Recognised extensions / names:
+///   .toml   — pixi.toml, Cargo.toml, book.toml, pyscript.toml, uv.toml, …
+///   .yaml   — Chart.yaml, conda-project.yml, .readthedocs.yaml, …
+///   .yml    — same (alternate extension)
+///   .json   — package.json, datapackage.json, .zenodo.json, …
+///   .txt    — requirements.txt, LICENSE.txt, …
+///   .md     — README.md, CITATION.md, …
+///   .lock   — uv.lock, poetry.lock, pixi.lock, …
+///   .cff    — CITATION.cff
+///   .py     — marimo content-scan (all root-level .py files)
+///   .mod    — go.mod
+///   .toml   — (already covered)
+///
+/// Extensionless special cases read by parsers:
+///   MLFlow, Dockerfile, LICENSE, LICENCE, COPYING — matched by name prefix/exact.
+///
+/// pyproject.toml is intentionally excluded — it is read before prefetch so
+/// its contents are available to seed any future dynamic candidate logic.
+///
+/// The file listing itself (basenames) is already a single cached VFS call made
+/// at the start of resolve(); ctx.has() / ctx.has_any() are free HashMap lookups.
+/// This function is only about pre-reading file *contents*, not listing.
+pub fn files_to_prefetch<'a>(
+    basenames: &'a HashMap<String, String>,
+    _pyproject: &JsVal,
+) -> Vec<&'a str> {
+    /// Extensions whose files are always worth pre-fetching.
+    const PREFETCH_EXTS: &[&str] = &[
+        ".toml", ".yaml", ".yml", ".json",
+        ".txt", ".md", ".lock", ".cff", ".py", ".mod",
+    ];
+
+    /// Extensionless basenames that parsers read by exact name.
+    const PREFETCH_EXACT: &[&str] = &["MLFlow", "Dockerfile"];
+
+    /// Prefixes for extensionless license/copying files.
+    const LICENSE_PREFIXES: &[&str] = &["LICENSE", "LICENCE", "COPYING"];
+
+    basenames
+        .keys()
+        // exclude pyproject.toml — read separately before prefetch
+        .filter(|name| *name != "pyproject.toml")
+        .filter(|name| {
+            // matches a known extension?
+            if PREFETCH_EXTS.iter().any(|ext| name.ends_with(ext)) {
+                return true;
+            }
+            // exact match (MLFlow, Dockerfile)?
+            if PREFETCH_EXACT.contains(&name.as_str()) {
+                return true;
+            }
+            // license-family prefix (extensionless, e.g. "LICENSE", "COPYING")?
+            LICENSE_PREFIXES.iter().any(|pfx| name.starts_with(pfx))
+        })
+        .map(|s| s.as_str())
+        .collect()
+}
+
+/// Sub-paths below the root whose *existence* parsers check via ctx.vfs_exists().
+/// These are not visible in basenames (they are inside sub-directories) so they
+/// cannot be covered by the extension-based prefetch above.
+///
+/// Unlike files_to_prefetch, this list DOES require manual maintenance:
+/// add an entry whenever a new `ctx.vfs_exists("some/sub/path")` call is added
+/// to spec.rs.
+pub fn subpaths_to_prefetch() -> Vec<&'static str> {
+    vec![
+        ".vscode/settings.json",  // parse_vscode
+        ".idea",                  // parse_jetbrains
+        ".project/spec.yaml",     // parse_nvidia_workbench
+        "cmd",                    // parse_golang binary check
+    ]
 }
 
 /// Convert toml::Value to serde_json::Value recursively.
@@ -415,7 +527,6 @@ pub fn toml_to_json(v: toml::Value) -> JsVal {
     }
 }
 
-/// Compare a user-supplied name (camelCase or snake_case) with a registry key (snake_case).
 fn camel_or_snake_eq(user: &str, snake: &str) -> bool {
     user == snake || camel_to_snake(user) == snake
 }

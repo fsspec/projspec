@@ -241,7 +241,7 @@ The `scan_max_size` config is preserved for compatibility but not enforced
 | `ProjectSpec` class per spec type | Free function `parse_<name>()` |
 | `AttrDict` | `HashMap<String, Content/Artifact>` |
 | `ProjectExtra` subclass | `SpecResult { is_extra: true }` |
-| `fsspec` remote FS | Local `std::fs` only |
+| `fsspec` remote FS | `opendal::blocking::Operator` via `Vfs` struct in `fs.rs` |
 | `scanned_files` pre-read cache | On-demand file reads per parser |
 | `to_dict(compact=False)` round-trip | Partial: `to_json()` + `from_json()` |
 | HTML output | Not implemented |
@@ -256,8 +256,10 @@ The `scan_max_size` config is preserved for compatibility but not enforced
    contents and artifacts when loading from library.  The JSON is saved
    correctly; add `Content`/`Artifact` deserialisers to restore fully.
 
-2. **Remote filesystem** — Add optional S3/GCS support (e.g. via `object_store`
-   crate) to match Python's fsspec usage.
+2. **Remote filesystem** — Implemented via `opendal` (see D-FS1–D-FS5 below).
+   S3 (including moto/minio), HTTP, local Fs, and memory backends are supported.
+   GCS / Azure / HDFS are available via opendal features but not yet wired up in
+   `vfs_from_url()`.
 
 3. **UvScript spec** — Inline `# /// script` metadata in `.py` files requires
    content scanning.  Currently not implemented; add it alongside D11 fix.
@@ -295,7 +297,227 @@ When the Python reference changes, run through this list:
       Update `cli.rs`.
 - [ ] Re-read `config.py` — were new config keys added?
       Update `Config` struct and `defaults_table()`.
+- [ ] **Prefetch maintenance** (see D-PF4):
+      - New `ctx.vfs_exists("sub/path")` in spec.rs? → add to `subpaths_to_prefetch()`.
+      - New parser reads a file with an extension not in `PREFETCH_EXTS`? → add extension.
+      - New `ctx.read_text("name.yaml")` etc.? → no action needed (covered by extension rule).
 - [ ] Compile: `cargo build`
+- [ ] Run tests: `cargo test --test test_memory && cargo test --test test_http && cargo test --test test_s3 -- --test-threads=1`
 - [ ] Smoke-test: `./target/debug/projspec scan /data` and compare output
       with Python: `python -m projspec scan /data`
 - [ ] Update this CODEGEN.md with any new decisions made.
+
+---
+
+## Remote filesystem with opendal (D-FS1 – D-FS5)
+
+Added in the second iteration of projspec-rs.
+
+### D-FS1: `opendal::blocking::Operator` — not async
+
+opendal's primary API is async (tokio-based).  The parsers are CPU-bound string
+processing and are synchronous throughout.  We use `opendal::blocking::Operator`
+which internally calls `block_on()` on a tokio runtime.  A single global
+`tokio::runtime::Runtime` is created via `OnceLock` in `fs.rs:get_runtime()` and
+reused for every Vfs operation.
+
+**Decision**: one global runtime, not per-request.  Multiple `Vfs` instances
+share the same runtime; this is safe because `blocking::Operator` is `Clone`.
+
+### D-FS2: `Vfs` is a struct, not a trait
+
+`Vfs` wraps `opendal::blocking::Operator` directly.  No `dyn Vfs` boxing.
+`ParseCtx` holds `&'a Vfs` (a borrow), so it is zero-cost.  If multiple
+heterogeneous backends per parse-pass are ever needed, introduce a trait then.
+
+### D-FS3: Operator root = project root; paths are relative
+
+Each `Vfs` is rooted at the project directory (or bucket prefix for S3).
+All file reads inside parsers use relative paths (e.g. `"pyproject.toml"`,
+not `"/data/pyproject.toml"`).  `vfs.basenames()` returns `{basename: basename}`
+(the relative path equals the basename at the root level).
+
+**For S3**: `list_dir("/")` returns object keys relative to the configured root
+prefix.  No path translation is needed.
+
+**For HTTP**: `list_dir()` is not supported (opendal Http only provides read+stat).
+The `parse_http()` helper in the HTTP test manually constructs the basenames map.
+In production `Project::new_with_vfs()` with an HTTP backend will produce an
+empty project unless basenames are supplied externally (e.g. from a manifest).
+
+### D-FS4: HTTP backend limitation — no listing
+
+The opendal `services::Http` builder supports `read` and `stat` only.
+`list_dir()` returns an empty vec for HTTP backends.
+
+**Consequence**: `Project::new_with_vfs()` produces an empty project when called
+with an HTTP `Vfs` and no externally-provided basenames, because `vfs.basenames()`
+returns `{}`.
+
+**Workaround implemented in tests**: `parse_http()` in `tests/test_http.rs`
+manually builds the basenames from a known list of filenames, then constructs
+a `ParseCtx` directly.
+
+**Future work**: add a `basenames_override` parameter to `Project::new_with_vfs()`
+so callers can supply a pre-populated basenames map (e.g. from an index file or
+directory manifest).
+
+### D-FS5: S3 credentials from environment variables only
+
+The opendal S3 builder automatically loads credentials from environment:
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_ENDPOINT_URL`.
+We do **not** call `disable_config_load()` so the full AWS credential chain works.
+
+For moto (test S3), these env vars are set to dummy values before each test.
+The `set_moto_env()` helper uses `unsafe { std::env::set_var(...) }` because
+`set_var` is unsafe in Rust 2024; tests run with `--test-threads=1` to avoid
+data races on env vars.
+
+`AWS_ENDPOINT_URL` is the standard env var for pointing S3 clients at a custom
+endpoint (moto, minio, etc.).  opendal reads it via its `disable_config_load`
+flag being absent.
+
+### D-FS6: `lib.rs` added for integration tests
+
+Because this crate is a `[[bin]]`-only crate, integration tests in `tests/`
+cannot import internal modules.  Adding `[lib]` with `name = "projspec_rs"` and
+a `src/lib.rs` that re-exports all modules allows tests to use `projspec_rs::fs`,
+`projspec_rs::project`, etc.
+
+The binary (`main.rs`) continues to declare its own `mod` statements and call
+`cli::run()`; the library crate independently exposes the same modules.
+
+### D-FS7: moto server startup protocol
+
+The Python moto fixture (`tests/fixtures/moto_server.py`):
+1. Starts a werkzeug HTTP server on port 0 (OS-assigned).
+2. Populates a `projspec-test` bucket with fixture files.
+3. **Prints the actual port on stdout** (single line, flushed).
+4. Blocks on `sys.stdin.read()` until stdin closes (Rust drops the child's stdin pipe).
+
+The Rust test reads the first stdout line to get the port.  werkzeug request
+logs are suppressed (`logging.getLogger("werkzeug").setLevel(ERROR)`) to prevent
+them from appearing before the port line.
+
+### Testing commands
+
+```bash
+# Fast: no external processes
+cargo test --test test_memory
+
+# Requires Python + http.server stdlib (built-in)
+cargo test --test test_http
+
+# Requires: pip install moto[server] boto3 flask-cors
+# Run single-threaded to avoid env-var races
+cargo test --test test_s3 -- --test-threads=1
+
+# All tests
+cargo test --test test_memory && \
+cargo test --test test_http && \
+cargo test --test test_s3 -- --test-threads=1
+```
+
+---
+
+## Concurrent file prefetch (D-PF1 – D-PF4)
+
+Added in the third iteration of projspec-rs.
+
+### Motivation
+
+Each call to `ctx.read_text()` / `ctx.read_yaml()` / `ctx.read_toml()` inside a
+parser is a synchronous VFS operation.  For local `Fs` this costs microseconds.
+For HTTP and S3 each call is a network round-trip (1–100 ms).  With ~25 files
+potentially read across all parsers, sequential access adds up to seconds on
+remote backends.
+
+### D-PF1: Pre-fetch all candidate files in parallel before parsers run
+
+In `project.rs::resolve()`, after `vfs.basenames()` returns and `pyproject.toml`
+is parsed, two parallel operations are launched via `rayon::par_iter`:
+
+1. **File reads** — `files_to_prefetch()` returns the static list of all
+   filenames any parser might read, intersected with the files actually present
+   in `basenames`.  Each present file is read once concurrently.  Result:
+   `file_cache: HashMap<String, String>`.
+
+2. **Existence checks** — `subpaths_to_prefetch()` returns sub-paths below the
+   root that parsers check via `ctx.vfs_exists()` (e.g. `.vscode/settings.json`,
+   `.idea`).  Each is stat'd concurrently.  Result:
+   `exists_cache: HashMap<String, bool>`.
+
+Both caches are owned by `resolve()` and passed into `ParseCtx` as borrows.
+
+### D-PF2: `pyproject.toml` is read before prefetch, not during it
+
+`pyproject.toml` must be read before `files_to_prefetch()` is called because
+future enhancements might use its contents to decide which additional files to
+include (e.g. if `[tool.pixi]` is present, include `pixi.lock`).  It is
+therefore excluded from the static prefetch list to avoid double-reading.
+
+### D-PF3: `ParseCtx` cache check order
+
+`ParseCtx::read_text(name)` now:
+1. Checks `file_cache` (HashMap lookup, O(1), zero I/O).
+2. On miss: looks up `rel = basenames[name]`, then calls `vfs.read_text(rel)`.
+
+`ParseCtx::vfs_exists(path)` now:
+1. Checks `exists_cache`.
+2. On miss: calls `vfs.exists(path)` live.
+
+`parse_marimo` — the only content-scanning parser — calls `ctx.read_text_path(rel)`
+which also checks `file_cache` keyed by the relative path.  Since `.py` files are
+included in the dynamic part of `files_to_prefetch()`, marimo scanning is always
+cache-served after the first project instantiation.
+
+### D-PF4: Maintenance rules — what requires manual upkeep
+
+**File contents (`files_to_prefetch`)** — **no manual upkeep required** for
+new parsers, provided they read files of a recognised type.  The function
+prefetches every file in `basenames` whose extension (or name) matches a fixed
+set of metadata formats:
+
+| Extension / name | Examples |
+|---|---|
+| `.toml` | pixi.toml, Cargo.toml, book.toml, pyscript.toml |
+| `.yaml` / `.yml` | Chart.yaml, .readthedocs.yaml, environment.yml |
+| `.json` | package.json, datapackage.json, .zenodo.json |
+| `.txt` | requirements.txt, LICENSE.txt |
+| `.md` | README.md, CITATION.md |
+| `.lock` | uv.lock, poetry.lock, pixi.lock |
+| `.cff` | CITATION.cff |
+| `.py` | marimo content-scan, pyscript |
+| `.mod` | go.mod |
+| `MLFlow`, `Dockerfile` | exact-name match |
+| `LICENSE*`, `LICENCE*`, `COPYING*` | prefix match |
+
+`pyproject.toml` is always excluded — it is read before prefetch.
+
+If a future parser reads a file with an extension **not** in this list (e.g.
+`.rb`, `.gradle`), add that extension to `PREFETCH_EXTS` in
+`project.rs::files_to_prefetch()`.  That is the only maintenance needed.
+
+**File listing (`basenames`)** — **no upkeep needed at all**.  `basenames` is
+built by a single `vfs.basenames()` call at the start of `resolve()` and is
+available to all parsers as a free HashMap lookup via `ctx.has()` /
+`ctx.has_any()`.  It already covers the full root listing.
+
+**Sub-path existence (`subpaths_to_prefetch`)** — **manual upkeep required**.
+These are paths *inside* sub-directories (e.g. `.vscode/settings.json`) that
+cannot be inferred from the root listing.  Add an entry here whenever a new
+`ctx.vfs_exists("some/sub/path")` call is introduced in spec.rs.
+
+### Performance impact
+
+| Backend | Before | After |
+|---|---|---|
+| Local `Fs` | ~0.5 ms (25 sequential syscalls) | ~0.1 ms (parallel, OS cache) |
+| Memory | ~0 ms | ~0 ms (no change) |
+| HTTP (100 ms RTT) | ~2.5 s (25 × 100 ms) | ~100 ms (parallel) |
+| S3 (20 ms RTT) | ~500 ms (25 × 20 ms) | ~20 ms (parallel) |
+
+Actual numbers depend on backend latency, connection pool size, and how many
+files are actually present.  For a minimal Python project (pyproject.toml + uv.lock
++ README.md) the effective file count is ~3, so the improvement is ~3× even
+without parallelism.

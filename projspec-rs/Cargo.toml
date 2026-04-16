@@ -9,6 +9,10 @@ authors = ["projspec contributors"]
 name = "projspec"
 path = "src/main.rs"
 
+[lib]
+name = "projspec_rs"
+path = "src/lib.rs"
+
 [dependencies]
 # CLI
 clap = { version = "4", features = ["derive", "env"] }
@@ -26,7 +30,7 @@ serde_yaml = "0.9"
 # Regex
 regex = "1"
 
-# Filesystem helpers
+# Filesystem helpers (used by artifact/create/library modules only)
 walkdir = "2"
 glob = "0.3"
 
@@ -37,5 +41,21 @@ thiserror = "2"
 # Home dir (~/.config)
 dirs = "6"
 
+# Virtual filesystem — opendal blocking API + backends we support
+opendal = { version = "0.55", features = [
+    "blocking",
+    "services-fs",
+    "services-memory",
+    "services-http",
+    "services-s3",
+] }
+
+# Async runtime required by opendal's blocking wrapper
+tokio = { version = "1", features = ["rt-multi-thread"] }
+
+# Parallel prefetch of project files
+rayon = "1"
+
 [dev-dependencies]
 tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
