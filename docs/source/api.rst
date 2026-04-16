@@ -133,9 +133,9 @@ User Classes
 ~~~~~~~~~~~~
 
 .. autosummary::
-    content.data.FrictionlessData
     content.data.IntakeSource
     content.data.TabularData
+    content.data.DataResource
     content.env_var.EnvironmentVariables
     content.environment.Environment
     content.executable.Command
@@ -145,8 +145,8 @@ User Classes
     content.package.PythonPackage
     content.package.RustModule
 
-.. autoclass:: projspec.content.data.FrictionlessData
 .. autoclass:: projspec.content.data.IntakeSource
+.. autoclass:: projspec.content.data.DataResource
 .. autoclass:: projspec.content.data.TabularData
 .. autoclass:: projspec.content.env_var.EnvironmentVariables
 .. autoclass:: projspec.content.environment.Environment
