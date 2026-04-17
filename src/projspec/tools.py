@@ -24,9 +24,6 @@ class ToolInfo:
 TOOLS: dict[str, ToolInfo] = {
     t.name: t
     for t in [
-        # ------------------------------------------------------------------
-        # Python ecosystem
-        # ------------------------------------------------------------------
         ToolInfo(
             name="uv",
             description="Extremely fast Python package and project manager (pip/venv/build replacement).",
@@ -69,9 +66,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "pipx install pre-commit",
             ],
         ),
-        # ------------------------------------------------------------------
-        # Conda ecosystem
-        # ------------------------------------------------------------------
         ToolInfo(
             name="conda",
             description="Cross-platform package and environment manager (Anaconda/Miniconda/Miniforge).",
@@ -112,9 +106,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "conda install -c conda-forge pixi",
             ],
         ),
-        # ------------------------------------------------------------------
-        # Containers
-        # ------------------------------------------------------------------
         ToolInfo(
             name="docker",
             description="Container platform for building, shipping, and running applications.",
@@ -124,9 +115,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "sudo dnf install docker-ce docker-ce-cli containerd.io",
             ],
         ),
-        # ------------------------------------------------------------------
-        # Node / JavaScript ecosystem
-        # ------------------------------------------------------------------
         ToolInfo(
             name="node",
             description="JavaScript runtime environment (Node.js).",
@@ -173,9 +161,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "brew install copier",
             ],
         ),
-        # ------------------------------------------------------------------
-        # Rust ecosystem
-        # ------------------------------------------------------------------
         ToolInfo(
             name="cargo",
             description="Rust package manager and build tool.",
@@ -196,9 +181,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "cargo install maturin",
             ],
         ),
-        # ------------------------------------------------------------------
-        # Version control
-        # ------------------------------------------------------------------
         ToolInfo(
             name="git",
             description="Distributed version control system.",
@@ -210,9 +192,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "winget install --id=Git.Git",
             ],
         ),
-        # ------------------------------------------------------------------
-        # Web frameworks / app runners
-        # ------------------------------------------------------------------
         ToolInfo(
             name="streamlit",
             description="Framework for turning Python scripts into shareable web apps.",
@@ -391,9 +370,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "mamba install -c conda-forge -c bioconda snakemake",
             ],
         ),
-        # ------------------------------------------------------------------
-        # Documentation tools
-        # ------------------------------------------------------------------
         ToolInfo(
             name="mkdocs",
             description="Static site generator for project documentation, written in Python.",
@@ -432,9 +408,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "conda install -c conda-forge mdbook",
             ],
         ),
-        # ------------------------------------------------------------------
-        # Infrastructure / IaC tools
-        # ------------------------------------------------------------------
         ToolInfo(
             name="terraform",
             description="Infrastructure as Code tool by HashiCorp for provisioning cloud resources.",
