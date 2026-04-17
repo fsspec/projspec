@@ -45,7 +45,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "uv python install 3.12",
                 "conda install python=3.12",
                 "brew install python",
-                "https://www.python.org/downloads/",
                 "winget install --id=Python.Python.3",
             ],
         ),
@@ -77,10 +76,13 @@ TOOLS: dict[str, ToolInfo] = {
             name="conda",
             description="Cross-platform package and environment manager (Anaconda/Miniconda/Miniforge).",
             install_suggestions=[
-                "https://github.com/conda-forge/miniforge#install",
-                "https://docs.conda.io/en/latest/miniconda.html",
                 "brew install --cask miniforge",
                 "winget install --id=Anaconda.Miniconda3",
+                (
+                    "mkdir -p ~/miniconda3 && wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh "
+                    "&& bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3 && rm -rf ~/miniconda3/miniconda.sh "
+                    "&& ~/miniconda3/bin/conda init bash"
+                ),
             ],
         ),
         ToolInfo(
@@ -98,7 +100,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "conda install -c conda-forge rattler-build",
                 "cargo install rattler-build",
                 "brew install rattler-build",
-                "https://github.com/prefix-dev/rattler-build/releases",
             ],
         ),
         ToolInfo(
@@ -118,7 +119,6 @@ TOOLS: dict[str, ToolInfo] = {
             name="docker",
             description="Container platform for building, shipping, and running applications.",
             install_suggestions=[
-                "https://www.docker.com/products/docker-desktop/",
                 "brew install --cask docker",
                 "sudo apt-get install docker-ce docker-ce-cli containerd.io",
                 "sudo dnf install docker-ce docker-ce-cli containerd.io",
@@ -134,7 +134,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && nvm install --lts",
                 "conda install -c conda-forge nodejs",
                 "brew install node",
-                "https://nodejs.org/en/download/",
                 "winget install --id=OpenJS.NodeJS",
             ],
         ),
@@ -142,8 +141,8 @@ TOOLS: dict[str, ToolInfo] = {
             name="npm",
             description="Default package manager bundled with Node.js.",
             install_suggestions=[
-                "https://nodejs.org/en/download/",
                 "nvm install --lts",
+                "brew install node",
                 "conda install -c conda-forge nodejs",
             ],
         ),
@@ -154,7 +153,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "npm install -g yarn",
                 "brew install yarn",
                 "conda install -c conda-forge yarn",
-                "https://yarnpkg.com/getting-started/install",
             ],
         ),
         ToolInfo(
@@ -210,7 +208,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "sudo dnf install git",
                 "conda install -c conda-forge git",
                 "winget install --id=Git.Git",
-                "https://git-scm.com/downloads",
             ],
         ),
         # ------------------------------------------------------------------
@@ -280,9 +277,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "conda install -c conda-forge briefcase",
             ],
         ),
-        # ------------------------------------------------------------------
-        # MLOps
-        # ------------------------------------------------------------------
         ToolInfo(
             name="mlflow",
             description="Open-source platform for managing the ML lifecycle.",
@@ -292,9 +286,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "uv add mlflow",
             ],
         ),
-        # ------------------------------------------------------------------
-        # CI/CD task runners
-        # ------------------------------------------------------------------
         ToolInfo(
             name="task",
             description="Task runner / build tool using Taskfile.yml (go-task).",
@@ -303,7 +294,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "conda install -c conda-forge go-task",
                 'sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin',
                 "winget install --id=Task.Task",
-                "https://taskfile.dev/installation/",
             ],
         ),
         ToolInfo(
@@ -314,7 +304,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "conda install -c conda-forge just",
                 "cargo install just",
                 "winget install --id=Casey.Just",
-                "https://github.com/casey/just#installation",
             ],
         ),
         ToolInfo(
@@ -337,9 +326,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "uv tool install nox",
             ],
         ),
-        # ------------------------------------------------------------------
-        # Data / ML workflow tools
-        # ------------------------------------------------------------------
         ToolInfo(
             name="dbt",
             description="Data transformation tool that runs SQL models against a data warehouse.",
@@ -347,14 +333,12 @@ TOOLS: dict[str, ToolInfo] = {
                 "pip install dbt-core",
                 "uv add dbt-core",
                 "conda install -c conda-forge dbt-core",
-                "https://docs.getdbt.com/docs/core/installation-overview",
             ],
         ),
         ToolInfo(
             name="quarto",
             description="Open-source scientific and technical publishing system.",
             install_suggestions=[
-                "https://quarto.org/docs/get-started/",
                 "brew install --cask quarto",
                 "conda install -c conda-forge quarto",
                 "winget install --id=Posit.Quarto",
@@ -395,7 +379,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "pip install apache-airflow",
                 "uv add apache-airflow",
                 "conda install -c conda-forge apache-airflow",
-                "https://airflow.apache.org/docs/apache-airflow/stable/installation/",
             ],
         ),
         ToolInfo(
@@ -447,7 +430,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "cargo install mdbook",
                 "brew install mdbook",
                 "conda install -c conda-forge mdbook",
-                "https://rust-lang.github.io/mdBook/guide/installation.html",
             ],
         ),
         # ------------------------------------------------------------------
@@ -460,7 +442,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "brew install terraform",
                 "conda install -c conda-forge terraform",
                 "winget install --id=Hashicorp.Terraform",
-                "https://developer.hashicorp.com/terraform/install",
             ],
         ),
         ToolInfo(
@@ -482,7 +463,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "brew install pulumi/tap/pulumi",
                 "conda install -c conda-forge pulumi",
                 "winget install --id=Pulumi.Pulumi",
-                "https://www.pulumi.com/docs/install/",
             ],
         ),
         ToolInfo(
@@ -491,7 +471,6 @@ TOOLS: dict[str, ToolInfo] = {
             install_suggestions=[
                 "npm install -g aws-cdk",
                 "npx aws-cdk@latest",
-                "https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html",
             ],
         ),
         ToolInfo(
@@ -501,7 +480,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "brew install earthly/earthly/earthly",
                 "sudo /bin/sh -c 'wget https://github.com/earthly/earthly/releases/latest/download/earthly-linux-amd64 -O /usr/local/bin/earthly && chmod +x /usr/local/bin/earthly'",
                 "winget install --id=Earthly.Earthly",
-                "https://earthly.dev/get-earthly",
             ],
         ),
         ToolInfo(
@@ -510,7 +488,6 @@ TOOLS: dict[str, ToolInfo] = {
             install_suggestions=[
                 "curl -sSL https://nixpacks.com/install.sh | bash",
                 "brew install railwayapp/tap/nixpacks",
-                "https://nixpacks.com/docs/getting-started",
             ],
         ),
         ToolInfo(
@@ -520,12 +497,8 @@ TOOLS: dict[str, ToolInfo] = {
                 "brew install --cask vagrant",
                 "winget install --id=Hashicorp.Vagrant",
                 "conda install -c conda-forge vagrant",
-                "https://developer.hashicorp.com/vagrant/install",
             ],
         ),
-        # ------------------------------------------------------------------
-        # JavaScript / Node alternative runtimes and package managers
-        # ------------------------------------------------------------------
         ToolInfo(
             name="pnpm",
             description="Fast, disk-efficient Node.js package manager.",
@@ -533,7 +506,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "npm install -g pnpm",
                 "brew install pnpm",
                 "winget install --id=pnpm.pnpm",
-                "https://pnpm.io/installation",
             ],
         ),
         ToolInfo(
@@ -543,7 +515,6 @@ TOOLS: dict[str, ToolInfo] = {
                 "curl -fsSL https://bun.sh/install | bash",
                 "brew install oven-sh/bun/bun",
                 "winget install --id=Oven-sh.Bun",
-                "https://bun.sh/docs/installation",
             ],
         ),
         ToolInfo(
@@ -554,21 +525,16 @@ TOOLS: dict[str, ToolInfo] = {
                 "brew install deno",
                 "conda install -c conda-forge deno",
                 "winget install --id=DenoLand.Deno",
-                "https://deno.com/manual/getting_started/installation",
             ],
         ),
         ToolInfo(
             name="npx",
             description="Node.js package runner bundled with npm; executes packages without installing.",
             install_suggestions=[
-                "https://nodejs.org/en/download/",
                 "nvm install --lts",
                 "conda install -c conda-forge nodejs",
             ],
         ),
-        # ------------------------------------------------------------------
-        # Web app frameworks (Python)
-        # ------------------------------------------------------------------
         ToolInfo(
             name="shiny",
             description="Shiny for Python — build interactive web apps from Python scripts.",
