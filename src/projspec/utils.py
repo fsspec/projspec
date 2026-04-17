@@ -176,10 +176,11 @@ class IsInstalled:
         self.env = _linked_local_path(sys.executable)
 
     def exists(self, cmd: str, refresh=False):
-        """Test if command can be called, by starting a subprocess
+        """Test if command can be called by starting a subprocess
 
-        This is more costly what some PATH lookup (i.e., what ``which()`` does), but also
-        more rigorous.
+        This is more costly what some PATH lookup (i.e., what `which()` does), but also
+        more rigorous. We cache the result - currently for the session, and
+        eventually persistently.
         """
         if refresh or (self.env, cmd) not in self.cache:
             try:

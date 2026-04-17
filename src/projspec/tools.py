@@ -1,4 +1,11 @@
+from __future__ import annotations
+
+import platform
+import subprocess
+import sys
 from dataclasses import dataclass, field
+
+from projspec.utils import is_installed
 
 
 @dataclass
@@ -527,7 +534,7 @@ def suggest(tool_name: str) -> str:
     Parameters
     ----------
     tool_name:
-        The executable name as it appears in ``TOOLS`` (e.g. ``"uv"``).
+        The executable name as it appears in `TOOLS` (e.g. `"uv"`).
 
     Returns
     -------
@@ -557,3 +564,181 @@ def suggest(tool_name: str) -> str:
     for command in info.install_suggestions:
         lines.append(f"  {command}")
     return "\n".join(lines)
+
+
+def _is_url(s: str) -> bool:
+    return s.startswith(("https://", "http://"))
+
+
+def _is_shell_string(s: str) -> bool:
+    """True when *s* requires a POSIX shell (contains a pipe, redirect, etc.)."""
+    return any(ch in s for ch in ("|", ">", "<", "&&", ";"))
+
+
+def _leading_executable(s: str) -> str:
+    """Return the first word of an install string (the executable to invoke)."""
+    return s.split()[0] if s.split() else ""
+
+
+# Platform names returned by sys.platform
+_WINDOWS_PLATFORMS = {"win32", "cygwin", "msys"}
+_IS_POSIX = sys.platform not in _WINDOWS_PLATFORMS
+_CURRENT_PLATFORM = sys.platform if _IS_POSIX else "windows"
+
+
+def _method_is_viable(install_string: str) -> bool:
+    """Return True when *install_string* can in principle be run on this machine.
+
+    Rules:
+    - URL strings are never directly executable.
+    - `winget` strings are only viable on Windows.
+    - Shell one-liners (containing `|`, `>`, etc.) are only viable on POSIX.
+    - `brew` is only viable when Homebrew is present (i.e. on macOS/Linux with
+      Homebrew installed).
+    - For everything else: viable if the leading executable exists on PATH.
+    """
+    if _is_url(install_string):
+        return False
+
+    # winget is Windows-only
+    if _leading_executable(install_string) == "winget":
+        return not _IS_POSIX
+
+    # Shell one-liners require a POSIX shell
+    if _is_shell_string(install_string):
+        return _IS_POSIX and _leading_executable(install_string) in is_installed
+
+    exe = _leading_executable(install_string)
+    return exe in is_installed
+
+
+def _preferred_install_methods() -> list[str]:
+    """Return the user-configured ordered preference list of installer names.
+
+    Reads `preferred_install_methods` from projspec config (a list of
+    installer executable names, e.g. `["uv", "conda", "pip"]`).  Falls back
+    to a sensible platform-appropriate default ordering when not configured.
+    """
+    from projspec.config import get_conf
+
+    user = get_conf("preferred_install_methods")
+
+    # Sensible first line install options
+    defaults: list[str] = [
+        "uv",
+        "conda",
+        "mamba",
+        "pip",
+        "pip3",
+        "pipx",
+        "cargo",
+        "npm",
+        "npx",
+    ]
+    if not _IS_POSIX:
+        defaults.append("winget")
+    # shell one-liners come last among executable methods
+    defaults += ["brew", "curl", "sh", "bash", "sudo"]
+
+    actual = user + [_ for _ in defaults if _ not in user]
+    return actual
+
+
+def _rank_install_string(s: str, preference_order: list[str]) -> tuple[int, int]:
+    """Return a (preference_rank, original_index) sort key for *s*.
+
+    Lower is better.  Strings whose leading executable appears earlier in
+    *preference_order* sort first.  URLs and shell strings without a
+    recognisable leading executable go to the end.
+    """
+    exe = _leading_executable(s)
+    try:
+        rank = preference_order.index(exe)
+    except ValueError:
+        rank = len(preference_order)
+    return rank
+
+
+def choose_install_method(tool_name: str) -> str | None:
+    """Pick the best viable install method for *tool_name* on this machine.
+
+    Selection algorithm
+    -------------------
+    1. Look up *tool_name* in :data:`TOOLS`.  If not found, return `None`.
+    2. Filter `install_suggestions` to those that are *viable* on the current
+       platform (see :func:`_method_is_viable`).
+    3. Among the viable candidates, rank them by the ordered preference list
+       obtained from :func:`_preferred_install_methods` (which reads
+       `preferred_install_methods` from the projspec config, falling back to
+       a sensible platform default).
+    4. Return the best-ranked candidate, or `None` if no viable candidate
+       exists.
+
+    Parameters
+    ----------
+    tool_name:
+        The executable name as it appears in :data:`TOOLS` (e.g. `"uv"`).
+
+    Returns
+    -------
+    str or None
+        The chosen install string (e.g. `"pip install uv"`), or `None`
+        when the tool is unknown or no viable install method was found.
+    """
+    info = TOOLS.get(tool_name)
+    if info is None:
+        return None
+
+    preference = _preferred_install_methods()
+    viable = [s for s in info.install_suggestions if _method_is_viable(s)]
+    if not viable:
+        return None
+
+    return min(viable, key=lambda s: _rank_install_string(s, preference))
+
+
+def install_tool(tool_name: str) -> int:
+    """Install *tool_name* using the best available method for this machine.
+
+    Selects an install command via :func:`choose_install_method`, then
+    executes it.  Shell-style strings (those containing `|`, `>`, etc.)
+    are run with `subprocess.call(..., shell=True)`; regular space-separated
+    commands are split and passed as a list.
+
+    Parameters
+    ----------
+    tool_name:
+        The executable name as it appears in :data:`TOOLS` (e.g. `"uv"`).
+
+    Returns
+    -------
+    int
+        The exit code of the install command (0 = success).
+
+    Raises
+    ------
+    ValueError
+        If *tool_name* is not found in :data:`TOOLS`.
+    RuntimeError
+        If no viable install method exists for the current platform.
+    """
+    info = TOOLS.get(tool_name)
+    if info is None:
+        raise ValueError(
+            f"Unknown tool {tool_name!r}. " f"Known tools: {', '.join(sorted(TOOLS))}"
+        )
+
+    method = choose_install_method(tool_name)
+    if method is None:
+        raise RuntimeError(
+            f"No viable install method found for {tool_name!r} "
+            f"on {_CURRENT_PLATFORM!r}. "
+            f"Available suggestions:\n"
+            + "\n".join(f"  {s}" for s in info.install_suggestions)
+        )
+
+    if _is_shell_string(method):
+        # Shell one-liners must run in a POSIX shell
+        return subprocess.call(method, shell=True)
+    else:
+        return subprocess.call(method.split())
