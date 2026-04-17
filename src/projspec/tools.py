@@ -292,6 +292,292 @@ TOOLS: dict[str, ToolInfo] = {
                 "uv add mlflow",
             ],
         ),
+        # ------------------------------------------------------------------
+        # CI/CD task runners
+        # ------------------------------------------------------------------
+        ToolInfo(
+            name="task",
+            description="Task runner / build tool using Taskfile.yml (go-task).",
+            install_suggestions=[
+                "brew install go-task",
+                "conda install -c conda-forge go-task",
+                'sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin',
+                "winget install --id=Task.Task",
+                "https://taskfile.dev/installation/",
+            ],
+        ),
+        ToolInfo(
+            name="just",
+            description="Command runner for project-specific scripts defined in a justfile.",
+            install_suggestions=[
+                "brew install just",
+                "conda install -c conda-forge just",
+                "cargo install just",
+                "winget install --id=Casey.Just",
+                "https://github.com/casey/just#installation",
+            ],
+        ),
+        ToolInfo(
+            name="tox",
+            description="Generic Python test automation and virtualenv management tool.",
+            install_suggestions=[
+                "pip install tox",
+                "pipx install tox",
+                "conda install -c conda-forge tox",
+                "uv tool install tox",
+            ],
+        ),
+        ToolInfo(
+            name="nox",
+            description="Flexible Python test automation, similar to tox but using plain Python.",
+            install_suggestions=[
+                "pip install nox",
+                "pipx install nox",
+                "conda install -c conda-forge nox",
+                "uv tool install nox",
+            ],
+        ),
+        # ------------------------------------------------------------------
+        # Data / ML workflow tools
+        # ------------------------------------------------------------------
+        ToolInfo(
+            name="dbt",
+            description="Data transformation tool that runs SQL models against a data warehouse.",
+            install_suggestions=[
+                "pip install dbt-core",
+                "uv add dbt-core",
+                "conda install -c conda-forge dbt-core",
+                "https://docs.getdbt.com/docs/core/installation-overview",
+            ],
+        ),
+        ToolInfo(
+            name="quarto",
+            description="Open-source scientific and technical publishing system.",
+            install_suggestions=[
+                "https://quarto.org/docs/get-started/",
+                "brew install --cask quarto",
+                "conda install -c conda-forge quarto",
+                "winget install --id=Posit.Quarto",
+            ],
+        ),
+        ToolInfo(
+            name="prefect",
+            description="Workflow orchestration platform for data and ML pipelines.",
+            install_suggestions=[
+                "pip install prefect",
+                "uv add prefect",
+                "conda install -c conda-forge prefect",
+            ],
+        ),
+        ToolInfo(
+            name="dagster",
+            description="Cloud-native data orchestration platform for data pipelines.",
+            install_suggestions=[
+                "pip install dagster dagster-webserver",
+                "uv add dagster dagster-webserver",
+                "conda install -c conda-forge dagster",
+            ],
+        ),
+        ToolInfo(
+            name="kedro",
+            description="Framework for creating reproducible, maintainable data science pipelines.",
+            install_suggestions=[
+                "pip install kedro",
+                "uv add kedro",
+                "conda install -c conda-forge kedro",
+                "pipx install kedro",
+            ],
+        ),
+        ToolInfo(
+            name="airflow",
+            description="Platform for programmatically authoring, scheduling, and monitoring workflows.",
+            install_suggestions=[
+                "pip install apache-airflow",
+                "uv add apache-airflow",
+                "conda install -c conda-forge apache-airflow",
+                "https://airflow.apache.org/docs/apache-airflow/stable/installation/",
+            ],
+        ),
+        ToolInfo(
+            name="snakemake",
+            description="Workflow management system for reproducible and scalable data analyses.",
+            install_suggestions=[
+                "pip install snakemake",
+                "conda install -c conda-forge -c bioconda snakemake",
+                "uv add snakemake",
+                "mamba install -c conda-forge -c bioconda snakemake",
+            ],
+        ),
+        # ------------------------------------------------------------------
+        # Documentation tools
+        # ------------------------------------------------------------------
+        ToolInfo(
+            name="mkdocs",
+            description="Static site generator for project documentation, written in Python.",
+            install_suggestions=[
+                "pip install mkdocs",
+                "uv add mkdocs",
+                "conda install -c conda-forge mkdocs",
+                "pipx install mkdocs",
+            ],
+        ),
+        ToolInfo(
+            name="sphinx-build",
+            description="Sphinx documentation builder (invoked as sphinx-build).",
+            install_suggestions=[
+                "pip install sphinx",
+                "uv add sphinx",
+                "conda install -c conda-forge sphinx",
+                "pipx install sphinx",
+            ],
+        ),
+        ToolInfo(
+            name="sphinx-autobuild",
+            description="Live-reloading Sphinx documentation server.",
+            install_suggestions=[
+                "pip install sphinx-autobuild",
+                "uv add sphinx-autobuild",
+                "conda install -c conda-forge sphinx-autobuild",
+            ],
+        ),
+        ToolInfo(
+            name="mdbook",
+            description="Utility to create modern online books from Markdown files (used by the Rust project).",
+            install_suggestions=[
+                "cargo install mdbook",
+                "brew install mdbook",
+                "conda install -c conda-forge mdbook",
+                "https://rust-lang.github.io/mdBook/guide/installation.html",
+            ],
+        ),
+        # ------------------------------------------------------------------
+        # Infrastructure / IaC tools
+        # ------------------------------------------------------------------
+        ToolInfo(
+            name="terraform",
+            description="Infrastructure as Code tool by HashiCorp for provisioning cloud resources.",
+            install_suggestions=[
+                "brew install terraform",
+                "conda install -c conda-forge terraform",
+                "winget install --id=Hashicorp.Terraform",
+                "https://developer.hashicorp.com/terraform/install",
+            ],
+        ),
+        ToolInfo(
+            name="ansible-playbook",
+            description="Ansible playbook runner for automating configuration and deployment.",
+            install_suggestions=[
+                "pip install ansible",
+                "uv add ansible",
+                "conda install -c conda-forge ansible",
+                "brew install ansible",
+                "pipx install ansible",
+            ],
+        ),
+        ToolInfo(
+            name="pulumi",
+            description="Infrastructure as Code platform supporting multiple languages.",
+            install_suggestions=[
+                "curl -fsSL https://get.pulumi.com | sh",
+                "brew install pulumi/tap/pulumi",
+                "conda install -c conda-forge pulumi",
+                "winget install --id=Pulumi.Pulumi",
+                "https://www.pulumi.com/docs/install/",
+            ],
+        ),
+        ToolInfo(
+            name="cdk",
+            description="AWS Cloud Development Kit CLI for defining cloud infrastructure in code.",
+            install_suggestions=[
+                "npm install -g aws-cdk",
+                "npx aws-cdk@latest",
+                "https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html",
+            ],
+        ),
+        ToolInfo(
+            name="earthly",
+            description="Build automation tool combining Makefile and Dockerfile syntax.",
+            install_suggestions=[
+                "brew install earthly/earthly/earthly",
+                "sudo /bin/sh -c 'wget https://github.com/earthly/earthly/releases/latest/download/earthly-linux-amd64 -O /usr/local/bin/earthly && chmod +x /usr/local/bin/earthly'",
+                "winget install --id=Earthly.Earthly",
+                "https://earthly.dev/get-earthly",
+            ],
+        ),
+        ToolInfo(
+            name="nixpacks",
+            description="Build app source code into OCI images using Nix, without a Dockerfile.",
+            install_suggestions=[
+                "curl -sSL https://nixpacks.com/install.sh | bash",
+                "brew install railwayapp/tap/nixpacks",
+                "https://nixpacks.com/docs/getting-started",
+            ],
+        ),
+        ToolInfo(
+            name="vagrant",
+            description="Tool for building and managing portable virtual machine environments.",
+            install_suggestions=[
+                "brew install --cask vagrant",
+                "winget install --id=Hashicorp.Vagrant",
+                "conda install -c conda-forge vagrant",
+                "https://developer.hashicorp.com/vagrant/install",
+            ],
+        ),
+        # ------------------------------------------------------------------
+        # JavaScript / Node alternative runtimes and package managers
+        # ------------------------------------------------------------------
+        ToolInfo(
+            name="pnpm",
+            description="Fast, disk-efficient Node.js package manager.",
+            install_suggestions=[
+                "npm install -g pnpm",
+                "brew install pnpm",
+                "winget install --id=pnpm.pnpm",
+                "https://pnpm.io/installation",
+            ],
+        ),
+        ToolInfo(
+            name="bun",
+            description="Fast all-in-one JavaScript runtime, bundler, and package manager.",
+            install_suggestions=[
+                "curl -fsSL https://bun.sh/install | bash",
+                "brew install oven-sh/bun/bun",
+                "winget install --id=Oven-sh.Bun",
+                "https://bun.sh/docs/installation",
+            ],
+        ),
+        ToolInfo(
+            name="deno",
+            description="Secure JavaScript/TypeScript runtime built on V8.",
+            install_suggestions=[
+                "curl -fsSL https://deno.land/install.sh | sh",
+                "brew install deno",
+                "conda install -c conda-forge deno",
+                "winget install --id=DenoLand.Deno",
+                "https://deno.com/manual/getting_started/installation",
+            ],
+        ),
+        ToolInfo(
+            name="npx",
+            description="Node.js package runner bundled with npm; executes packages without installing.",
+            install_suggestions=[
+                "https://nodejs.org/en/download/",
+                "nvm install --lts",
+                "conda install -c conda-forge nodejs",
+            ],
+        ),
+        # ------------------------------------------------------------------
+        # Web app frameworks (Python)
+        # ------------------------------------------------------------------
+        ToolInfo(
+            name="shiny",
+            description="Shiny for Python — build interactive web apps from Python scripts.",
+            install_suggestions=[
+                "pip install shiny",
+                "uv add shiny",
+                "conda install -c conda-forge shiny",
+            ],
+        ),
     ]
 }
 
