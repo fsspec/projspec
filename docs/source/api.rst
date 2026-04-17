@@ -52,6 +52,7 @@ User Classes
      proj.dataworkflows.Dagster
      proj.dataworkflows.Kedro
      proj.dataworkflows.Metaflow
+     proj.dataworkflows.MLFlow
      proj.dataworkflows.Airflow
      proj.dataworkflows.Snakemake
      proj.dataworkflows.Nox
@@ -101,9 +102,10 @@ User Classes
     proj.webapp.Django
     proj.webapp.Gradio
     proj.webapp.Marimo
+    proj.webapp.Panel
     proj.webapp.Shiny
     proj.webapp.Streamlit
-    proj.workflows.MLFlow
+    proj.dataworkflows.MLFlow
 
 
 .. autoclass:: projspec.artifact.container.Docker
@@ -179,9 +181,10 @@ User Classes
 .. autoclass:: projspec.proj.webapp.Django
 .. autoclass:: projspec.proj.webapp.Gradio
 .. autoclass:: projspec.proj.webapp.Marimo
+.. autoclass:: projspec.proj.webapp.Panel
 .. autoclass:: projspec.proj.webapp.Shiny
 .. autoclass:: projspec.proj.webapp.Streamlit
-.. autoclass:: projspec.proj.workflows.MLFlow
+.. autoclass:: projspec.proj.dataworkflows.MLFlow
 
 
 Contents

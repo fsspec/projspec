@@ -12,8 +12,8 @@ from projspec.utils import AttrDict
 class DockerCompose(ProjectSpec):
     """Docker Compose multi-service project.
 
-    Detected by ``docker-compose.yml``, ``docker-compose.yaml``, or ``compose.yaml``
-    at the project root.
+    Designed to launch a set of runtimes (specific images with config), volumes
+    and networks, and expose ports.
     """
 
     spec_doc = "https://docs.docker.com/reference/compose-file/"
@@ -89,10 +89,7 @@ class DockerCompose(ProjectSpec):
 
 
 class Terraform(ProjectSpec):
-    """Terraform infrastructure-as-code project.
-
-    Detected by any ``.tf`` file at the project root.
-    """
+    """Terraform infrastructure-as-code project."""
 
     spec_doc = "https://developer.hashicorp.com/terraform/language"
 
@@ -180,11 +177,7 @@ class Terraform(ProjectSpec):
 
 
 class Ansible(ProjectSpec):
-    """Ansible automation project.
-
-    Detected by ``playbook.yml`` / ``site.yml`` or ``ansible.cfg`` at the root,
-    or a ``roles/`` directory combined with a YAML playbook.
-    """
+    """Ansible automation project."""
 
     spec_doc = "https://docs.ansible.com/ansible/latest/reference_appendices/playbooks_keywords.html"
 
@@ -247,10 +240,7 @@ class Ansible(ProjectSpec):
 
 
 class Pulumi(ProjectSpec):
-    """Pulumi infrastructure-as-code project.
-
-    Detected by ``Pulumi.yaml`` or ``Pulumi.yml`` at the project root.
-    """
+    """Pulumi infrastructure-as-code project."""
 
     spec_doc = "https://www.pulumi.com/docs/reference/pulumi-yaml/"
 
@@ -323,10 +313,7 @@ class Pulumi(ProjectSpec):
 
 
 class CDK(ProjectSpec):
-    """AWS Cloud Development Kit (CDK) project.
-
-    Detected by ``cdk.json`` at the project root.
-    """
+    """AWS Cloud Development Kit (CDK) project."""
 
     spec_doc = "https://docs.aws.amazon.com/cdk/v2/guide/projects.html"
 
@@ -385,10 +372,7 @@ class CDK(ProjectSpec):
 
 
 class Earthfile(ProjectSpec):
-    """Earthly build project.
-
-    Detected by ``Earthfile`` at the project root.
-    """
+    """Earthly build project."""
 
     spec_doc = "https://docs.earthly.dev/docs/earthfile"
 
@@ -446,10 +430,7 @@ class Earthfile(ProjectSpec):
 
 
 class Nixpacks(ProjectSpec):
-    """Nixpacks build configuration project.
-
-    Detected by ``nixpacks.toml`` at the project root.
-    """
+    """Nixpacks build configuration project."""
 
     spec_doc = "https://nixpacks.com/docs/configuration/file"
 
@@ -509,10 +490,7 @@ class Nixpacks(ProjectSpec):
 
 
 class Vagrant(ProjectSpec):
-    """Vagrant virtual machine project.
-
-    Detected by ``Vagrantfile`` at the project root.
-    """
+    """Vagrant virtual machine project."""
 
     spec_doc = "https://developer.hashicorp.com/vagrant/docs/vagrantfile"
 

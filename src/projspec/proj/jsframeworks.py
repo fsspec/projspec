@@ -7,17 +7,8 @@ from projspec.proj.node import Node
 from projspec.utils import AttrDict, run_subprocess
 
 
-# ---------------------------------------------------------------------------
-# Framework specs built on top of Node
-# ---------------------------------------------------------------------------
-
-
 class NextJS(Node):
-    """Next.js React framework project.
-
-    Detected by the presence of ``next.config.js``, ``next.config.mjs``, or
-    ``next.config.ts`` at the project root.
-    """
+    """Next.js React framework project."""
 
     spec_doc = "https://nextjs.org/docs/app/api-reference/config/next-config-js"
 
@@ -74,10 +65,7 @@ class NextJS(Node):
 
 
 class NuxtJS(Node):
-    """Nuxt.js Vue framework project.
-
-    Detected by ``nuxt.config.js``, ``nuxt.config.ts``, or ``nuxt.config.mjs``.
-    """
+    """Nuxt.js Vue framework project."""
 
     spec_doc = "https://nuxt.com/docs/api/nuxt-config"
 
@@ -125,10 +113,7 @@ class NuxtJS(Node):
 
 
 class SvelteKit(Node):
-    """SvelteKit project.
-
-    Detected by ``svelte.config.js`` or ``svelte.config.ts``.
-    """
+    """SvelteKit project."""
 
     spec_doc = "https://svelte.dev/docs/kit/configuration"
 
@@ -179,8 +164,7 @@ class SvelteKit(Node):
 class Vite(Node):
     """Vite-based project (any frontend framework using Vite as the build tool).
 
-    Detected by ``vite.config.js``, ``vite.config.ts``, ``vite.config.mjs``,
-    or ``vite.config.cjs``.  Note: SvelteKit also has a svelte.config, so
+    Note: SvelteKit also has a svelte.config, so
     SvelteKit takes priority via its more-specific match.
     """
 
@@ -244,16 +228,8 @@ class Vite(Node):
         )
 
 
-# ---------------------------------------------------------------------------
-# Alternative Node package managers as standalone specs
-# ---------------------------------------------------------------------------
-
-
 class Pnpm(Node):
-    """Node project managed with pnpm.
-
-    Detected by ``pnpm-lock.yaml`` at the project root.
-    """
+    """Node project managed with pnpm."""
 
     spec_doc = "https://pnpm.io/package_json"
 
@@ -298,10 +274,7 @@ class Pnpm(Node):
 
 
 class Bun(Node):
-    """Node project managed with Bun.
-
-    Detected by ``bun.lock`` or the legacy ``bun.lockb`` at the project root.
-    """
+    """Node project managed with Bun."""
 
     spec_doc = "https://bun.sh/docs/install/lockfile"
 
@@ -325,15 +298,10 @@ class Bun(Node):
         run_subprocess(["bun", "init", "-y"], cwd=path, output=False)
 
 
-# ---------------------------------------------------------------------------
-# Deno — a separate runtime, not Node
-# ---------------------------------------------------------------------------
-
-
 class Deno(ProjectSpec):
     """Deno project.
 
-    Detected by ``deno.json`` or ``deno.jsonc`` at the project root.
+    Note: this is a separate runtime, not a Node project.
     """
 
     spec_doc = "https://docs.deno.com/runtime/fundamentals/configuration/"

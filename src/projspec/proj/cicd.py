@@ -9,11 +9,9 @@ from projspec.utils import AttrDict
 
 
 class GitHubActions(ProjectExtra):
-    """GitHub Actions CI/CD workflows defined in .github/workflows/.
+    """GitHub Actions CI/CD workflows
 
-    Each YAML file under .github/workflows/ defines one workflow.  This spec
-    is a ``ProjectExtra`` so that its ``CIWorkflow`` content objects are merged
-    into the root project rather than appearing as a standalone project type.
+    Each YAML file under .github/workflows/ defines one workflow.
     """
 
     spec_doc = "https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions"
@@ -103,11 +101,7 @@ class GitHubActions(ProjectExtra):
 
 
 class GitLabCI(ProjectExtra):
-    """GitLab CI/CD pipeline defined in .gitlab-ci.yml.
-
-    This spec is a ``ProjectExtra`` so its ``CIWorkflow`` content is merged
-    into the root project.
-    """
+    """GitLab CI/CD pipeline defined in .gitlab-ci.yml."""
 
     spec_doc = "https://docs.gitlab.com/ci/yaml/"
 
@@ -169,11 +163,7 @@ class GitLabCI(ProjectExtra):
 
 
 class CircleCI(ProjectExtra):
-    """CircleCI pipeline defined in .circleci/config.yml.
-
-    This spec is a ``ProjectExtra`` so its ``CIWorkflow`` content is merged
-    into the root project.
-    """
+    """CircleCI pipeline defined in .circleci/config.yml."""
 
     spec_doc = "https://circleci.com/docs/configuration-reference/"
 
@@ -240,7 +230,7 @@ class Taskfile(ProjectSpec):
     """Task runner using Taskfile (go-task).
 
     Taskfile.yml (or Taskfile.yaml / taskfile.yml) defines named tasks that
-    can be run with ``task <name>``.
+    can be run with `task <name>`.
     """
 
     spec_doc = "https://taskfile.dev/reference/schema/"
@@ -300,7 +290,7 @@ class Taskfile(ProjectSpec):
 class JustFile(ProjectSpec):
     """Task runner using Just (justfile / Justfile).
 
-    A justfile defines named recipes that can be run with ``just <recipe>``.
+    A justfile defines named recipes that can be run with `just <recipe>`.
     """
 
     spec_doc = "https://just.systems/man/en/"
@@ -355,8 +345,7 @@ class JustFile(ProjectSpec):
 class Tox(ProjectSpec):
     """Python test automation using tox.
 
-    Reads ``tox.ini`` or ``tox.toml`` (or ``[tool.tox]`` in ``pyproject.toml``)
-    and exposes each test environment as a ``Command`` and ``Process``.
+    A set of environments and run commands to be run as a workflow.
     """
 
     spec_doc = "https://tox.wiki/en/stable/config.html"

@@ -263,11 +263,7 @@ class RTD(ProjectSpec):
 
 
 class MkDocs(ProjectSpec):
-    """MkDocs documentation project.
-
-    Detected by ``mkdocs.yml`` or ``mkdocs.yaml`` at the project root, when
-    not already covered by the ReadTheDocs spec.
-    """
+    """MkDocs documentation project."""
 
     spec_doc = "https://www.mkdocs.org/user-guide/configuration/"
 
@@ -338,10 +334,7 @@ class MkDocs(ProjectSpec):
 
 
 class Sphinx(ProjectSpec):
-    """Sphinx documentation project (standalone, without ReadTheDocs config).
-
-    Detected by ``conf.py`` in the project root or in a ``docs/`` subdirectory.
-    """
+    """Sphinx documentation project (standalone, without ReadTheDocs config)."""
 
     spec_doc = "https://www.sphinx-doc.org/en/master/usage/configuration.html"
 
@@ -421,11 +414,7 @@ class Sphinx(ProjectSpec):
 
 
 class Docusaurus(ProjectSpec):
-    """Docusaurus documentation/website project.
-
-    Detected by ``docusaurus.config.js``, ``docusaurus.config.ts``, or
-    ``docusaurus.config.mjs`` at the project root.
-    """
+    """Docusaurus documentation/website project."""
 
     spec_doc = "https://docusaurus.io/docs/configuration"
 

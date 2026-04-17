@@ -1,4 +1,4 @@
-"""Data/ML workflow specs: dbt, Quarto, Prefect, Dagster, Kedro, Airflow, Snakemake, Nox."""
+"""Data/ML workflow specs: dbt, Quarto, Prefect, Dagster, Kedro, Airflow, Snakemake, Nox, Metaflow, MLFlow."""
 
 import os
 import re
@@ -12,7 +12,10 @@ from projspec.utils import AttrDict
 class Dbt(ProjectSpec):
     """dbt (data build tool) project.
 
-    Detected by ``dbt_project.yml`` at the project root.
+    dbt is used for data ingestion, validation, and transform.
+
+    The spec dbt about the context of your project and how to transform your data
+    (build your data sets).
     """
 
     spec_doc = "https://docs.getdbt.com/reference/dbt_project.yml"
@@ -95,10 +98,7 @@ class Dbt(ProjectSpec):
 
 
 class Quarto(ProjectSpec):
-    """Quarto publishing system project.
-
-    Detected by ``_quarto.yml`` / ``_quarto.yaml`` or any ``.qmd`` file at the root.
-    """
+    """Quarto publishing system project."""
 
     spec_doc = "https://quarto.org/docs/reference/projects/core.html"
 
@@ -188,10 +188,7 @@ class Quarto(ProjectSpec):
 
 
 class Prefect(ProjectSpec):
-    """Prefect workflow orchestration project.
-
-    Detected by ``prefect.yaml`` at the project root.
-    """
+    """Prefect workflow orchestration project."""
 
     spec_doc = "https://docs.prefect.io/v3/deploy/infrastructure-concepts/prefect-yaml"
 
@@ -255,11 +252,7 @@ class Prefect(ProjectSpec):
 
 
 class Dagster(ProjectSpec):
-    """Dagster data orchestration project.
-
-    Detected by ``pyproject.toml`` with ``[tool.dagster]`` section,
-    or ``dagster.yaml`` / ``workspace.yaml`` at the project root.
-    """
+    """Dagster data orchestration project."""
 
     spec_doc = "https://docs.dagster.io/api/python-api/workspace"
 
@@ -309,10 +302,7 @@ class Dagster(ProjectSpec):
 
 
 class Kedro(ProjectSpec):
-    """Kedro data science pipeline project.
-
-    Detected by ``pyproject.toml`` with ``[tool.kedro]`` section.
-    """
+    """Kedro data science pipeline project."""
 
     spec_doc = "https://docs.kedro.org/en/stable/kedro_project_setup/settings.html"
 
@@ -377,10 +367,7 @@ class Kedro(ProjectSpec):
 
 
 class Airflow(ProjectSpec):
-    """Apache Airflow workflow orchestration project.
-
-    Detected by a ``dags/`` directory at the project root containing Python files.
-    """
+    """Apache Airflow workflow orchestration project/DAG spec."""
 
     spec_doc = (
         "https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/dags.html"
@@ -453,10 +440,7 @@ class Airflow(ProjectSpec):
 
 
 class Snakemake(ProjectSpec):
-    """Snakemake workflow management system project.
-
-    Detected by a ``Snakefile`` or ``workflow/Snakefile`` at the project root.
-    """
+    """Snakemake workflow management system project."""
 
     spec_doc = (
         "https://snakemake.readthedocs.io/en/stable/snakefiles/configuration.html"
@@ -518,7 +502,9 @@ class Snakemake(ProjectSpec):
 class Nox(ProjectSpec):
     """Nox Python automation project.
 
-    Detected by ``noxfile.py`` at the project root.
+    Often used for testing, linting, and packaging.  Nox is a Python
+    environment management tool that allows you to define multiple
+    CI runs in one execution.
     """
 
     spec_doc = "https://nox.thea.codes/en/stable/config.html"
@@ -586,15 +572,18 @@ class Metaflow(ProjectSpec):
     """Metaflow ML/data science workflow project.
 
     Metaflow has no project-level config file; detection is done by scanning
-    Python files for ``from metaflow import`` (or ``import metaflow``) combined
-    with a ``FlowSpec`` subclass definition.
+    Python files for `from metaflow import` (or `import metaflow`) combined
+    with a `FlowSpec` subclass definition.
 
-    Each ``.py`` file containing a flow becomes a separate ``Command`` /
-    ``Process`` pair keyed by the file stem.  If a ``@project(name=...)``
+    Each `.py` file containing a flow becomes a separate `Command` /
+    `Process` pair keyed by the file stem.  If a `@project(name=...)`
     decorator is found, the project name is captured in metadata.  If
-    ``@schedule`` or ``@trigger`` decorators are present, deployment commands
+    `@schedule` or `@trigger` decorators are present, deployment commands
     for Argo Workflows and AWS Step Functions are added alongside the local
-    ``run`` command.
+    `run` command.
+
+    No explicit parsing of Config files, since they are designed as
+    defaults, and often overridden (and hard to detect).
     """
 
     spec_doc = "https://docs.metaflow.org"
@@ -723,3 +712,89 @@ class Metaflow(ProjectSpec):
                 "if __name__ == '__main__':\n"
                 f"    {flow_name}()\n"
             )
+
+
+class MLFlow(ProjectSpec):
+    """MLflow project, defined by an `MLproject` (or `MLFlow`) file.
+
+    An MLproject file is a YAML document that declares the project name,
+    the environment (conda or pip), and one or more named entry points.
+    """
+
+    spec_doc = (
+        "https://mlflow.org/docs/latest/ml/projects/#mlproject-file-configuration"
+    )
+
+    def match(self) -> bool:
+        return "MLproject" in self.proj.basenames or "MLFlow" in self.proj.basenames
+
+    def parse(self) -> None:
+        from projspec.artifact.process import Process
+        from projspec.content.environment import Environment, Precision, Stack
+        from projspec.content.executable import Command
+
+        fname = "MLproject" if "MLproject" in self.proj.basenames else "MLFlow"
+        with self.proj.fs.open(self.proj.basenames[fname], "rt") as f:
+            meta = yaml.safe_load(f)
+
+        if "python_env" in meta:
+            with self.proj.get_file(meta["python_env"], text=True) as f:
+                env = yaml.safe_load(f)
+                self._contents["environment"] = Environment(
+                    stack=Stack.PIP,
+                    precision=Precision.SPEC,
+                    packages=env.get("dependencies", [])
+                    + [f"python {env.get('python', '')}"],
+                    proj=self.proj,
+                )
+        elif "conda_env" in meta:
+            with self.proj.get_file(meta["conda_env"], text=True) as f:
+                env = yaml.safe_load(f)
+                self._contents["environment"] = Environment(
+                    stack=Stack.CONDA,
+                    precision=Precision.SPEC,
+                    packages=env.get("dependencies", []),
+                    channels=env.get("channels"),
+                    proj=self.proj,
+                )
+
+        cmds = AttrDict()
+        arts = AttrDict()
+        for name, ep in meta.get("entry_points", {}).items():
+            cmds[name] = Command(proj=self.proj, cmd=ep["command"])
+            arts[name] = Process(proj=self.proj, cmd=["mlflow", "run", ".", "-e", name])
+
+        if cmds:
+            self._contents["command"] = cmds
+        if arts:
+            self._artifacts = AttrDict(process=arts)
+        if self._contents is None:
+            self._contents = AttrDict()
+        if self._artifacts is None:
+            self._artifacts = AttrDict()
+
+    @staticmethod
+    def _create(path: str) -> None:
+        with open(f"{path}/MLproject", "w") as f:
+            f.write(
+                "name: tutorial\n"
+                "\n"
+                "conda_env: conda.yaml\n"
+                "\n"
+                "entry_points:\n"
+                "  main:\n"
+                "    parameters:\n"
+                "      alpha: {type: float, default: 0.5}\n"
+                "      l1_ratio: {type: float, default: 0.1}\n"
+                '    command: "python train.py {alpha} {l1_ratio}"\n'
+            )
+        with open(f"{path}/conda.yaml", "w") as f:
+            f.write(
+                "name: ml-project\n"
+                "channels:\n"
+                "  - conda-forge\n"
+                "dependencies:\n"
+                "  - python=3.9\n"
+            )
+        with open(f"{path}/train.py", "w") as f:
+            f.write("# MLFlow training script\n")

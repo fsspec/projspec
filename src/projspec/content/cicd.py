@@ -25,10 +25,7 @@ GithubAction = CIWorkflow
 
 @dataclass
 class PipelineStage(BaseContent):
-    """A named stage or step in a data/ML/workflow pipeline.
-
-    Used by dbt, Snakemake, Prefect, Airflow, Kedro, DVC, etc.
-    """
+    """A named stage or step in a data/ML/workflow pipeline."""
 
     name: str = ""
     cmd: list = field(default_factory=list)
@@ -39,8 +36,7 @@ class PipelineStage(BaseContent):
 class ServiceDependency(BaseContent):
     """An external service that a project depends on at runtime.
 
-    Extracted from Docker Compose service definitions, Helm values, etc.
-    Examples: postgres, redis, kafka, elasticsearch.
+    Typically exposed via an open TCP port, e.g., as used in container orchestration.
     """
 
     name: str = ""
