@@ -49,11 +49,12 @@ User Classes
     proj.dataworkflows.Dbt
     proj.dataworkflows.Quarto
     proj.dataworkflows.Prefect
-    proj.dataworkflows.Dagster
-    proj.dataworkflows.Kedro
-    proj.dataworkflows.Airflow
-    proj.dataworkflows.Snakemake
-    proj.dataworkflows.Nox
+     proj.dataworkflows.Dagster
+     proj.dataworkflows.Kedro
+     proj.dataworkflows.Metaflow
+     proj.dataworkflows.Airflow
+     proj.dataworkflows.Snakemake
+     proj.dataworkflows.Nox
     proj.documentation.Docusaurus
     proj.documentation.MDBook
     proj.documentation.MkDocs
@@ -128,6 +129,7 @@ User Classes
 .. autoclass:: projspec.proj.dataworkflows.Prefect
 .. autoclass:: projspec.proj.dataworkflows.Dagster
 .. autoclass:: projspec.proj.dataworkflows.Kedro
+.. autoclass:: projspec.proj.dataworkflows.Metaflow
 .. autoclass:: projspec.proj.dataworkflows.Airflow
 .. autoclass:: projspec.proj.dataworkflows.Snakemake
 .. autoclass:: projspec.proj.dataworkflows.Nox

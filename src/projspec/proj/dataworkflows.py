@@ -580,3 +580,146 @@ class Nox(ProjectSpec):
                 "    session.install('ruff')\n"
                 "    session.run('ruff', 'check', '.')\n"
             )
+
+
+class Metaflow(ProjectSpec):
+    """Metaflow ML/data science workflow project.
+
+    Metaflow has no project-level config file; detection is done by scanning
+    Python files for ``from metaflow import`` (or ``import metaflow``) combined
+    with a ``FlowSpec`` subclass definition.
+
+    Each ``.py`` file containing a flow becomes a separate ``Command`` /
+    ``Process`` pair keyed by the file stem.  If a ``@project(name=...)``
+    decorator is found, the project name is captured in metadata.  If
+    ``@schedule`` or ``@trigger`` decorators are present, deployment commands
+    for Argo Workflows and AWS Step Functions are added alongside the local
+    ``run`` command.
+    """
+
+    spec_doc = "https://docs.metaflow.org"
+
+    _IMPORT_RE = re.compile(r"from\s+metaflow\s+import|import\s+metaflow")
+    _FLOW_RE = re.compile(r"class\s+(\w+)\s*\(\s*\w*FlowSpec\s*\)")
+    _PROJECT_RE = re.compile(r'@project\s*\(\s*name\s*=\s*["\']([^"\']+)["\']')
+    _STEP_RE = re.compile(r"@step\s+def\s+(\w+)\s*\(")
+    _DEPLOY_RE = re.compile(r"@schedule|@trigger|@trigger_on_finish|@project")
+
+    def match(self) -> bool:
+        for path, content in self.proj.scanned_files.items():
+            if not path.endswith(".py"):
+                continue
+            try:
+                src = content.decode()
+            except Exception:
+                continue
+            if self._IMPORT_RE.search(src) and self._FLOW_RE.search(src):
+                return True
+        return False
+
+    def parse(self) -> None:
+        from projspec.artifact.process import Process
+        from projspec.content.cicd import PipelineStage
+        from projspec.content.executable import Command
+        from projspec.content.metadata import DescriptiveMetadata
+
+        cmds = AttrDict()
+        arts = AttrDict()
+        stages = AttrDict()
+        project_names: list[str] = []
+
+        for full_path, content in self.proj.scanned_files.items():
+            if not full_path.endswith(".py"):
+                continue
+            try:
+                src = content.decode()
+            except Exception:
+                continue
+
+            if not (self._IMPORT_RE.search(src) and self._FLOW_RE.search(src)):
+                continue
+
+            # Relative path for use in commands
+            rel = full_path.replace(self.proj.url, "").lstrip("/")
+            stem = os.path.basename(rel).replace(".py", "")
+
+            # Flow class name and @project name
+            flow_match = self._FLOW_RE.search(src)
+            flow_class = flow_match.group(1) if flow_match else stem
+
+            proj_match = self._PROJECT_RE.search(src)
+            if proj_match:
+                project_names.append(proj_match.group(1))
+
+            # Step names → pipeline stages
+            step_names = self._STEP_RE.findall(src)
+            for step in step_names:
+                stage_key = f"{stem}.{step}"
+                stages[stage_key] = PipelineStage(
+                    proj=self.proj,
+                    name=step,
+                    cmd=["python", rel, "run", f"--start", step],
+                )
+
+            # Local run command
+            run_cmd = ["python", rel, "run"]
+            cmds[stem] = Command(proj=self.proj, cmd=run_cmd)
+            arts[stem] = Process(proj=self.proj, cmd=run_cmd)
+
+            # Deployment commands — only when scheduling/trigger decorators present
+            if self._DEPLOY_RE.search(src):
+                arts[f"{stem}.argo_create"] = Process(
+                    proj=self.proj,
+                    cmd=["python", rel, "argo-workflows", "create"],
+                )
+                arts[f"{stem}.step_functions_create"] = Process(
+                    proj=self.proj,
+                    cmd=["python", rel, "step-functions", "create"],
+                )
+
+        if not cmds:
+            raise ParseFailed("No Metaflow flows found in scanned files")
+
+        conts = AttrDict()
+        meta: dict[str, str] = {}
+        if project_names:
+            meta["project"] = ", ".join(sorted(set(project_names)))
+        if meta:
+            conts["descriptive_metadata"] = DescriptiveMetadata(
+                proj=self.proj, meta=meta
+            )
+        if stages:
+            conts["pipeline_stage"] = stages
+        conts["command"] = cmds
+
+        self._contents = conts
+        self._artifacts = AttrDict(process=arts)
+
+    @staticmethod
+    def _create(path: str) -> None:
+        """Scaffold a minimal Metaflow project with a single HelloFlow."""
+        name = os.path.basename(path).replace("-", "_").replace(" ", "_")
+        flow_name = "".join(part.title() for part in name.split("_")) + "Flow"
+        with open(os.path.join(path, "flow.py"), "wt") as f:
+            f.write(
+                "from metaflow import FlowSpec, step\n"
+                "\n"
+                "\n"
+                f"class {flow_name}(FlowSpec):\n"
+                f'    """{flow_name} — generated by projspec."""\n'
+                "\n"
+                "    @step\n"
+                "    def start(self):\n"
+                '        """Entry point."""\n'
+                "        print('Starting flow')\n"
+                "        self.next(self.end)\n"
+                "\n"
+                "    @step\n"
+                "    def end(self):\n"
+                '        """Final step."""\n'
+                "        print('Flow complete')\n"
+                "\n"
+                "\n"
+                "if __name__ == '__main__':\n"
+                f"    {flow_name}()\n"
+            )
