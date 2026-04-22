@@ -227,11 +227,7 @@ class CircleCI(ProjectExtra):
 
 
 class Taskfile(ProjectSpec):
-    """Task runner using Taskfile (go-task).
-
-    Taskfile.yml (or Taskfile.yaml / taskfile.yml) defines named tasks that
-    can be run with `task <name>`.
-    """
+    """Task runner using Taskfile (go-task)."""
 
     spec_doc = "https://taskfile.dev/reference/schema/"
 

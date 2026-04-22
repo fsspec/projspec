@@ -37,9 +37,6 @@ class MDBook(ProjectSpec):
 
         book = cfg.get("book", {})
 
-        # ------------------------------------------------------------------ #
-        # Contents — descriptive metadata from the [book] table
-        # ------------------------------------------------------------------ #
         meta: dict[str, str] = {}
         for key in ("title", "description", "language"):
             if val := book.get(key):
@@ -52,9 +49,6 @@ class MDBook(ProjectSpec):
             descriptive_metadata=DescriptiveMetadata(proj=self.proj, meta=meta)
         )
 
-        # ------------------------------------------------------------------ #
-        # Artifacts
-        # ------------------------------------------------------------------ #
         # build-dir defaults to "book/" relative to the book root
         build_dir = cfg.get("build", {}).get("build-dir", "book")
         if not build_dir.startswith("/"):
@@ -138,9 +132,6 @@ class RTD(ProjectSpec):
         conts = AttrDict()
         arts = AttrDict()
 
-        # ------------------------------------------------------------------ #
-        # Environment — conda env file or pip requirements files
-        # ------------------------------------------------------------------ #
         conda_env_path = cfg.get("conda", {}).get("environment")
         if conda_env_path:
             try:
@@ -195,9 +186,6 @@ class RTD(ProjectSpec):
                     )
                 )
 
-        # ------------------------------------------------------------------ #
-        # Artifacts — sphinx or mkdocs build process
-        # ------------------------------------------------------------------ #
         if "sphinx" in cfg:
             conf_py = cfg["sphinx"].get("configuration", "docs/conf.py")
             docs_dir = conf_py.rsplit("/", 1)[0] if "/" in conf_py else "."

@@ -435,7 +435,7 @@ pn.panel("Hello World").servable()
 class Gradio(ProjectSpec):
     """Gradio machine learning demo and web app.
 
-    Detected by scanning Python files for ``import gradio`` or ``gr.Interface`` / ``gr.Blocks``.
+    Detected by scanning Python files for `import gradio` or `gr.Interface` / `gr.Blocks`.
     """
 
     spec_doc = "https://www.gradio.app/docs/gradio/interface"
@@ -496,8 +496,8 @@ if __name__ == "__main__":
 class Shiny(ProjectSpec):
     """Shiny for Python web application.
 
-    Detected by scanning Python files for ``from shiny import`` combined with
-    ``app = App(`` or ``@app.`` decorator usage.  Also detects ``app.py`` at root.
+    Detected by scanning Python files for `from shiny import` combined with
+    `app = App(` or `@app.` decorator usage.  Also detects `app.py` at root.
     """
 
     spec_doc = "https://shiny.posit.co/py/docs/overview.html"
