@@ -3,6 +3,7 @@
 from projspec.artifact.base import BaseArtifact, FileArtifact
 from projspec.artifact.container import DockerImage
 from projspec.artifact.deployment import Deployment, HelmDeployment
+from projspec.artifact.infra import ComposeStack, StaticSite, TerraformPlan
 from projspec.artifact.installable import CondaPackage, Wheel
 from projspec.artifact.linter import PreCommit
 from projspec.artifact.process import Process
@@ -11,9 +12,12 @@ from projspec.artifact.python_env import EnvPack, CondaEnv, VirtualEnv, LockFile
 __all__ = [
     "BaseArtifact",
     "FileArtifact",
+    "ComposeStack",
     "DockerImage",
     "Deployment",
     "HelmDeployment",
+    "StaticSite",
+    "TerraformPlan",
     "CondaPackage",
     "Wheel",
     "Process",
@@ -21,4 +25,5 @@ __all__ = [
     "CondaEnv",
     "VirtualEnv",
     "LockFile",
+    "PreCommit",
 ]

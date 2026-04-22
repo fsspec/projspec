@@ -20,6 +20,7 @@ def defaults():
         "scan_max_size": 5 * 2**10,
         "remote_artifact_status": False,
         "capture_artifact_output": True,
+        "preferred_install_methods": ["conda", "pip"],
     }
 
 
@@ -32,6 +33,10 @@ config_doc = {
     "capture_artifact_output": (
         "if True, capture and enqueue output from spawned Process artifacts. "
         "Otherwise, output appears on stdout/err."
+    ),
+    "preferred_install_methods": (
+        "ordered list of preferred installer names for install_tool(), "
+        "e.g. ['uv', 'conda', 'pip']. Empty list uses the platform default."
     ),
 }
 

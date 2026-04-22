@@ -35,13 +35,32 @@ User Classes
     content.metadata.Licensed
     proj.ai.AIEnabled
     proj.briefcase.Briefcase
+    proj.cicd.GitHubActions
+    proj.cicd.GitLabCI
+    proj.cicd.CircleCI
+    proj.cicd.Taskfile
+    proj.cicd.JustFile
+    proj.cicd.Tox
     proj.conda_package.CondaRecipe
     proj.conda_package.RattlerRecipe
     proj.conda_project.CondaProject
     proj.datapackage.DVCRepo
     proj.datapackage.DataPackage
+    proj.dataworkflows.Dbt
+    proj.dataworkflows.Quarto
+    proj.dataworkflows.Prefect
+     proj.dataworkflows.Dagster
+     proj.dataworkflows.Kedro
+     proj.dataworkflows.Metaflow
+     proj.dataworkflows.MLFlow
+     proj.dataworkflows.Airflow
+     proj.dataworkflows.Snakemake
+     proj.dataworkflows.Nox
+    proj.documentation.Docusaurus
     proj.documentation.MDBook
+    proj.documentation.MkDocs
     proj.documentation.RTD
+    proj.documentation.Sphinx
     proj.git.GitRepo
     proj.golang.Golang
     proj.helm.HelmChart
@@ -51,6 +70,21 @@ User Classes
     proj.ide.NvidiaAIWorkbench
     proj.ide.VSCode
     proj.ide.Zed
+    proj.infra.DockerCompose
+    proj.infra.Terraform
+    proj.infra.Ansible
+    proj.infra.Pulumi
+    proj.infra.CDK
+    proj.infra.Earthfile
+    proj.infra.Nixpacks
+    proj.infra.Vagrant
+    proj.jsframeworks.NextJS
+    proj.jsframeworks.NuxtJS
+    proj.jsframeworks.SvelteKit
+    proj.jsframeworks.Vite
+    proj.jsframeworks.Pnpm
+    proj.jsframeworks.Bun
+    proj.jsframeworks.Deno
     proj.node.JLabExtension
     proj.node.Node
     proj.node.Yarn
@@ -66,9 +100,12 @@ User Classes
     proj.uv.Uv
     proj.uv.UvScript
     proj.webapp.Django
+    proj.webapp.Gradio
     proj.webapp.Marimo
+    proj.webapp.Panel
+    proj.webapp.Shiny
     proj.webapp.Streamlit
-    proj.workflows.MLFlow
+    proj.dataworkflows.MLFlow
 
 
 .. autoclass:: projspec.artifact.container.Docker
@@ -78,13 +115,31 @@ User Classes
 .. autoclass:: projspec.content.metadata.Licensed
 .. autoclass:: projspec.proj.ai.AIEnabled
 .. autoclass:: projspec.proj.briefcase.Briefcase
+.. autoclass:: projspec.proj.cicd.GitHubActions
+.. autoclass:: projspec.proj.cicd.GitLabCI
+.. autoclass:: projspec.proj.cicd.CircleCI
+.. autoclass:: projspec.proj.cicd.Taskfile
+.. autoclass:: projspec.proj.cicd.JustFile
+.. autoclass:: projspec.proj.cicd.Tox
 .. autoclass:: projspec.proj.conda_package.CondaRecipe
 .. autoclass:: projspec.proj.conda_package.RattlerRecipe
 .. autoclass:: projspec.proj.conda_project.CondaProject
 .. autoclass:: projspec.proj.datapackage.DVCRepo
 .. autoclass:: projspec.proj.datapackage.DataPackage
+.. autoclass:: projspec.proj.dataworkflows.Dbt
+.. autoclass:: projspec.proj.dataworkflows.Quarto
+.. autoclass:: projspec.proj.dataworkflows.Prefect
+.. autoclass:: projspec.proj.dataworkflows.Dagster
+.. autoclass:: projspec.proj.dataworkflows.Kedro
+.. autoclass:: projspec.proj.dataworkflows.Metaflow
+.. autoclass:: projspec.proj.dataworkflows.Airflow
+.. autoclass:: projspec.proj.dataworkflows.Snakemake
+.. autoclass:: projspec.proj.dataworkflows.Nox
+.. autoclass:: projspec.proj.documentation.Docusaurus
 .. autoclass:: projspec.proj.documentation.MDBook
+.. autoclass:: projspec.proj.documentation.MkDocs
 .. autoclass:: projspec.proj.documentation.RTD
+.. autoclass:: projspec.proj.documentation.Sphinx
 .. autoclass:: projspec.proj.git.GitRepo
 .. autoclass:: projspec.proj.golang.Golang
 .. autoclass:: projspec.proj.helm.HelmChart
@@ -94,6 +149,21 @@ User Classes
 .. autoclass:: projspec.proj.ide.NvidiaAIWorkbench
 .. autoclass:: projspec.proj.ide.VSCode
 .. autoclass:: projspec.proj.ide.Zed
+.. autoclass:: projspec.proj.infra.DockerCompose
+.. autoclass:: projspec.proj.infra.Terraform
+.. autoclass:: projspec.proj.infra.Ansible
+.. autoclass:: projspec.proj.infra.Pulumi
+.. autoclass:: projspec.proj.infra.CDK
+.. autoclass:: projspec.proj.infra.Earthfile
+.. autoclass:: projspec.proj.infra.Nixpacks
+.. autoclass:: projspec.proj.infra.Vagrant
+.. autoclass:: projspec.proj.jsframeworks.NextJS
+.. autoclass:: projspec.proj.jsframeworks.NuxtJS
+.. autoclass:: projspec.proj.jsframeworks.SvelteKit
+.. autoclass:: projspec.proj.jsframeworks.Vite
+.. autoclass:: projspec.proj.jsframeworks.Pnpm
+.. autoclass:: projspec.proj.jsframeworks.Bun
+.. autoclass:: projspec.proj.jsframeworks.Deno
 .. autoclass:: projspec.proj.node.JLabExtension
 .. autoclass:: projspec.proj.node.Node
 .. autoclass:: projspec.proj.node.Yarn
@@ -109,9 +179,12 @@ User Classes
 .. autoclass:: projspec.proj.uv.Uv
 .. autoclass:: projspec.proj.uv.UvScript
 .. autoclass:: projspec.proj.webapp.Django
+.. autoclass:: projspec.proj.webapp.Gradio
 .. autoclass:: projspec.proj.webapp.Marimo
+.. autoclass:: projspec.proj.webapp.Panel
+.. autoclass:: projspec.proj.webapp.Shiny
 .. autoclass:: projspec.proj.webapp.Streamlit
-.. autoclass:: projspec.proj.workflows.MLFlow
+.. autoclass:: projspec.proj.dataworkflows.MLFlow
 
 
 Contents
@@ -133,6 +206,9 @@ User Classes
 ~~~~~~~~~~~~
 
 .. autosummary::
+    content.cicd.CIWorkflow
+    content.cicd.PipelineStage
+    content.cicd.ServiceDependency
     content.data.IntakeSource
     content.data.TabularData
     content.data.DataResource
@@ -145,6 +221,9 @@ User Classes
     content.package.PythonPackage
     content.package.RustModule
 
+.. autoclass:: projspec.content.cicd.CIWorkflow
+.. autoclass:: projspec.content.cicd.PipelineStage
+.. autoclass:: projspec.content.cicd.ServiceDependency
 .. autoclass:: projspec.content.data.IntakeSource
 .. autoclass:: projspec.content.data.DataResource
 .. autoclass:: projspec.content.data.TabularData
@@ -182,6 +261,9 @@ User Classes
     artifact.container.DockerRuntime
     artifact.deployment.Deployment
     artifact.deployment.HelmDeployment
+    artifact.infra.ComposeStack
+    artifact.infra.StaticSite
+    artifact.infra.TerraformPlan
     artifact.installable.CondaPackage
     artifact.installable.SystemInstallablePackage
     artifact.installable.Wheel
@@ -199,6 +281,9 @@ User Classes
    :members:
 .. autoclass:: projspec.artifact.deployment.HelmDeployment
    :members:
+.. autoclass:: projspec.artifact.infra.ComposeStack
+.. autoclass:: projspec.artifact.infra.StaticSite
+.. autoclass:: projspec.artifact.infra.TerraformPlan
 .. autoclass:: projspec.artifact.installable.CondaPackage
 .. autoclass:: projspec.artifact.installable.SystemInstallablePackage
 .. autoclass:: projspec.artifact.installable.Wheel

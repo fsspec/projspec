@@ -4,7 +4,7 @@ from projspec.proj import ProjectSpec, ParseFailed, ProjectExtra
 
 
 class DataPackage(ProjectSpec):
-    # by frictionless data
+    """A FrictionlessData datapackage spec"""
 
     spec_doc = "https://datapackage.org/standard/data-package/#structure"
     # e.g., as exported by zenodo

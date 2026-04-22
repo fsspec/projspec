@@ -1,7 +1,7 @@
 import os
 
 from projspec.proj import ProjectSpec, ParseFailed
-from projspec.utils import _ipynb_to_py, run_subprocess
+from projspec.utils import _ipynb_to_py, run_subprocess, AttrDict
 
 # TODO: webapp Servers should (optionally?) call threading.Timer(0.5, webbrowser.open(..));
 #  but then it must not block, and we need to set/infer the URL including port.
@@ -58,7 +58,10 @@ class Streamlit(ProjectSpec):
     spec_doc = "https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/file-organization"
     # see also "https://docs.streamlit.io/develop/api-reference/configuration/config.toml", which is
     # mainly theme and server config.
-    server_args = {"port_arg": "--server.address", "address_arg": "--server.port"}
+    server_args = {
+        "port_arg": "--server.address",
+        "address_arg": "--server.port",
+    }
 
     def match(self) -> bool:
         # more possible layouts
@@ -170,7 +173,9 @@ class Marimo(ProjectSpec):
             if has_import and has_app:
                 name = path.rsplit("/", 1)[-1].replace(".py", "")
                 self.artifacts["server"][name] = Server(
-                    proj=self.proj, cmd=["marimo", "run", path], **self.server_args
+                    proj=self.proj,
+                    cmd=["marimo", "run", path],
+                    **self.server_args,
                 )
 
         if not self.artifacts["server"]:
@@ -284,7 +289,9 @@ class FastAPI(ProjectSpec):
             if has_import and has_app:
                 name = path.rsplit("/", 1)[-1].replace(".py", "")
                 self.artifacts["server"][name] = Server(
-                    proj=self.proj, cmd=["fastapi", "run", path], **self.server_args
+                    proj=self.proj,
+                    cmd=["fastapi", "run", path],
+                    **self.server_args,
                 )
 
         if not self.artifacts["server"]:
@@ -421,5 +428,129 @@ class Panel(ProjectSpec):
 pn.extension()
 
 pn.panel("Hello World").servable()
+"""
+            )
+
+
+class Gradio(ProjectSpec):
+    """Gradio machine learning demo and web app.
+
+    Detected by scanning Python files for `import gradio` or `gr.Interface` / `gr.Blocks`.
+    """
+
+    spec_doc = "https://www.gradio.app/docs/gradio/interface"
+    server_args = {"port_arg": "--server-port", "address_arg": "--server-name"}
+
+    def match(self) -> bool:
+        return (
+            any(fn.endswith(".py") for fn in self.proj.scanned_files)
+            or "app.py" in self.proj.basenames
+        )
+
+    def parse(self) -> None:
+        from projspec.artifact.process import Server
+
+        servers = {}
+        for path, content in self.proj.scanned_files.items():
+            if not path.endswith(".py"):
+                continue
+            content = content.decode()
+            has_import = "import gradio" in content or "from gradio" in content
+            has_app = (
+                "gr.Interface(" in content
+                or "gr.Blocks(" in content
+                or "gradio.Interface(" in content
+            )
+            if has_import and has_app:
+                name = path.rsplit("/", 1)[-1].replace(".py", "")
+                servers[name] = Server(
+                    proj=self.proj,
+                    cmd=["python", path],
+                    **self.server_args,
+                )
+
+        if not servers:
+            raise ParseFailed
+
+        self._contents = AttrDict()
+        self._artifacts = AttrDict(server=servers)
+
+    @staticmethod
+    def _create(path: str) -> None:
+        with open(f"{path}/app.py", "wt") as f:
+            # https://www.gradio.app/guides/quickstart
+            f.write(
+                """import gradio as gr
+
+def greet(name):
+    return f"Hello, {name}!"
+
+demo = gr.Interface(fn=greet, inputs="text", outputs="text")
+
+if __name__ == "__main__":
+    demo.launch()
+"""
+            )
+
+
+class Shiny(ProjectSpec):
+    """Shiny for Python web application.
+
+    Detected by scanning Python files for `from shiny import` combined with
+    `app = App(` or `@app.` decorator usage.  Also detects `app.py` at root.
+    """
+
+    spec_doc = "https://shiny.posit.co/py/docs/overview.html"
+    server_args = {"port_arg": "--port", "address_arg": "--host"}
+
+    def match(self) -> bool:
+        return (
+            any(fn.endswith(".py") for fn in self.proj.scanned_files)
+            or "app.py" in self.proj.basenames
+        )
+
+    def parse(self) -> None:
+        from projspec.artifact.process import Server
+
+        servers = {}
+        for path, content in self.proj.scanned_files.items():
+            if not path.endswith(".py"):
+                continue
+            content = content.decode()
+            has_import = "from shiny" in content or "import shiny" in content
+            has_app = "App(" in content or "@app." in content or "app_ui" in content
+            if has_import and has_app:
+                name = path.rsplit("/", 1)[-1].replace(".py", "")
+                servers[name] = Server(
+                    proj=self.proj,
+                    cmd=["shiny", "run", path],
+                    **self.server_args,
+                )
+
+        if not servers:
+            raise ParseFailed
+
+        self._contents = AttrDict()
+        self._artifacts = AttrDict(server=servers)
+
+    @staticmethod
+    def _create(path: str) -> None:
+        with open(f"{path}/app.py", "wt") as f:
+            # https://shiny.posit.co/py/docs/overview.html
+            f.write(
+                """from shiny import App, render, ui
+
+app_ui = ui.page_fluid(
+    ui.h2("Hello, Shiny!"),
+    ui.input_text("name", "Enter your name:", value="World"),
+    ui.output_text_verbatim("greeting"),
+)
+
+def server(input, output, session):
+    @render.text
+    def greeting():
+        return f"Hello, {input.name()}!"
+
+app = App(app_ui, server)
 """
             )

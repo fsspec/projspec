@@ -32,7 +32,7 @@ class JetbrainsIDE(ProjectSpec):
         from projspec.artifact.process import Process
 
         self.artifacts["launch"] = Process(
-            self.proj, cmd=["pycharm", self.proj.url, "nosplash", "dontReopenProjects"]
+            self.proj, cmd=["pycharm", ".", "nosplash", "dontReopenProjects"]
         )
 
 
@@ -47,7 +47,7 @@ class VSCode(ProjectSpec):
     def parse(self) -> None:
         from projspec.artifact.process import Process
 
-        self.artifacts["launch"] = Process(self.proj, cmd=["code", self.proj.url])
+        self.artifacts["launch"] = Process(self.proj, cmd=["code", "."])
 
 
 class Zed(ProjectSpec):
@@ -59,4 +59,4 @@ class Zed(ProjectSpec):
     def parse(self) -> None:
         from projspec.artifact.process import Process
 
-        self.artifacts["launch"] = Process(self.proj, cmd=["zed", self.proj.url])
+        self.artifacts["launch"] = Process(self.proj, cmd=["zed", "."])
