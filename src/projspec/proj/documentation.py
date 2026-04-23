@@ -186,6 +186,7 @@ class RTD(ProjectSpec):
                     )
                 )
 
+        # NB: classically, the docs dir has Makefile enabling `make html`.
         if "sphinx" in cfg:
             conf_py = cfg["sphinx"].get("configuration", "docs/conf.py")
             docs_dir = conf_py.rsplit("/", 1)[0] if "/" in conf_py else "."

@@ -1,110 +1,89 @@
-# projspec VSCode Extension — User Actions
+# projspec VSCode Extension
 
-This document describes every user action available in the `projspec` VSCode
-extension.
+This document describes as UI frontend to ``projspec`` to be used within the VSCode
+IDE, it's layout, details, possible actions and subprocess calls.
 
-The extension activates automatically once VS Code finishes starting up
-(`onStartupFinished`).
+We will be making use of the Project, Content, Artifact and Enum concepts from the main
+``projspec`` library.
 
----
+Upon start-up, calls ``projspec info``, which provides a JSON mapping from Project,
+Content, Artifact and Enum classes to records with "doc", "link" and "create"
+fields, of which only "doc" is required.
 
-## Command Palette Commands
+## Layout
 
-### `Show Project Library`  (`projspec.showTree`)
+A single HTML view is exposed by the extension. This contains two principle elements:
+the Project Library (left), and a Details panel (right).
 
-Opens the Project Library panel.
+### Project Library
 
-**Steps:**
-1. Runs `projspec library list --json-out` to load the project tree.
-2. Runs `projspec info` once to load documentation for all spec/content/artifact types (cached for the lifetime of the window).
-3. Opens the **"Project Library"** panel.
+The library is populated by calling ``projspec library list --json-out``. The same information
+is used by the Details panel, and rerunning of the subprocess will only be as
+specified here, since it is relatively expensive. While calling the subprocess,
+the library area should show a busy spinner. The structure
+of the JSON returned is a mapping from URL to Project entities.
 
----
+The main component of this panel is a list of Project elements, one widget per
+Project in the library.
 
-### `Open Project`  (`projspec.openProject`)
+Each project widget
+has a short name (the basename of the URL) as a title at the top (bold),
+the URL below this and storage_options (if the Project has any), and, finally
+an area containing chips with rounded corners and backgrounds drawn from a pastel
+palette. One chip may be "Contents <{x}>" is the Project in question has entries
+under "contents" (where `x` is the number of items) and similarly "Artifacts <{x}>"
+for field "artifacts". The remaining chips will be the keys in the "specs" field.
+The mapping from chip label to colour should be deterministic.
 
-Opens a project folder in a new VS Code window.
-This command is invoked internally when a project node is clicked inside
-the Project Library panel.
+In addition, each project widget has a "kebab" button in its top-right,
+which opens a small popup menu with the following options, in the case that the
+URL starts with "file://":
+- Open with...
+  - VCSode
+  - System filebrowser
+  - PyCharm
+  - jupyter
+- Rescan
+- Create spec
+- Remove from library
+In the case of other URLs (i.e., remote objects), the kebab menu options are:
+- Copy to local
+- Rescan
+- Remove from library
 
-- **Local projects** (`file://` URLs): opens the folder directly with
-  `vscode.openFolder`.
-- **Remote GCS projects** (`gs://` URLs): shows an error — "Cannot open GCS
-  buckets directly. Clone the repository locally first."
-- **Other URL schemes**: shows an error — "Unsupported project URL scheme: …"
+Above the main Projects listing areas, there is a search box with a right-justified
+cancel (x) button.
 
----
+Above the search box, The following buttons: "Add", "Reload", "Configure"
 
-### `Show`  (`projspec.showJson`)
+## Details panel
 
-Serialises a project tree node to JSON and opens it as a read-only editor tab.
-This command is invoked internally from the Project Library panel when a
-spec, content, or artifact node is selected.
+This panel contains a main list area similar in style to the Library. Above
+this area is a title and details area, where the details may be minimised.
 
-**Steps:**
-1. Receives a tree node item.
-2. JSON-stringifies the node's raw data.
-3. Opens a new unsaved document with JSON syntax highlighting in the editor.
+In the case that the selection in the Library is a spec,
+the title of the panel is the same as the selected spec, and the info area
+is filled with the doc+link for the spec's name, from the "projspec info" data.
+The link (if it exists) is a clickable link. If it was the Content of Artifact
+button, there is no title/detail.
 
----
+The contents of this panel are drawn from the global "projspec library list" JSON data,
+and the set of list widgets depends on what was selected in the Library panel.
+If "Contents" is selected, we show the list
+of contents for the selected project and the panel title is "Contents";
+likewise for "Artifacts". If a spec's name
+is selected, all of the Contents and Artifacts of that spec of the given Project
+are shown. The field names in the JSON data are '_contents', '_artifacts'. Each key
+of these may be:
+- a single dict containing a "klass" key, in which case it is one widget with no
+name
+- a list, where each item has a "klass" and is a separate widget with no name
+- a dict where each nested value has a "klass" in which case the key is the widget's
+name.
 
-## Project Library Panel
-
-The Project Library panel (`projspec.showTree`) renders a custom HTML UI
-inside a Webview.  The following interactive elements are available.
-
-### Toolbar
-
-| Element | Action |
-|---------|--------|
-| **Scan** button | Scans the current workspace folder into the projspec library (`projspec scan --library <folderPath>`), then refreshes the tree. |
-| **Create** button | Opens the [Create Project modal](#create-project-modal). |
-| **Search input** | Live-filters the tree by project name or any visible child field. Click the **×** button or press **Escape** to clear. |
-| **Expand All** button | Expands every node in the tree. |
-| **Collapse All** button | Collapses every node in the tree. |
-
-### Tree Nodes
-The top-level nodes are all Projects, with a name and a project URL. The name is the final portion of the URL.
-Projects contain Specs, and both Specs and Projects contain Contents and Artifacts. In the tree view,
-all Artifacts are show, but only Contents that are direct
-children of a Project are shown.
-
-Nodes are colour-coded:
-
-- **Projects** — bold, folder colour
-- **Contents** — teal (`#4ec9b0`)
-- **Artifacts** — orange (`#ce9178`)
-- **Specs** — function symbol colour
-
-| Element | Action |
-|---------|--------|
-| Click a **project** node | Selects the node (no other action). Right-click to open the context menu. |
-| Right-click a **project** node | Opens a context menu with two options: **Open** opens the project folder in a new VS Code window; **Remove** runs `projspec library delete <project-URL>` and refreshes the panel. |
-| Click a **spec / content / artifact** node | Opens (or updates) the **Project Details** panel in the side column, showing the project's full spec/content/artifact tree with the clicked item highlighted. |
-| **▶ / ▼ arrow** on any node | Toggles the visibility of that node's children. |
-| **"Make" button** on an artifact node | Runs `projspec make <qname> "<projectPath>"` in a dedicated **projspec** terminal panel. |
-| **"i" info button** on a spec / content / artifact node | Shows an inline popup with the item's doc string and, when available, a link to the upstream specification documentation. Press **Escape** or click elsewhere to dismiss. |
-
-### Create Project Modal
-
-Opened by the **Create** button in the toolbar.
-
-| Element | Action |
-|---------|--------|
-| **Type input with autocomplete** | Start typing a project spec type; suggestions appear below. Use **↑ / ↓** arrow keys or click to select a suggestion. |
-| **Create** button | Runs `projspec create <projectType> <folderPath>` in the current workspace folder, then automatically scans the result into the library (`projspec scan --library <folderPath>`) and refreshes the tree. |
-| **Cancel** button / **Escape** key | Dismisses the modal without creating anything. |
-
----
-
-## Project Details Panel
-
-Opened when a spec, content, or artifact node is clicked in the Library panel. A single panel is reused and updated on each click.
-
-The panel displays a header with the project name and URL, followed by a colour-coded tree of all the project's specs, contents, and artifacts — using the same visual conventions as the Library panel.
-
-| Element | Action |
-|---------|--------|
-| **▶ / ▼ arrow** on any node | Toggles the visibility of that node's children. |
-| **"Make" button** on an artifact node | Runs `projspec make <qname> "<projectPath>"` in a dedicated **projspec** terminal panel. |
-| **"i" info button** on a spec / content / artifact node | Shows an inline popup with the item's doc string and a link to specification documentation. Press **Escape** or click elsewhere to dismiss. |
+The widget's title is the value of "klass", and its name, if it has one. The
+content is the remainder of the JSON data in an expandable tree structure.
+The widget should have an (i) info button which only shows when
+mouse is over the widget; clicking it shows the documentation for the klass
+derived from the "projspec info" data (there will be no link or create field).
+For artifact widgets, there is also a "Make" button to the left of the (i).

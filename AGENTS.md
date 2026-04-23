@@ -26,6 +26,8 @@ src/projspec/
     *.py               # one file per concrete artifact type
   utils.py             # AttrDict, camel_to_snake, run_subprocess, …
   config.py            # get_conf / set_conf
+vsextension/           # a UI for vscode, calling projspec as a subprocess
+qtapp/                 # standalone UI on pyqt5, calling projspec in-process
 tests/
   conftest.py          # shared fixtures (proj = Project("/data"))
   test_basic.py        # smoke tests
