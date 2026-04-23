@@ -1,13 +1,14 @@
 # projspec VSCode Extension
 
 This document describes as UI frontend to ``projspec`` to be used within the VSCode
-IDE, it's layout, details, possible actions and subprocess calls.
+IDE, its layout, details, possible actions and subprocess calls.
 
 We will be making use of the Project, Content, Artifact and Enum concepts from the main
 ``projspec`` library.
 
 Upon start-up, calls ``projspec info``, which provides a JSON mapping from Project,
-Content, Artifact and Enum classes to records with "doc", "link" and "create"
+Content, This data is to be stored for the whole session.
+Artifact and Enum classes to records with "doc", "link" and "create"
 fields, of which only "doc" is required.
 
 ## Layout
