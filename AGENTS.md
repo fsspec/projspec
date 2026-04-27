@@ -6,7 +6,8 @@ the three central class families, the contract every `parse()` method must
 honour, and the conventions used throughout.
 
 Extensions and the Qt application (`vsextension/`, `pycharm_plugin/`,
-`src/projspec/qtapp/`) are out of scope.
+`src/projspec/qtapp/`) are out of scope. See `vsextension/ACTIONS.md` for
+the VSCode extension specification.
 
 ---
 

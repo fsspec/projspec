@@ -19,6 +19,8 @@ class Deployment(BaseArtifact):
     * :meth:`_is_done` / :meth:`_is_clean` query ``helm status <release>``
     """
 
+    icon = "cloud-arrow-up"
+
     def __init__(
         self,
         proj: Project,
@@ -66,6 +68,8 @@ class HelmDeployment(Deployment):
     * ``"done"``  — release exists and is deployed (exit code 0)
     * ``"clean"`` — release does not exist (exit code non-zero / not found)
     """
+
+    icon = "dharmachakra"
 
     def __init__(self, proj: Project, release: str, **kwargs):
         cmd = ["helm", "upgrade", "--install", release, "."]

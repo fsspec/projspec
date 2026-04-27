@@ -19,6 +19,7 @@ _DATASET_DISCRIMINATORS = frozenset(
 
 
 class HuggingFaceRepo(ProjectSpec):
+    icon = "face-smile"
     spec_doc = "https://huggingface.co/docs/hub/en/model-cards"
 
     # full_spec = ("https://github.com/huggingface/huggingface_hub/blob/"
@@ -32,7 +33,11 @@ class HuggingFaceRepo(ProjectSpec):
         return "README.md" in self.proj.basenames
 
     def parse(self) -> None:
-        from projspec.content.metadata import DescriptiveMetadata, License, Citation
+        from projspec.content.metadata import (
+            DescriptiveMetadata,
+            License,
+            Citation,
+        )
         import yaml
 
         with self.get_file("README.md") as f:
@@ -65,7 +70,8 @@ class HuggingFaceRepo(ProjectSpec):
             if tag.startswith("arxiv:"):
                 self._contents.setdefault("citations", []).append(
                     Citation(
-                        proj=self.proj, meta=dict(arxiv=tag.removeprefix("arxiv:"))
+                        proj=self.proj,
+                        meta=dict(arxiv=tag.removeprefix("arxiv:")),
                     )
                 )
         # TODO: datasets are links to other repos
@@ -122,6 +128,7 @@ class HuggingFaceDataset(ProjectSpec):
         Present when a ``license`` key is found in the front-matter.
     """
 
+    icon = "database"
     # detailed spec: https://raw.githubusercontent.com/huggingface/hub-docs/refs/heads/main/datasetcard.md
     spec_doc = "https://huggingface.co/docs/hub/datasets-cards"
 
@@ -130,7 +137,11 @@ class HuggingFaceDataset(ProjectSpec):
 
     def parse(self) -> None:
         import yaml
-        from projspec.content.metadata import DescriptiveMetadata, License, Citation
+        from projspec.content.metadata import (
+            DescriptiveMetadata,
+            License,
+            Citation,
+        )
         from projspec.content.data import TabularData
 
         try:
@@ -161,7 +172,8 @@ class HuggingFaceDataset(ProjectSpec):
             if tag.startswith("arxiv:"):
                 self._contents.setdefault("citations", []).append(
                     Citation(
-                        proj=self.proj, meta=dict(arxiv=tag.removeprefix("arxiv:"))
+                        proj=self.proj,
+                        meta=dict(arxiv=tag.removeprefix("arxiv:")),
                     )
                 )
 

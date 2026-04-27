@@ -12,6 +12,7 @@ from projspec.utils import AttrDict, _yaml_no_jinja
 class CondaProject(ProjectSpec):
     """Tool for encapsulating, running, and reproducing projects with conda environments."""
 
+    icon = "cubes"
     # not a spec, but a howto:
     spec_doc = "https://conda-incubator.github.io/conda-project/tutorial.html"
 

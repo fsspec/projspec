@@ -9,6 +9,8 @@ from projspec.content import BaseContent
 class Command(BaseContent):
     """The simplest runnable thing; we don't know what it does/outputs."""
 
+    icon = "terminal"
+
     cmd: list[str] | str
 
     def _repr2(self):

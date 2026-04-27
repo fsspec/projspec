@@ -18,6 +18,8 @@ class BaseArtifact:
     calling the external tool associated with the project type in a subprocess.
     """
 
+    icon = "hammer"
+
     def __init__(self, proj: Project, cmd: list[str] | None = None, **kwargs):
         self.proj = proj
         self.cmd = cmd
@@ -110,6 +112,8 @@ class FileArtifact(BaseArtifact):
 
     Ideally, we can know beforehand the path expected for the output.
     """
+
+    icon = "file"
 
     # TODO: account for outputs to a directory/glob pattern, so we can
     #   apply to wheel; or unknown output location, e.g., conda-build.

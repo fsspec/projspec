@@ -5,6 +5,7 @@ from projspec.utils import AttrDict, _yaml_no_jinja
 class CondaRecipe(ProjectSpec):
     """Recipe package for conda-build"""
 
+    icon = "box"
     spec_doc = (
         "https://docs.conda.io/projects/conda-build/"
         "en/stable/resources/define-metadata.html"
@@ -65,6 +66,7 @@ class CondaRecipe(ProjectSpec):
 class RattlerRecipe(CondaRecipe):
     """Recipe project for rattler-build"""
 
+    icon = "box-open"
     spec_doc = "https://rattler.build/latest/reference/recipe_file/"
 
     # conda recipes are also valid for rattler if they don't have complex jinja.

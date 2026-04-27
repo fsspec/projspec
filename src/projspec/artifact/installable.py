@@ -21,6 +21,8 @@ class Wheel(FileArtifact):
     is call publishing.
     """
 
+    icon = "circle-dot"
+
     def __init__(self, proj, fn=None, **kw):
         super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.whl", **kw)
 
@@ -44,6 +46,8 @@ class CondaPackage(FileArtifact):
     This output is intended to be _local_ - pushing to a remote location (e.g., pypi)
     is call publishing.
     """
+
+    icon = "box"
 
     def __init__(self, fn=None, name=None, **kwargs):
         super().__init__(fn=fn, **kwargs)
@@ -99,6 +103,8 @@ types = {
 
 class SystemInstallablePackage(FileArtifact):
     """An Installable system package"""
+
+    icon = "desktop"
 
     def __init__(self, proj, ext: str, fn=None, arch=None, **kw):
         self.arch = arch or types[ext]

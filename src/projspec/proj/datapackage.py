@@ -6,6 +6,7 @@ from projspec.proj import ProjectSpec, ParseFailed, ProjectExtra
 class DataPackage(ProjectSpec):
     """A FrictionlessData datapackage spec"""
 
+    icon = "table"
     spec_doc = "https://datapackage.org/standard/data-package/#structure"
     # e.g., as exported by zenodo
     # only tabular data; docs suggest csv, xls, json filetypes; JSON
@@ -72,6 +73,7 @@ class DataPackage(ProjectSpec):
 class DVCRepo(ProjectSpec):
     """Git management of data assets within a repo"""
 
+    icon = "code-branch"
     spec_doc = "https://doc.dvc.org/command-reference/config"
 
     def match(self) -> bool:
@@ -97,6 +99,7 @@ class DVCRepo(ProjectSpec):
 
 
 class IntakeCatalog(ProjectExtra):
+    icon = "book-open"
     spec_doc = (
         "https://intake.readthedocs.io/en/latest/api2.html#intake.readers.entry.Catalog"
     )

@@ -17,6 +17,7 @@ class HelmChart(ProjectSpec):
     `dependencies` key; pinned versions are recorded in `Chart.lock`.
     """
 
+    icon = "dharmachakra"
     spec_doc = "https://helm.sh/docs/topics/charts/#the-chartyaml-file"
 
     def match(self) -> bool:

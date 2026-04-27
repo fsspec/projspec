@@ -33,7 +33,8 @@ the URL below this and storage_options (if the Project has any), and, finally
 an area containing chips with rounded corners and backgrounds drawn from a pastel
 palette. One chip may be "Contents <{x}>" is the Project in question has entries
 under "contents" (where `x` is the number of items) and similarly "Artifacts <{x}>"
-for field "artifacts". The remaining chips will be the keys in the "specs" field.
+for field "artifacts". The remaining chips will be the keys in the "specs" field;
+should be decorated with the "icon" field in the corresponsing iinfo.
 The mapping from chip label to colour should be deterministic.
 
 In addition, each project widget has a "kebab" button in its top-right,
@@ -119,7 +120,7 @@ library pane
 - menu item "create spec": open modal dialog with a text edit line, which auto-completes using the list of project specs in the
 info which have "create": true, and are *not* already present in the selected project. If the dialog is accepted,
 run subprocess "projspec create <spec> <path>" where <spec> is what was selected in the dialog and <path> is the
-project's URL. After completion, refresh the Library.
+project's URL. After completion, rescan the specific project and then refresh the Library.
 - menu item "remove from library": run subprocess "projspec library delete <path>" where <path> is the project's URL
 (including any protocol prefix)
 - menu item "copy to local": not implemented (greyed out)

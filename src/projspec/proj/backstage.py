@@ -16,6 +16,7 @@ class BackstageCatalog(ProjectSpec):
     `---`-separated documents.
     """
 
+    icon = "sitemap"
     spec_doc = "https://backstage.io/docs/features/software-catalog/descriptor-format/"
 
     def match(self) -> bool:

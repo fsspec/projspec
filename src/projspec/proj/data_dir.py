@@ -410,6 +410,8 @@ class Data(ProjectSpec):
     directory is not double-counted as both a code project and a data project.
     """
 
+    icon = "database"
+
     def match(self) -> bool:
         # Fast path: structural layout signals (no file-content inspection needed)
         if self._detect_layout():
