@@ -19,14 +19,6 @@
       {
         "command": "projspec.showTree",
         "title": "Show Project Library"
-      },
-      {
-        "command": "projspec.openProject",
-        "title": "Open Project"
-      },
-      {
-        "command": "projspec.showJson",
-        "title": "Show"
       }
     ],
     "views": {},

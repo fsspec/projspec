@@ -14,23 +14,6 @@ from posixpath import basename as _basename
 from projspec.proj import ProjectSpec, ParseFailed
 from projspec.utils import AttrDict
 
-# ---------------------------------------------------------------------------
-# Extension → (canonical format name, modality)
-#
-# Modality vocabulary from intake's `structure` tags + napari's layer types:
-#   "tabular"    — row/column data
-#   "array"      — N-dimensional arrays
-#   "image"      — 2-D/3-D images (raster)
-#   "timeseries" — time-indexed signals
-#   "geospatial" — vector or raster geodata
-#   "model"      — ML model weights / configs
-#   "nested"     — hierarchical / JSON-like
-#   "document"   — human-readable documents
-#   "video"      — video streams
-#   "archive"    — compressed bundles
-#
-# .json is excluded — too common in non-data contexts (configs, manifests).
-# ---------------------------------------------------------------------------
 _EXT_TO_FORMAT: dict[str, tuple[str, str]] = {
     # Tabular / columnar -------------------------------------------------------
     ".csv": ("csv", "tabular"),
@@ -130,16 +113,7 @@ _EXT_TO_FORMAT: dict[str, tuple[str, str]] = {
 
 _DATA_EXTENSIONS: frozenset[str] = frozenset(_EXT_TO_FORMAT)
 
-# ---------------------------------------------------------------------------
 # Magic-byte signatures (format, modality, offset, bytes_pattern).
-#
-# Each entry: (format_str, modality_str, offset, pattern)
-#   offset = int  → match at that fixed byte offset
-#   offset = None → scan anywhere in the first 1 KiB (re.search)
-#
-# Ordered from most-specific to least-specific (longer / more-offset patterns
-# first so they shadow shorter ones that match the same header).
-# ---------------------------------------------------------------------------
 _MAGIC: list[tuple[str, str, int | None, bytes]] = [
     # Fixed-offset signatures
     ("dicom", "image", 128, b"DICM"),  # DICOM preamble
@@ -175,12 +149,6 @@ _MAGIC: list[tuple[str, str, int | None, bytes]] = [
 
 # Regex that matches Hive-style partition directory names (e.g. "year=2024").
 _HIVE_DIR_RE = re.compile(r"^[^=]+=.+$")
-
-
-# ---------------------------------------------------------------------------
-# Schema extraction helpers — all imports inside try/except ImportError so
-# that missing optional libraries never block parsing.
-# ---------------------------------------------------------------------------
 
 
 def _read_schema(path: str, fmt: str, fs) -> dict | list:
@@ -278,11 +246,6 @@ def _read_schema(path: str, fmt: str, fs) -> dict | list:
         pass
 
     return {}
-
-
-# ---------------------------------------------------------------------------
-# Helpers that work on the already-loaded filelist / basenames
-# ---------------------------------------------------------------------------
 
 
 def _filelist_dirs(filelist: list[dict]) -> list[dict]:
@@ -383,15 +346,6 @@ def _group_by_naming_series(entries: list[dict]) -> list[list[dict]]:
     return [[e] for e in entries]
 
 
-# ---------------------------------------------------------------------------
-# Data spec
-# ---------------------------------------------------------------------------
-
-# Sentinel files / directories whose presence indicates a non-data project
-# type is also present in this directory.  When any of these are found,
-# Data.parse() applies the byte-majority test instead of parsing
-# unconditionally.
-#
 # Notably absent: datapackage.json, catalog.yaml/yml, .dvc/ — those belong
 # to projspec.proj.datapackage and are treated as compatible companions.
 _NON_DATA_SENTINELS: frozenset[str] = frozenset(
@@ -448,8 +402,6 @@ class Data(ProjectSpec):
       Apache Iceberg (`metadata/` directory), Delta Lake (`_delta_log/`), or
       a Zarr store (`.zattrs` / `.zgroup` at the root).
 
-    Parsing behaviour
-    -----------------
     If no non-datapackage project signals are present in the directory the spec
     parses unconditionally.  If sentinel files that indicate another project type
     (`pyproject.toml`, `Cargo.toml`, `package.json`, …) are found, parsing
