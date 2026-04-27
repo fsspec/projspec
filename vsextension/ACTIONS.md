@@ -84,7 +84,47 @@ name.
 
 The widget's title is the value of "klass", and its name, if it has one. The
 content is the remainder of the JSON data in an expandable tree structure.
-The widget should have an (i) info button which only shows when
+The widget should have an (i) info button, which only shows when the
 mouse is over the widget; clicking it shows the documentation for the klass
-derived from the "projspec info" data (there will be no link or create field).
+derived from the "projspec info" data (there will be no link or create fields).
 For artifact widgets, there is also a "Make" button to the left of the (i).
+
+## Interactions
+
+- startup: perform the info and library list commands to populate the Library panel. A busy
+indicator shows.
+- "add" button: open file selector dialog allowing directory selection. If accepted,
+call subprocess "projspec scan --library <path>" and then reload the library
+- "reload" button: reload the library
+- "configure" button: open file ($PROJSPEC_CONFIG_DIR or ~/.config/projspec)/projspec.json for editing; if
+it doesn't exist, populate with the following and then open for editing:
+```
+{
+        "scan_types": [".py", ".yaml", ".yml", ".toml", ".json", ".md"],
+        "scan_max_files": 100,
+        "scan_max_size": 5000,
+        "remote_artifact_status": false,
+        "capture_artifact_output": true,
+        "preferred_install_methods": ["conda", "pip"],
+}
+```
+- select a chip from a Project widget in the Library panel: update the Details panel with
+the JSON information of that chip (contents list, artifacts list or project spec)
+- menu item "Open with VSCode": run subprocess "code <path>" with the project's URL ("file://" removed)
+- menu item "Open with system filebrowser": open the system's file browser at the project's URL ("file://" removed)
+- menu item "Open with pycharm": run subprocess "pycharm <path> nosplash dontReopenProjects" with the project's URL ("file://" removed)
+- menu item "Open with jupyter": run subprocess "jupyter lab <path>" with the project's URL ("file://" removed)
+- menu item "rescan": run subprocess "projspec scan --library <path>" with the project's URL, and then refresh the
+library pane
+- menu item "create spec": open modal dialog with a text edit line, which auto-completes using the list of project specs in the
+info which have "create": true, and are *not* already present in the selected project. If the dialog is accepted,
+run subprocess "projspec create <spec> <path>" where <spec> is what was selected in the dialog and <path> is the
+project's URL. After completion, refresh the Library.
+- menu item "remove from library": run subprocess "projspec library delete <path>" where <path> is the project's URL
+(including any protocol prefix)
+- menu item "copy to local": not implemented (greyed out)
+- (i) info button: find the selected content/artifact in the info data, and present it as a popup to the left of
+the current mouse position. Clicking away closes the popup.
+- "make" button: using the built-in terminal, run the subprocess "projspec make [<spec>.]<artifact>[.<name>]" where
+spec is the class name of the spec to which the artifact belongs (top-level artifacts, i.e., those in the "artifacts"
+chip, don't have this), <artifact> is the artifact's class, and <name> is the artifact's name, if it has one.

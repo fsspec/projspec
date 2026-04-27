@@ -156,7 +156,7 @@ class Uv(PythonLibrary):
         if "uv" in self.proj.pyproject.get("tools", {}):
             # even if it is present, uv can be explicitly directed to ignore the
             # project https://docs.astral.sh/uv/reference/settings/#managed
-            return self.proj.pyproject.get["tool"]["uv"].get("managed", True)
+            return self.proj.pyproject["tool"]["uv"].get("managed", True)
         if (
             self.proj.pyproject.get("build-system", {}).get("build-backend", "")
             == "uv_build"
