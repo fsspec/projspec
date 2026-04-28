@@ -1,0 +1,40 @@
+<idea-plugin>
+    <id>com.projspec.pycharm</id>
+    <name>projspec</name>
+    <vendor url="https://github.com/fsspec/projspec">projspec</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <!--
+      The terminal plugin is used by the "Make" button to spawn an interactive
+      shell tab.  It is declared optional so the rest of the plugin still
+      loads in environments where it is absent (TerminalRunner falls back to
+      a notification in that case).
+    -->
+    <depends optional="true" config-file="projspec-terminal.xml">org.jetbrains.plugins.terminal</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+
+        <toolWindow
+                id="Project Library"
+                anchor="left"
+                secondary="false"
+                factoryClass="com.projspec.toolwindow.ProjspecToolWindowFactory"
+                icon="/icons/projspec.png"/>
+
+        <applicationService
+                serviceImplementation="com.projspec.settings.ProjspecSettings"/>
+
+        <applicationConfigurable
+                parentId="tools"
+                instance="com.projspec.settings.ProjspecSettingsConfigurable"
+                id="com.projspec.settings.ProjspecSettingsConfigurable"
+                displayName="Projspec"/>
+
+        <notificationGroup
+                id="Projspec"
+                displayType="BALLOON"/>
+
+    </extensions>
+
+</idea-plugin>
