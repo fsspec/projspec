@@ -1,37 +1,47 @@
-"""Textual TUI for projspec — terminal equivalent of qtapp.
+"""Textual TUI for projspec - terminal equivalent of the VSCode extension.
 
-Three-pane layout:
-  Left   — Filesystem tree (navigate directories, single-click parses & adds to library)
-  Centre — Library panel  (all scanned projects with collapsible spec/content/artifact tree)
-  Right  — Details panel  (full project detail tree for the selected project)
+This app mirrors the layout and interactions of the VSCode extension
+(``vsextension/ACTIONS.md``) and the Qt app (``qtapp/``):
 
-Key bindings
-  h / Home     go to home directory
-  u / Up       go up one directory level
-  s            scan current directory (walk=True)
-  c            create a project type in the current directory
-  q / Ctrl+C   quit
+    ┌──────────────────────────┬────────────────────────────┐
+    │   Library    (left)      │     Details   (right)      │
+    │  Add Reload Configure    │                            │
+    │  ┌ search ┐              │  <title>                   │
+    │  project widgets...      │  doc / link                │
+    │                          │  content/artifact widgets  │
+    └──────────────────────────┴────────────────────────────┘
+
+Each project widget shows basename (bold), URL, optional storage_options,
+and a row of chips: ``Contents <N>``, ``Artifacts <N>``, one per registered
+spec.  Each project has a kebab button opening a menu with Open-with /
+Rescan / Create spec / Remove from library actions.
+
+All project scanning, creation and ``make`` calls are performed in-process
+against the projspec Python API rather than via subprocess.
 """
 
 from __future__ import annotations
 
+import json
 import os
-import posixpath
+import subprocess
 import sys
+import webbrowser
 from pathlib import Path
-
-import fsspec
+from typing import Any
 
 import projspec
 from projspec.library import ProjectLibrary
 from projspec.utils import class_infos
 
-from textual import on, work
+from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, ScrollableContainer
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.message import Message
 from textual.reactive import reactive
 from textual.screen import ModalScreen
+from textual.widget import Widget
 from textual.widgets import (
     Button,
     Footer,
@@ -41,22 +51,32 @@ from textual.widgets import (
     ListItem,
     ListView,
     Static,
-    Tree,
 )
-from textual.widgets.tree import TreeNode
-from textual.css.query import NoMatches
 
 
 # ---------------------------------------------------------------------------
-# Shared global library (mirrors qtapp)
+#  Shared state
 # ---------------------------------------------------------------------------
 
 library = ProjectLibrary()
 
+
+DEFAULT_CONFIG = {
+    "scan_types": [".py", ".yaml", ".yml", ".toml", ".json", ".md"],
+    "scan_max_files": 100,
+    "scan_max_size": 5000,
+    "remote_artifact_status": False,
+    "capture_artifact_output": True,
+    "preferred_install_methods": ["conda", "pip"],
+}
+
+
 # ---------------------------------------------------------------------------
-# Colours / role mapping (mirrors qtapp CSS colours)
+#  Rendering helpers (YAML-style, enum labels, etc.)
 # ---------------------------------------------------------------------------
 
+# Colour palette for spec / content / artifact labels.  Kept close to the
+# VSCode / Qt theme so the three UIs feel like the same product.
 ROLE_COLOUR = {
     "project": "bold #dcb67a",
     "spec": "#dcdcaa",
@@ -64,836 +84,1250 @@ ROLE_COLOUR = {
     "artifact": "#ce9178",
     "field": "#cccccc",
     "value": "italic #9cdcfe",
+    "enum": "bold #4ec9b0",
+    "muted": "#858585",
 }
 
 
-def _role_markup(text: str, role: str) -> str:
-    colour = ROLE_COLOUR.get(role, "#cccccc")
-    return f"[{colour}]{text}[/]"
+# Emoji used for UI chrome (toolbar, kebab, action buttons) and as
+# fallbacks when projspec does not supply an icon.  Keeping the same
+# characters as ``qtapp/emoji.py`` so the two UIs look like siblings.
+CHROME_ICONS = {
+    "add": "➕",
+    "reload": "🔄",
+    "configure": "⚙️",
+    "search": "🔍",
+    "clear": "✖️",
+    "kebab": "⋮",
+    "play": "▶️",
+    "info": "ℹ️",
+    "reveal": "➡️",
+}
+DEFAULT_ICON = {"spec": "🧩", "content": "📄", "artifact": "📦"}
 
 
-# ---------------------------------------------------------------------------
-# Helpers: build a node tree from a project dict (reuses qtapp logic)
-# ---------------------------------------------------------------------------
+def _project_icon(kind: str, name: str, infos: dict) -> str:
+    """Resolve the emoji to display next to a spec / content / artifact.
 
-_SKIP_KEYS = {"klass", "proc", "storage_options", "children", "url", "_html"}
+    ``infos`` is the cached result of ``projspec.utils.class_infos()``.
+    ``projspec`` stores an emoji directly in each class's ``icon``
+    attribute, so this is mostly a dict lookup with a category fallback.
+    """
+    cat = {"spec": "specs", "content": "content", "artifact": "artifact"}.get(kind)
+    if cat:
+        entry = (infos.get(cat) or {}).get(name) or {}
+        if isinstance(entry, dict):
+            icon = entry.get("icon")
+            if isinstance(icon, str) and icon:
+                return icon
+    return DEFAULT_ICON.get(kind, "❔")
 
 
-def _scalar(v) -> str:
+def _role(text: str, role: str) -> str:
+    return f"[{ROLE_COLOUR.get(role, '#cccccc')}]{text}[/]"
+
+
+def _basename(url: str) -> str:
+    return (url.rstrip("/").rsplit("/", 1)[-1]) or url
+
+
+def _is_enum(v: Any) -> bool:
+    """True for a serialised enum: ``{klass:['enum', name], value: ...}``."""
+    return (
+        isinstance(v, dict)
+        and isinstance(v.get("klass"), list)
+        and v["klass"][0] == "enum"
+        and "value" in v
+    )
+
+
+def _enum_label(value: dict, enums: dict[str, dict[str, Any]]) -> str:
+    """Return the member name for an enum dict, falling back to the raw value."""
+    name = value["klass"][1]
+    raw = value["value"]
+    members = enums.get(name) or {}
+    for mname, mval in members.items():
+        if mval == raw:
+            return mname
+    return str(raw)
+
+
+def _has_klass(v: Any) -> bool:
+    """Recursively search for a ``klass`` key - mirrors the JS helper."""
+    if not isinstance(v, (dict, list)):
+        return False
+    if isinstance(v, dict):
+        if "klass" in v:
+            return True
+        return any(_has_klass(x) for x in v.values())
+    return any(_has_klass(x) for x in v)
+
+
+def _strip_klass(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {k: v for k, v in obj.items() if k != "klass"}
+    return obj
+
+
+def _yaml_lines(
+    data: Any, enums: dict[str, dict[str, Any]], indent: int = 0
+) -> list[str]:
+    """Render ``data`` as Rich-markup YAML lines.
+
+    Lists drop indices; strings are unquoted; nested objects indent by two
+    spaces.  Enum dicts are inlined with their member-name label.
+    """
+    pad = "  " * indent
+    if _is_enum(data):
+        return [f"{pad}{_role(_enum_label(data, enums), 'enum')}"]
+    if isinstance(data, list):
+        if not data:
+            return [f"{pad}{_role('[]', 'muted')}"]
+        out: list[str] = []
+        for item in data:
+            if _is_enum(item):
+                out.append(f"{pad}- {_role(_enum_label(item, enums), 'enum')}")
+            elif isinstance(item, (dict, list)):
+                out.append(f"{pad}-")
+                out.extend(_yaml_lines(item, enums, indent + 1))
+            else:
+                out.append(f"{pad}- {_fmt_primitive(item)}")
+        return out
+    if isinstance(data, dict):
+        if not data:
+            return [f"{pad}{_role('{}', 'muted')}"]
+        out = []
+        for k, v in data.items():
+            if _is_enum(v):
+                out.append(
+                    f"{pad}{_role(str(k), 'field')}: "
+                    f"{_role(_enum_label(v, enums), 'enum')}"
+                )
+            elif isinstance(v, (dict, list)):
+                out.append(f"{pad}{_role(str(k), 'field')}:")
+                out.extend(_yaml_lines(v, enums, indent + 1))
+            else:
+                out.append(f"{pad}{_role(str(k), 'field')}: {_fmt_primitive(v)}")
+        return out
+    return [f"{pad}{_fmt_primitive(data)}"]
+
+
+def _fmt_primitive(v: Any) -> str:
     if v is None:
-        return "null"
-    return str(v)
+        return _role("null", "muted")
+    if isinstance(v, bool):
+        return _role("true" if v else "false", "muted")
+    return _role(str(v), "value")
 
 
-def _build_detail_nodes(obj, role: str, qname: str, project_url: str) -> list[dict]:
-    """Recursively turn a project dict into a list of node dicts."""
-    if obj is None:
-        return []
+def _collect_enum_members() -> dict[str, dict[str, Any]]:
+    """Mirror ``getEnumMembers()`` from the VSCode extension: maps
+    snake-case enum class name to ``{MEMBER: value}``.
+    """
+    import importlib
+    import pkgutil
 
-    if isinstance(obj, list):
-        result = []
-        for i, item in enumerate(obj):
-            if isinstance(item, dict):
-                result.append(
-                    {
-                        "label": str(i),
-                        "role": role,
-                        "children": _build_detail_nodes(
-                            item, role, f"{qname}.{i}", project_url
-                        ),
-                    }
-                )
-            else:
-                result.append({"label": _scalar(item), "role": "field"})
-        return result
+    import projspec.artifact
+    import projspec.content
+    import projspec.utils as pu
+    from projspec.utils import camel_to_snake
 
-    if not isinstance(obj, dict):
-        return [{"label": _scalar(obj), "role": "field"}]
+    for pkg in (projspec.content, projspec.artifact):
+        for m in pkgutil.iter_modules(pkg.__path__, pkg.__name__ + "."):
+            try:
+                importlib.import_module(m.name)
+            except Exception:
+                pass
 
-    nodes = []
-    for key, value in obj.items():
-        if key in _SKIP_KEYS:
-            continue
-        child_path = f"{qname}.{key}" if qname else key
+    out: dict[str, dict[str, Any]] = {}
+    seen: set[type] = set()
 
-        # Container keys — inline with corrected role
-        if key in ("specs", "_contents", "contents", "_artifacts", "artifacts"):
-            child_role = (
-                "spec"
-                if key == "specs"
-                else "content"
-                if key in ("_contents", "contents")
-                else "artifact"
-            )
-            nodes.extend(_build_detail_nodes(value, child_role, qname, project_url))
-            continue
+    def walk(cls: type) -> None:
+        for sub in cls.__subclasses__():  # type: ignore[misc]
+            if sub in seen:
+                continue
+            seen.add(sub)
+            walk(sub)
+            out[camel_to_snake(sub.__name__)] = {m.name: m.value for m in sub}  # type: ignore[attr-defined]
 
-        # Artifact special handling
-        if role == "artifact":
-            if isinstance(value, str) or value is None:
-                nodes.append(
-                    {
-                        "label": key,
-                        "role": "artifact",
-                        "qname": child_path,
-                        "project_url": project_url,
-                        "can_make": True,
-                    }
-                )
-            elif isinstance(value, dict):
-                entries = list(value.items())
-                all_strings = all(isinstance(v, (str, type(None))) for _, v in entries)
-                if all_strings:
-                    named_children = [
-                        {
-                            "label": name,
-                            "role": "artifact",
-                            "qname": f"{child_path}.{name}",
-                            "project_url": project_url,
-                            "can_make": True,
-                        }
-                        for name, _ in entries
-                    ]
-                    nodes.append(
-                        {
-                            "label": key,
-                            "role": "artifact",
-                            "children": named_children or None,
-                        }
-                    )
-                else:
-                    children = _build_detail_nodes(
-                        value, "field", child_path, project_url
-                    )
-                    nodes.append(
-                        {
-                            "label": key,
-                            "role": "artifact",
-                            "qname": child_path,
-                            "project_url": project_url,
-                            "children": children or None,
-                            "can_make": True,
-                        }
-                    )
-            continue
-
-        # Scalar leaf
-        if value is None or not isinstance(value, (dict, list)):
-            nodes.append(
-                {
-                    "label": key,
-                    "value": _scalar(value),
-                    "role": role if role in ("spec", "content") else "field",
-                }
-            )
-            continue
-
-        if isinstance(value, list):
-            if all(not isinstance(v, dict) for v in value):
-                array_children = [{"label": _scalar(v), "role": "field"} for v in value]
-                nodes.append(
-                    {
-                        "label": key,
-                        "role": role if role in ("spec", "content") else "field",
-                        "children": array_children or None,
-                    }
-                )
-            else:
-                nodes.append(
-                    {
-                        "label": key,
-                        "role": role,
-                        "children": _build_detail_nodes(
-                            value, role, child_path, project_url
-                        ),
-                    }
-                )
-            continue
-
-        # Object value
-        children = _build_detail_nodes(value, role, child_path, project_url)
-        nodes.append(
-            {
-                "label": key,
-                "role": role,
-                "children": children or None,
-            }
-        )
-
-    return nodes
-
-
-def _populate_tree_node(tree_node: TreeNode, nodes: list[dict], depth: int = 0) -> None:
-    """Recursively add node dicts to a Textual TreeNode."""
-    for n in nodes:
-        role = n.get("role", "field")
-        label = n.get("label", "")
-        value = n.get("value")
-        can_make = n.get("can_make", False)
-
-        if value is not None:
-            markup = f"{_role_markup(label, role)}: {_role_markup(value, 'value')}"
-        else:
-            markup = _role_markup(label, role)
-
-        if can_make and not n.get("children"):
-            markup += " [dim][Make][/dim]"
-
-        child_node = tree_node.add(markup, data=n, expand=(depth < 1))
-        children = n.get("children") or []
-        if children:
-            _populate_tree_node(child_node, children, depth + 1)
-
-
-def _build_library_tree_nodes(
-    project_url: str, project: dict, info_data: dict
-) -> list[dict]:
-    """Build summary child nodes for the library tree (mirrors qtapp _build_tree_nodes)."""
-    children: list[dict] = []
-
-    for name in (project.get("contents") or {}).keys():
-        children.append({"label": name, "role": "content", "project_url": project_url})
-
-    for artifact_type, artifact_data in (project.get("artifacts") or {}).items():
-        if isinstance(artifact_data, str):
-            children.append(
-                {
-                    "label": artifact_type,
-                    "role": "artifact",
-                    "qname": artifact_type,
-                    "project_url": project_url,
-                    "can_make": True,
-                }
-            )
-        elif isinstance(artifact_data, dict):
-            for name in artifact_data.keys():
-                children.append(
-                    {
-                        "label": f"{artifact_type}.{name}",
-                        "role": "artifact",
-                        "qname": f"{artifact_type}.{name}",
-                        "project_url": project_url,
-                        "can_make": True,
-                    }
-                )
-
-    for spec_name, spec_data in (project.get("specs") or {}).items():
-        spec_children: list[dict] = []
-        for artifact_type, artifact_data in (spec_data.get("_artifacts") or {}).items():
-            if isinstance(artifact_data, str):
-                spec_children.append(
-                    {
-                        "label": artifact_type,
-                        "role": "artifact",
-                        "qname": f"{spec_name}.{artifact_type}",
-                        "project_url": project_url,
-                        "can_make": True,
-                    }
-                )
-            elif isinstance(artifact_data, dict):
-                for name in artifact_data.keys():
-                    spec_children.append(
-                        {
-                            "label": f"{artifact_type}.{name}",
-                            "role": "artifact",
-                            "qname": f"{spec_name}.{artifact_type}.{name}",
-                            "project_url": project_url,
-                            "can_make": True,
-                        }
-                    )
-        node: dict = {
-            "label": spec_name,
-            "role": "spec",
-            "project_url": project_url,
-        }
-        if spec_children:
-            node["children"] = spec_children
-        children.append(node)
-
-    return children
+    walk(pu.Enum)
+    return out
 
 
 # ---------------------------------------------------------------------------
-# Modal: create project
+#  Modal screens
 # ---------------------------------------------------------------------------
 
 
-class CreateProjectModal(ModalScreen[str | None]):
-    """Modal dialog to pick a project type to create."""
+class KebabMenuModal(ModalScreen[str | None]):
+    """Popup menu triggered by a project's kebab button.
 
-    DEFAULT_CSS = """
-    CreateProjectModal {
-        align: center middle;
-    }
-    #dialog {
-        background: $surface;
-        border: solid $primary;
-        padding: 1 2;
-        width: 60;
-        height: auto;
-    }
-    #dialog Label {
-        margin-bottom: 1;
-    }
-    #autocomplete {
-        height: auto;
-        max-height: 8;
-        border: solid $primary-darken-2;
-        display: none;
-    }
-    #autocomplete.visible {
-        display: block;
-    }
-    #buttons {
-        margin-top: 1;
-    }
+    Returns the string key of the chosen action (``openVSCode``, ``rescan``, …)
+    or ``None`` if dismissed.
     """
 
-    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+    DEFAULT_CSS = """
+    KebabMenuModal { align: center middle; }
+    #menu-box {
+        background: #252526; border: solid #454545;
+        padding: 0; width: 44; height: auto;
+    }
+    #menu-box ListView { background: #252526; }
+    #menu-box ListItem { padding: 0 2; }
+    #menu-box ListItem.disabled { color: #6a6a6a; }
+    """
 
-    def __init__(self, spec_names: list[str]) -> None:
+    BINDINGS = [
+        Binding("escape", "dismiss(None)", "Cancel"),
+    ]
+
+    def __init__(self, is_local: bool) -> None:
         super().__init__()
-        self._spec_names = spec_names
-        self._filtered: list[str] = list(spec_names)
+        self._is_local = is_local
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Label("Create Project — choose a type:")
-            yield Input(placeholder="Type to filter…", id="type-input")
-            yield ListView(id="autocomplete")
-            with Horizontal(id="buttons"):
-                yield Button("Create", variant="primary", id="btn-create")
+        with Vertical(id="menu-box"):
+            lv = ListView(id="menu-list")
+            yield lv
+
+    def on_mount(self) -> None:
+        lv = self.query_one("#menu-list", ListView)
+        if self._is_local:
+            items = [
+                ("openVSCode", "Open with VSCode"),
+                ("openFilebrowser", "Open with system filebrowser"),
+                ("openPyCharm", "Open with PyCharm"),
+                ("openJupyter", "Open with jupyter"),
+                ("_sep", ""),
+                ("rescan", "Rescan"),
+                ("createSpec", "Create spec"),
+                ("remove", "Remove from library"),
+            ]
+        else:
+            items = [
+                ("copyToLocal", "Copy to local  (not implemented)"),
+                ("rescan", "Rescan"),
+                ("remove", "Remove from library"),
+            ]
+        for key, label in items:
+            if key == "_sep":
+                item = ListItem(Label("─" * 40, classes="sep"))
+                item.disabled = True
+            else:
+                item = ListItem(Label(label))
+                item.data = key  # type: ignore[attr-defined]
+                if key == "copyToLocal":
+                    item.add_class("disabled")
+                    item.disabled = True
+            lv.append(item)
+        lv.focus()
+
+    @on(ListView.Selected, "#menu-list")
+    def _on_selected(self, event: ListView.Selected) -> None:
+        key = getattr(event.item, "data", None)
+        self.dismiss(key)
+
+
+class CreateSpecModal(ModalScreen[str | None]):
+    """Modal with a filter input + suggestion list, returns the chosen spec."""
+
+    DEFAULT_CSS = """
+    CreateSpecModal { align: center middle; }
+    #box {
+        background: #252526; border: solid #454545;
+        padding: 1 2; width: 60; height: auto;
+    }
+    #box Label { margin-bottom: 1; color: #dcb67a; text-style: bold; }
+    #hint { color: #858585; text-style: none; margin-top: 0; margin-bottom: 1; }
+    #suggestions { height: auto; max-height: 10; border: solid #3c3c3c; }
+    #btn-row { margin-top: 1; height: 3; }
+    #btn-row Button { margin-right: 1; }
+    """
+
+    BINDINGS = [
+        Binding("escape", "dismiss(None)", "Cancel"),
+    ]
+
+    def __init__(self, specs: list[str]) -> None:
+        super().__init__()
+        self._specs = list(specs)
+        self._filtered: list[str] = list(specs)
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="box"):
+            yield Label("Create spec")
+            yield Static("Start typing to filter. Enter accepts.", id="hint")
+            yield Input(placeholder="Spec type...", id="type-input")
+            yield ListView(id="suggestions")
+            with Horizontal(id="btn-row"):
+                yield Button("Create", variant="primary", id="btn-ok")
                 yield Button("Cancel", id="btn-cancel")
 
     def on_mount(self) -> None:
-        self._refresh_list("")
+        self._refresh("")
         self.query_one("#type-input", Input).focus()
 
-    def _refresh_list(self, term: str) -> None:
-        lv = self.query_one("#autocomplete", ListView)
+    def _refresh(self, term: str) -> None:
+        lv = self.query_one("#suggestions", ListView)
         lv.clear()
-        self._filtered = [s for s in self._spec_names if term.lower() in s.lower()]
-        for name in self._filtered[:20]:
+        term = term.strip().lower()
+        self._filtered = (
+            [s for s in self._specs if term in s.lower()] if term else list(self._specs)
+        )
+        for name in self._filtered[:30]:
             lv.append(ListItem(Label(name)))
-        if self._filtered:
-            lv.add_class("visible")
-        else:
-            lv.remove_class("visible")
 
     @on(Input.Changed, "#type-input")
-    def _on_input_changed(self, event: Input.Changed) -> None:
-        self._refresh_list(event.value)
+    def _on_input(self, event: Input.Changed) -> None:
+        self._refresh(event.value)
 
-    @on(ListView.Selected, "#autocomplete")
-    def _on_list_selected(self, event: ListView.Selected) -> None:
+    @on(Input.Submitted, "#type-input")
+    def _on_submit(self, event: Input.Submitted) -> None:
+        self._accept()
+
+    @on(ListView.Selected, "#suggestions")
+    def _on_pick(self, event: ListView.Selected) -> None:
         lbl = event.item.query_one(Label)
-        self.query_one("#type-input", Input).value = str(lbl.render())
+        pick = str(lbl.render()).strip()
+        self.query_one("#type-input", Input).value = pick
+        self._accept()
 
-    @on(Button.Pressed, "#btn-create")
-    def _on_create(self) -> None:
-        value = self.query_one("#type-input", Input).value.strip()
-        self.dismiss(value or None)
+    @on(Button.Pressed, "#btn-ok")
+    def _on_ok(self) -> None:
+        self._accept()
 
     @on(Button.Pressed, "#btn-cancel")
     def _on_cancel(self) -> None:
         self.dismiss(None)
 
+    def _accept(self) -> None:
+        value = self.query_one("#type-input", Input).value.strip()
+        if value not in self._specs and len(self._filtered) == 1:
+            value = self._filtered[0]
+        if value in self._specs:
+            self.dismiss(value)
 
-# ---------------------------------------------------------------------------
-# Modal: navigate to a path
-# ---------------------------------------------------------------------------
 
+class AddPathModal(ModalScreen[str | None]):
+    """Ask the user for a directory to add to the library.
 
-class GoToPathModal(ModalScreen[str | None]):
-    """Simple modal to type an arbitrary path."""
+    A simple text input that defaults to the user's home.  Terminal apps
+    don't have a native folder picker, so a free-form path is the cleanest
+    equivalent of the VSCode ``showOpenDialog``.
+    """
 
     DEFAULT_CSS = """
-    GoToPathModal {
-        align: center middle;
+    AddPathModal { align: center middle; }
+    #box {
+        background: #252526; border: solid #454545;
+        padding: 1 2; width: 70; height: auto;
     }
-    #dialog {
-        background: $surface;
-        border: solid $primary;
-        padding: 1 2;
-        width: 70;
-        height: auto;
-    }
-    #buttons {
-        margin-top: 1;
-    }
+    #btn-row { margin-top: 1; height: 3; }
+    #btn-row Button { margin-right: 1; }
     """
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
-    def __init__(self, current: str) -> None:
-        super().__init__()
-        self._current = current
-
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
-            yield Label("Navigate to path:")
-            yield Input(value=self._current, id="path-input")
-            with Horizontal(id="buttons"):
-                yield Button("Go", variant="primary", id="btn-go")
+        with Vertical(id="box"):
+            yield Label("Add a directory (or URL) to the library:")
+            yield Input(value=str(Path.home()), id="path-input")
+            with Horizontal(id="btn-row"):
+                yield Button("Add", variant="primary", id="btn-ok")
                 yield Button("Cancel", id="btn-cancel")
 
     def on_mount(self) -> None:
-        inp = self.query_one("#path-input", Input)
-        inp.focus()
+        self.query_one("#path-input", Input).focus()
 
-    @on(Button.Pressed, "#btn-go")
-    def _on_go(self) -> None:
+    @on(Input.Submitted, "#path-input")
+    def _on_submit(self, event: Input.Submitted) -> None:
+        self._accept()
+
+    @on(Button.Pressed, "#btn-ok")
+    def _on_ok(self) -> None:
+        self._accept()
+
+    @on(Button.Pressed, "#btn-cancel")
+    def _on_cancel(self) -> None:
+        self.dismiss(None)
+
+    def _accept(self) -> None:
         value = self.query_one("#path-input", Input).value.strip()
         self.dismiss(value or None)
 
-    @on(Button.Pressed, "#btn-cancel")
-    def _on_cancel(self) -> None:
+
+class RevealPickModal(ModalScreen[str | None]):
+    """Pick one path when a glob matches multiple files."""
+
+    DEFAULT_CSS = """
+    RevealPickModal { align: center middle; }
+    #box {
+        background: #252526; border: solid #454545;
+        padding: 1 2; width: 80; height: auto;
+    }
+    #box Label { color: #dcb67a; text-style: bold; margin-bottom: 1; }
+    #list { height: auto; max-height: 20; border: solid #3c3c3c; }
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, matches: list[str]) -> None:
+        super().__init__()
+        self._matches = list(matches)
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="box"):
+            yield Label(f"{len(self._matches)} files match - pick one:")
+            yield ListView(id="list")
+
+    def on_mount(self) -> None:
+        lv = self.query_one("#list", ListView)
+        for m in self._matches:
+            lv.append(ListItem(Label(m)))
+        lv.focus()
+
+    @on(ListView.Selected, "#list")
+    def _on_pick(self, event: ListView.Selected) -> None:
+        lbl = event.item.query_one(Label)
+        self.dismiss(str(lbl.render()).strip())
+
+
+class InfoPopupModal(ModalScreen[None]):
+    """Pop up the ``projspec info`` docstring for a clicked ``(i)`` button."""
+
+    DEFAULT_CSS = """
+    InfoPopupModal { align: center middle; }
+    #box {
+        background: #252526; border: solid #454545;
+        padding: 1 2; width: 70; height: auto; max-height: 30;
+    }
+    #title { color: #dcb67a; text-style: bold; margin-bottom: 1; }
+    #doc { color: #cccccc; }
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Close")]
+
+    def __init__(self, title: str, doc: str) -> None:
+        super().__init__()
+        self._title = title
+        self._doc = doc
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(id="box"):
+            yield Static(self._title, id="title")
+            yield Static(self._doc or "(no documentation)", id="doc")
+
+    def on_click(self) -> None:
         self.dismiss(None)
 
 
 # ---------------------------------------------------------------------------
-# Main application
+#  Custom widgets
 # ---------------------------------------------------------------------------
 
+
+class Chip(Static):
+    """Clickable pill used to select a chip (Contents / Artifacts / spec)."""
+
+    DEFAULT_CSS = """
+    Chip {
+        padding: 0 1; margin: 0 1 0 0;
+        background: #555; color: #dcdcaa;
+        border: tall #454545;
+    }
+    Chip:hover { background: #094771; }
+    Chip.active { background: #094771; color: #ffffff; border: tall #007acc; }
+    """
+
+    def __init__(
+        self,
+        label: str,
+        url: str,
+        kind: str,
+        spec_name: str | None = None,
+    ) -> None:
+        super().__init__(label)
+        self._url = url
+        self._kind = kind
+        self._spec_name = spec_name
+        self.can_focus = True
+
+    @property
+    def selection_tuple(self) -> tuple[str, str, str | None]:
+        return (self._url, self._kind, self._spec_name)
+
+    def on_click(self) -> None:
+        self.post_message(ChipClicked(self._url, self._kind, self._spec_name))
+
+
+class ChipClicked(Message):
+    """Message emitted when a :class:`Chip` is clicked.
+
+    Bubbles up through the widget tree so the app can update its selection
+    state and re-render the Details pane.
+    """
+
+    def __init__(self, url: str, kind: str, spec_name: str | None) -> None:
+        super().__init__()
+        self.url = url
+        self.kind = kind
+        self.spec_name = spec_name
+
+
+class ProjectWidget(Static):
+    """One entry in the Library list - title, URL, chips and kebab button."""
+
+    DEFAULT_CSS = """
+    ProjectWidget {
+        border: solid #3c3c3c;
+        padding: 0 1;
+        margin-bottom: 1;
+        height: auto;
+        background: #252526;
+    }
+    ProjectWidget.active { border: solid #007acc; background: #094771; }
+    ProjectWidget .title { color: #dcb67a; text-style: bold; }
+    ProjectWidget .url { color: #858585; }
+    ProjectWidget .storage { color: #858585; text-style: italic; }
+    ProjectWidget #chips-row {
+        height: auto;
+        padding-top: 0;
+    }
+    ProjectWidget #kebab-row { height: 1; padding: 0; }
+    ProjectWidget Button#kebab { min-width: 3; padding: 0 1; }
+    """
+
+    def __init__(self, url: str, project: dict, infos: dict) -> None:
+        super().__init__()
+        self.url = url
+        self.project = project
+        self._infos = infos
+
+    def compose(self) -> ComposeResult:
+        yield Static(_basename(self.url), classes="title")
+        yield Static(self.url, classes="url")
+        so = self.project.get("storage_options") or {}
+        if so:
+            yield Static(f"storage_options: {json.dumps(so)}", classes="storage")
+        with Horizontal(id="chips-row"):
+            contents = self.project.get("contents") or {}
+            artifacts = self.project.get("artifacts") or {}
+            if contents:
+                yield Chip(
+                    f"{DEFAULT_ICON['content']} Contents <{len(contents)}>",
+                    self.url,
+                    "contents",
+                )
+            if artifacts:
+                yield Chip(
+                    f"{DEFAULT_ICON['artifact']} Artifacts <{len(artifacts)}>",
+                    self.url,
+                    "artifacts",
+                )
+            for spec_name in (self.project.get("specs") or {}).keys():
+                icon = _project_icon("spec", spec_name, self._infos)
+                yield Chip(f"{icon} {spec_name}", self.url, "spec", spec_name)
+        with Horizontal(id="kebab-row"):
+            yield Button(CHROME_ICONS["kebab"], id="kebab", variant="default")
+
+    @on(Button.Pressed, "#kebab")
+    def _on_kebab(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.post_message(KebabPressed(self.url))
+
+
+class KebabPressed(Message):
+    def __init__(self, url: str) -> None:
+        super().__init__()
+        self.url = url
+
+
+class ItemWidget(Static):
+    """A single content/artifact widget in the Details pane.
+
+    Mirrors the HTML ``.item-widget`` node: coloured outline, title line with
+    icon/klass/name, optional Make/Reveal/Info actions, and a YAML-rendered
+    body (or raw HTML when ``_html`` is present — not supported in a TUI, so
+    we fall back to the YAML tree).
+    """
+
+    DEFAULT_CSS = """
+    ItemWidget {
+        border: solid #3c3c3c;
+        padding: 0 1;
+        margin-bottom: 1;
+        height: auto;
+        background: #252526;
+    }
+    ItemWidget.kind-content { border: solid #4ca97a; }
+    ItemWidget.kind-artifact { border: solid #c66060; }
+    ItemWidget .widget-title { text-style: bold; }
+    ItemWidget .widget-subtitle { color: #858585; }
+    ItemWidget #actions { height: 1; }
+    ItemWidget #actions Button { min-width: 10; margin-right: 1; }
+    ItemWidget .body { padding: 0 0 0 1; }
+    """
+
+    def __init__(
+        self,
+        type_name: str,
+        name: str | None,
+        data: Any,
+        kind: str,
+        show_make: bool,
+        spec_name: str | None,
+        project_url: str,
+        enums: dict[str, dict[str, Any]],
+        infos: dict,
+    ) -> None:
+        super().__init__()
+        self._type_name = type_name
+        self._name = name
+        self._data = data
+        self._kind = kind
+        self._show_make = show_make
+        self._spec_name = spec_name
+        self._project_url = project_url
+        self._enums = enums
+        self._infos = infos
+        self.add_class("kind-" + kind)
+
+    def compose(self) -> ComposeResult:
+        data = self._data if isinstance(self._data, dict) else {}
+        klass = (
+            (data.get("klass") or [None, self._type_name])[1]
+            if data
+            else self._type_name
+        )
+        title_suffix = f"  - {self._name}" if self._name else ""
+        icon = _project_icon(self._kind, klass, self._infos)
+        yield Static(
+            f"{icon} [bold]{klass}[/][#858585]{title_suffix}[/]",
+            classes="widget-title",
+        )
+
+        # Actions row
+        buttons: list[Widget] = []
+        fn = data.get("fn") if isinstance(data, dict) else None
+        if self._kind == "artifact" and isinstance(fn, str) and _is_local_path(fn):
+            buttons.append(Button(f"{CHROME_ICONS['reveal']} Reveal", id="btn-reveal"))
+        if self._show_make:
+            buttons.append(
+                Button(
+                    f"{CHROME_ICONS['play']} Make",
+                    id="btn-make",
+                    variant="primary",
+                )
+            )
+        buttons.append(Button(f"{CHROME_ICONS['info']} Info", id="btn-info"))
+        if buttons:
+            with Horizontal(id="actions"):
+                for b in buttons:
+                    yield b
+
+        # Body: YAML tree (TUI has no HTML renderer, so ``_html`` is ignored
+        # and we always show the structured data).
+        stripped = _strip_klass(data) if isinstance(data, dict) else data
+        lines = _yaml_lines(stripped, self._enums)
+        yield Static("\n".join(lines) or " ", classes="body")
+
+    @on(Button.Pressed, "#btn-make")
+    def _make(self, event: Button.Pressed) -> None:
+        event.stop()
+        qname = ".".join(p for p in (self._spec_name, self._type_name, self._name) if p)
+        self.post_message(MakeRequested(self._project_url, qname))
+
+    @on(Button.Pressed, "#btn-reveal")
+    def _reveal(self, event: Button.Pressed) -> None:
+        event.stop()
+        fn = self._data.get("fn") if isinstance(self._data, dict) else None
+        if isinstance(fn, str):
+            self.post_message(RevealRequested(fn))
+
+    @on(Button.Pressed, "#btn-info")
+    def _info(self, event: Button.Pressed) -> None:
+        event.stop()
+        data = self._data if isinstance(self._data, dict) else {}
+        klass = (data.get("klass") or [None, self._type_name])[1]
+        self.post_message(InfoRequested(self._kind, klass))
+
+
+class MakeRequested(Message):
+    def __init__(self, url: str, qname: str) -> None:
+        super().__init__()
+        self.url = url
+        self.qname = qname
+
+
+class RevealRequested(Message):
+    def __init__(self, fn: str) -> None:
+        super().__init__()
+        self.fn = fn
+
+
+class InfoRequested(Message):
+    def __init__(self, kind: str, klass: str) -> None:
+        super().__init__()
+        self.kind = kind
+        self.klass = klass
+
+
+# ---------------------------------------------------------------------------
+#  Helpers
+# ---------------------------------------------------------------------------
+
+
+def _is_local_path(p: str) -> bool:
+    if p.startswith("file://"):
+        return True
+    if "://" in p:
+        return False
+    return True
+
+
+def _url_to_local(url: str) -> str:
+    return url[len("file://") :] if url.startswith("file://") else url
+
+
+def _spawn_detached(cmd: list[str]) -> None:
+    try:
+        subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception:
+        pass
+
+
+def _open_default(path: str) -> None:
+    try:
+        if sys.platform == "darwin":
+            subprocess.call(["open", path])
+        elif sys.platform == "win32":
+            os.startfile(path)  # type: ignore[attr-defined]
+        else:
+            subprocess.call(["xdg-open", path])
+    except Exception:
+        webbrowser.open(path)
+
+
+def _expand_glob(pattern: str) -> list[str]:
+    import glob
+
+    if not any(c in pattern for c in "*?["):
+        return [pattern] if os.path.exists(pattern) else []
+    return sorted(glob.glob(pattern))
+
+
+# ---------------------------------------------------------------------------
+#  Main application
+# ---------------------------------------------------------------------------
+
+
 APP_CSS = """
-Screen {
-    background: #1e1e1e;
-}
+Screen { background: #1e1e1e; }
 
-#left-pane {
-    width: 1fr;
-    border-right: solid #454545;
+#library-pane {
+    width: 2fr; min-width: 40;
+    border-right: solid #3c3c3c;
 }
+#details-pane { width: 3fr; }
 
-#centre-pane {
-    width: 1fr;
-    border-right: solid #454545;
-}
+#toolbar { height: 3; padding: 0 1; background: #252526; border-bottom: solid #3c3c3c; }
+#toolbar Button { margin-right: 1; min-width: 12; }
 
-#right-pane {
-    width: 2fr;
-}
+#search-row { height: 3; padding: 0 1; background: #252526; border-bottom: solid #3c3c3c; }
+#search-row Input { width: 1fr; }
 
-#path-bar {
-    height: 3;
-    border-bottom: solid #454545;
-    padding: 0 1;
-    background: #252526;
-}
+#projects { padding: 1 1; }
 
-#path-label {
-    color: #9cdcfe;
-    height: 3;
-    content-align: left middle;
-}
+#details-header { height: auto; padding: 0 1; background: #252526; border-bottom: solid #3c3c3c; }
+#details-title { color: #dcb67a; text-style: bold; }
+#details-doc { color: #858585; margin-top: 0; }
 
-#fs-tree {
-    background: #1e1e1e;
-    scrollbar-color: #454545 #1e1e1e;
-}
+#details-list { padding: 1; }
 
-#lib-header {
-    height: 3;
-    border-bottom: solid #454545;
-    padding: 0 1;
-    background: #252526;
-}
-
-#lib-label {
-    color: #dcb67a;
-    height: 3;
-    content-align: left middle;
-}
-
-#lib-tree {
-    background: #1e1e1e;
-    scrollbar-color: #454545 #1e1e1e;
-}
-
-#detail-header {
-    height: auto;
-    max-height: 5;
-    border-bottom: solid #454545;
-    padding: 0 1;
-    background: #252526;
-}
-
-#detail-basename {
-    color: #dcb67a;
-    text-style: bold;
-}
-
-#detail-url {
-    color: #9e9e9e;
-}
-
-#detail-tree {
-    background: #1e1e1e;
-    scrollbar-color: #454545 #1e1e1e;
-}
-
-#status-bar {
-    height: 1;
-    background: #007acc;
-    color: white;
-    padding: 0 1;
-    dock: bottom;
-}
-
-Tree > .tree--guides {
-    color: #454545;
-}
-
-Tree > .tree--guides-hover {
-    color: #666666;
-}
-
-Tree > .tree--cursor {
-    background: #094771;
-    color: white;
-}
+#status { dock: bottom; height: 1; background: #007acc; color: white; padding: 0 1; }
 """
 
 
 class ProjspecApp(App):
-    """Projspec terminal browser — mirrors the QtApp three-pane layout."""
+    """Projspec terminal browser - two-pane library + details UI."""
 
     TITLE = "Projspec Browser"
     CSS = APP_CSS
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
-        Binding("h", "go_home", "Home"),
-        Binding("u", "go_up", "Up"),
-        Binding("g", "goto_path", "Go to path"),
-        Binding("s", "scan", "Scan"),
-        Binding("c", "create_project", "Create"),
+        Binding("r", "reload", "Reload"),
+        Binding("a", "add", "Add"),
+        Binding("/", "focus_search", "Search"),
     ]
 
-    current_path: reactive[str] = reactive(str(Path.home()), init=False)
     status_message: reactive[str] = reactive("Ready", init=False)
 
-    # ── Init ─────────────────────────────────────────────────────────────────
-
-    def __init__(self, path: str | None = None) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        if path is None:
-            path = str(Path.home())
-        self._fs, self._path = fsspec.url_to_fs(path)
-        self.current_path = path
-        self._selected_project_url: str | None = None
+        self._info: dict = {}
+        self._enums: dict[str, dict[str, Any]] = {}
+        self._selection: tuple[str, str, str | None] | None = None
+        self._busy = 0
 
-    # ── Layout ───────────────────────────────────────────────────────────────
+    # ── Layout ─────────────────────────────────────────────────────────────
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal():
-            # Left: filesystem tree
-            with Vertical(id="left-pane"):
-                with Horizontal(id="path-bar"):
-                    yield Label("", id="path-label")
-                yield Tree("", id="fs-tree")
-
-            # Centre: library
-            with Vertical(id="centre-pane"):
-                with Horizontal(id="lib-header"):
-                    yield Label("Library", id="lib-label")
-                yield Tree("Projects", id="lib-tree")
-
-            # Right: details
-            with Vertical(id="right-pane"):
-                with Vertical(id="detail-header"):
-                    yield Label("", id="detail-basename")
-                    yield Label("", id="detail-url")
-                yield Tree("", id="detail-tree")
-
-        yield Static("", id="status-bar")
+            with Vertical(id="library-pane"):
+                with Horizontal(id="toolbar"):
+                    yield Button(
+                        f"{CHROME_ICONS['add']} Add",
+                        id="btn-add",
+                        variant="primary",
+                    )
+                    yield Button(f"{CHROME_ICONS['reload']} Reload", id="btn-reload")
+                    yield Button(
+                        f"{CHROME_ICONS['configure']} Configure",
+                        id="btn-configure",
+                    )
+                with Horizontal(id="search-row"):
+                    yield Input(placeholder="Filter projects...", id="search")
+                    yield Button(
+                        CHROME_ICONS["clear"], id="btn-clear", variant="default"
+                    )
+                yield VerticalScroll(id="projects")
+            with Vertical(id="details-pane"):
+                with Vertical(id="details-header"):
+                    yield Static("Details", id="details-title")
+                    yield Static("", id="details-doc")
+                yield VerticalScroll(id="details-list")
+        yield Static(self.status_message, id="status")
         yield Footer()
 
-    # ── Startup ──────────────────────────────────────────────────────────────
-
     def on_mount(self) -> None:
-        self._refresh_path_label()
-        self._populate_fs_tree()
-
-    # ── Reactive watchers ─────────────────────────────────────────────────────
-
-    def watch_current_path(self, path: str) -> None:
-        self._refresh_path_label()
-        self._populate_fs_tree()
+        self._reload(initial=True)
 
     def watch_status_message(self, msg: str) -> None:
         try:
-            self.query_one("#status-bar", Static).update(msg)
-        except NoMatches:
+            self.query_one("#status", Static).update(msg)
+        except Exception:
             pass
 
-    # ── Path helpers ──────────────────────────────────────────────────────────
+    # ── Busy helpers ────────────────────────────────────────────────────────
 
-    def _navigate(self, path: str) -> None:
-        try:
-            self._fs, _ = fsspec.url_to_fs(path)
-        except Exception as e:
-            self.status_message = f"Error: {e}"
-            return
-        self._path = path
-        self.current_path = path
+    def _set_busy(self, busy: bool) -> None:
+        if busy:
+            self._busy += 1
+            if self._busy == 1:
+                self.status_message = "Working..."
+        else:
+            self._busy = max(0, self._busy - 1)
+            if self._busy == 0:
+                self.status_message = "Ready"
 
-    def _refresh_path_label(self) -> None:
+    # ── Actions ─────────────────────────────────────────────────────────────
+
+    def action_reload(self) -> None:
+        self._reload()
+
+    def action_add(self) -> None:
+        def _cb(result: str | None) -> None:
+            if result:
+                self._scan_and_reload(result, walk=True)
+
+        self.push_screen(AddPathModal(), _cb)
+
+    def action_focus_search(self) -> None:
         try:
-            self.query_one("#path-label", Label).update(self._path)
-        except NoMatches:
+            self.query_one("#search", Input).focus()
+        except Exception:
             pass
 
-    # ── Filesystem tree ───────────────────────────────────────────────────────
+    @on(Button.Pressed, "#btn-add")
+    def _on_add(self) -> None:
+        self.action_add()
 
-    def _populate_fs_tree(self) -> None:
-        tree = self.query_one("#fs-tree", Tree)
-        tree.clear()
-        tree.root.set_label(self._path)
-        tree.root.data = {
-            "type": "directory",
-            "name": self._path,
-            "loaded": False,
-        }
-        self._load_fs_children(tree.root, self._path)
-        tree.root.expand()
+    @on(Button.Pressed, "#btn-reload")
+    def _on_reload(self) -> None:
+        self._reload()
 
-    def _load_fs_children(self, node: TreeNode, path: str) -> None:
-        try:
-            details = self._fs.ls(path, detail=True)
-        except PermissionError:
-            node.add_leaf("[red]Permission Denied[/red]")
-            return
-        except Exception as e:
-            node.add_leaf(f"[red]Error: {e}[/red]")
-            return
-
-        items = sorted(
-            details, key=lambda x: (x["type"] != "directory", x["name"].lower())
+    @on(Button.Pressed, "#btn-configure")
+    def _on_configure(self) -> None:
+        conf_dir = Path(
+            os.environ.get("PROJSPEC_CONFIG_DIR")
+            or (Path.home() / ".config" / "projspec")
         )
-        for item in items:
-            name = item["name"].rsplit("/", 1)[-1]
-            if name.startswith("."):
-                continue
-            if item["type"] == "directory":
-                in_lib = (
-                    item["name"] in library.entries
-                    or self._fs.unstrip_protocol(item["name"]) in library.entries
-                )
-                icon = "📁" if not in_lib else "📋"
-                child = node.add(f"{icon} {name}", data={**item, "loaded": False})
-                # Add a placeholder so the expand arrow appears
-                child.add_leaf("…")
-            else:
-                size = item.get("size")
-                size_str = _format_size(size) if size is not None else ""
-                node.add_leaf(
-                    f"📄 {name}  [dim]{size_str}[/dim]",
-                    data=item,
-                )
-        node.data = dict(node.data or {}, loaded=True)
+        conf_file = conf_dir / "projspec.json"
+        if not conf_file.exists():
+            conf_dir.mkdir(parents=True, exist_ok=True)
+            conf_file.write_text(json.dumps(DEFAULT_CONFIG, indent=4))
+        _open_default(str(conf_file))
+        self.status_message = f"Opened {conf_file}"
 
-    @on(Tree.NodeExpanded, "#fs-tree")
-    def _on_fs_node_expanded(self, event: Tree.NodeExpanded) -> None:
-        node = event.node
-        data = node.data or {}
-        if data.get("type") == "directory" and not data.get("loaded"):
-            # Remove placeholder
-            node.remove_children()
-            self._load_fs_children(node, data["name"])
+    @on(Button.Pressed, "#btn-clear")
+    def _on_clear(self) -> None:
+        self.query_one("#search", Input).value = ""
+        self._render_library()
 
-    @on(Tree.NodeSelected, "#fs-tree")
-    def _on_fs_node_selected(self, event: Tree.NodeSelected) -> None:
-        node = event.node
-        data = node.data or {}
-        if data.get("type") == "directory":
-            path = self._fs.unstrip_protocol(data["name"])
-            self._parse_and_add(path)
+    @on(Input.Changed, "#search")
+    def _on_search(self) -> None:
+        self._render_library()
 
-    @on(Tree.NodeHighlighted, "#fs-tree")
-    def _on_fs_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
-        # Double-click-style navigation: pressing Enter on a dir navigates into it
-        pass  # handled by action_go_into below via a separate key
+    # ── Data loading ────────────────────────────────────────────────────────
 
-    # ── Library tree ──────────────────────────────────────────────────────────
-
-    def _refresh_library(self, scroll_to: str | None = None) -> None:
-        tree = self.query_one("#lib-tree", Tree)
-        tree.clear()
-
-        info_data = class_infos()
-        for project_url, proj in library.entries.items():
-            proj_dict = proj.to_dict(compact=False)
-            basename = project_url.split("/")[-1] or project_url
-            project_node = tree.root.add(
-                _role_markup(f"{basename}  [dim]{project_url}[/dim]", "project"),
-                data={"project_url": project_url, "is_project": True},
-                expand=False,
-            )
-            summary_nodes = _build_library_tree_nodes(project_url, proj_dict, info_data)
-            _populate_tree_node(project_node, summary_nodes, depth=0)
-
-        tree.root.expand()
-
-    @on(Tree.NodeSelected, "#lib-tree")
-    def _on_lib_node_selected(self, event: Tree.NodeSelected) -> None:
-        node = event.node
-        data = node.data or {}
-        project_url = data.get("project_url")
-        if not project_url:
-            return
-        if data.get("is_project"):
-            self._show_project_details(project_url)
-        elif data.get("can_make") and data.get("qname"):
-            # Pressing Enter on an artifact triggers make
-            self._make_artifact(project_url, data["qname"])
-        else:
-            self._show_project_details(project_url)
-
-    # ── Details tree ──────────────────────────────────────────────────────────
-
-    def _show_project_details(self, project_url: str) -> None:
-        proj = library.entries.get(project_url)
-        if proj is None:
-            return
-        self._selected_project_url = project_url
-        basename = project_url.split("/")[-1] or project_url
-
+    def _reload(self, initial: bool = False) -> None:
+        self._set_busy(True)
         try:
-            self.query_one("#detail-basename", Label).update(
-                _role_markup(basename, "project")
-            )
-            self.query_one("#detail-url", Label).update(f"[dim]{project_url}[/dim]")
-        except NoMatches:
-            pass
-
-        detail_tree = self.query_one("#detail-tree", Tree)
-        detail_tree.clear()
-        detail_tree.root.set_label(_role_markup(basename, "project"))
-
-        proj_dict = proj.to_dict(compact=False)
-        nodes = _build_detail_nodes(proj_dict, "none", "", project_url)
-        _populate_tree_node(detail_tree.root, nodes, depth=0)
-        detail_tree.root.expand()
-
-    @on(Tree.NodeSelected, "#detail-tree")
-    def _on_detail_node_selected(self, event: Tree.NodeSelected) -> None:
-        node = event.node
-        data = node.data or {}
-        if data.get("can_make") and data.get("qname") and data.get("project_url"):
-            self._make_artifact(data["project_url"], data["qname"])
-
-    # ── Parse / add project ───────────────────────────────────────────────────
-
-    def _parse_and_add(self, path: str) -> None:
-        self.status_message = f"Parsing {path}…"
-        try:
-            proj = projspec.Project(path, walk=False, fs=self._fs)
+            if initial or not self._info:
+                self._info = class_infos()
+                self._enums = _collect_enum_members()
+            library.load()
+            self._render_library()
+            if self._selection and self._selection[0] not in library.entries:
+                self._selection = None
+            self._render_details()
         except Exception as e:
-            self.status_message = f"Parse error: {e}"
+            self.status_message = f"Reload failed: {e}"
+        finally:
+            self._set_busy(False)
+
+    # ── Rendering ───────────────────────────────────────────────────────────
+
+    def _render_library(self) -> None:
+        container = self.query_one("#projects", VerticalScroll)
+        for child in list(container.children):
+            child.remove()
+        filter_txt = self.query_one("#search", Input).value.strip().lower()
+        urls = sorted(library.entries.keys())
+        any_shown = False
+        for url in urls:
+            proj = library.entries[url]
+            pdict = proj.to_dict(compact=False)
+            if filter_txt:
+                hay = (
+                    url
+                    + " "
+                    + _basename(url)
+                    + " "
+                    + " ".join((pdict.get("specs") or {}).keys())
+                )
+                if filter_txt not in hay.lower():
+                    continue
+            any_shown = True
+            widget = ProjectWidget(url, pdict, self._info)
+            if self._selection and self._selection[0] == url:
+                widget.add_class("active")
+            container.mount(widget)
+        if not any_shown:
+            container.mount(
+                Static(
+                    'Library is empty. Click "Add" to scan a directory.'
+                    if not urls
+                    else "No projects match the filter.",
+                    classes="url",
+                )
+            )
+
+    def _render_details(self) -> None:
+        title_el = self.query_one("#details-title", Static)
+        doc_el = self.query_one("#details-doc", Static)
+        list_el = self.query_one("#details-list", VerticalScroll)
+        for c in list(list_el.children):
+            c.remove()
+
+        if not self._selection:
+            title_el.update("Details")
+            doc_el.update("")
             return
-        if proj.specs:
-            library.add_entry(path, proj)
-            self._refresh_library(scroll_to=path)
-            self._show_project_details(path)
-            self.status_message = f"Added: {path}"
-        else:
-            self.status_message = f"No specs found in {path}"
-
-    # ── Artifact make ─────────────────────────────────────────────────────────
-
-    def _make_artifact(self, project_url: str, qname: str) -> None:
-        proj = library.entries.get(project_url)
+        url, kind, spec_name = self._selection
+        proj = library.entries.get(url)
         if proj is None:
-            self.status_message = f"Project not found: {project_url}"
+            title_el.update("Details")
+            doc_el.update("")
             return
-        self.status_message = f"Making {qname} in {project_url}…"
+        pdict = proj.to_dict(compact=False)
+
+        if kind == "spec":
+            title_el.update(_role(spec_name or "", "spec"))
+            entry = (self._info.get("specs") or {}).get(spec_name or "") or {}
+            doc_parts = []
+            if entry.get("doc"):
+                doc_parts.append(entry["doc"])
+            if entry.get("link"):
+                doc_parts.append(f"[#3794ff]{entry['link']}[/]")
+            doc_el.update("\n".join(doc_parts))
+            spec = (pdict.get("specs") or {}).get(spec_name or "") or {}
+            self._mount_item_group(
+                list_el,
+                spec.get("_contents") or {},
+                "content",
+                False,
+                spec_name,
+                url,
+            )
+            self._mount_item_group(
+                list_el,
+                spec.get("_artifacts") or {},
+                "artifact",
+                True,
+                spec_name,
+                url,
+            )
+        elif kind == "contents":
+            title_el.update(_role("Contents", "content"))
+            doc_el.update("")
+            self._mount_item_group(
+                list_el,
+                pdict.get("contents") or {},
+                "content",
+                False,
+                None,
+                url,
+            )
+        elif kind == "artifacts":
+            title_el.update(_role("Artifacts", "artifact"))
+            doc_el.update("")
+            self._mount_item_group(
+                list_el,
+                pdict.get("artifacts") or {},
+                "artifact",
+                True,
+                None,
+                url,
+            )
+
+    def _mount_item_group(
+        self,
+        container: VerticalScroll,
+        items: dict,
+        kind: str,
+        show_make: bool,
+        spec_name: str | None,
+        project_url: str,
+    ) -> None:
+        if not items:
+            return
+        if not _has_klass(items):
+            # Plain dict (e.g. git_repo's {remotes, tags, branches}) -- one
+            # untitled YAML dump.
+            lines = _yaml_lines(items, self._enums)
+            wrap = Static("\n".join(lines), classes="body")
+            wrap.styles.border = ("solid", "#3c3c3c")
+            wrap.styles.padding = (0, 1)
+            wrap.styles.margin_bottom = 1
+            container.mount(wrap)
+            return
+        for type_name, entry in items.items():
+            if entry is None:
+                continue
+            if isinstance(entry, list):
+                for e in entry:
+                    container.mount(
+                        ItemWidget(
+                            type_name,
+                            None,
+                            e,
+                            kind,
+                            show_make,
+                            spec_name,
+                            project_url,
+                            self._enums,
+                            self._info,
+                        )
+                    )
+            elif isinstance(entry, dict) and "klass" in entry:
+                container.mount(
+                    ItemWidget(
+                        type_name,
+                        None,
+                        entry,
+                        kind,
+                        show_make,
+                        spec_name,
+                        project_url,
+                        self._enums,
+                        self._info,
+                    )
+                )
+            elif isinstance(entry, dict):
+                for name, sub in entry.items():
+                    container.mount(
+                        ItemWidget(
+                            type_name,
+                            name,
+                            sub,
+                            kind,
+                            show_make,
+                            spec_name,
+                            project_url,
+                            self._enums,
+                            self._info,
+                        )
+                    )
+
+    # ── Messages from custom widgets ────────────────────────────────────────
+
+    @on(ChipClicked)
+    def _on_chip_clicked(self, event: ChipClicked) -> None:
+        self._selection = (event.url, event.kind, event.spec_name)
+        # Re-render library to update the "active" highlight, then the
+        # details pane to show what the user picked.
+        self._render_library()
+        self._render_details()
+        event.stop()
+
+    @on(KebabPressed)
+    def _on_kebab_pressed(self, event: KebabPressed) -> None:
+        self._open_kebab(event.url)
+        event.stop()
+
+    @on(MakeRequested)
+    def _on_make_requested(self, event: MakeRequested) -> None:
+        self._action_make(event.url, event.qname)
+        event.stop()
+
+    @on(RevealRequested)
+    def _on_reveal_requested(self, event: RevealRequested) -> None:
+        self._action_reveal(event.fn)
+        event.stop()
+
+    @on(InfoRequested)
+    def _on_info_requested(self, event: InfoRequested) -> None:
+        self._action_info(event.kind, event.klass)
+        event.stop()
+
+    # ── Kebab / per-project actions ─────────────────────────────────────────
+
+    def _open_kebab(self, url: str) -> None:
+        def _cb(key: str | None) -> None:
+            if not key:
+                return
+            if key == "openVSCode":
+                _spawn_detached(["code", _url_to_local(url)])
+            elif key == "openFilebrowser":
+                _open_default(_url_to_local(url))
+            elif key == "openPyCharm":
+                _spawn_detached(
+                    [
+                        "pycharm",
+                        _url_to_local(url),
+                        "nosplash",
+                        "dontReopenProjects",
+                    ]
+                )
+            elif key == "openJupyter":
+                _spawn_detached(["jupyter", "lab", _url_to_local(url)])
+            elif key == "rescan":
+                self._scan_and_reload(url, walk=False)
+            elif key == "createSpec":
+                self._open_create_spec(url)
+            elif key == "remove":
+                if url in library.entries:
+                    del library.entries[url]
+                    library.save()
+                self._reload()
+
+        self.push_screen(KebabMenuModal(is_local=url.startswith("file://")), _cb)
+
+    def _open_create_spec(self, url: str) -> None:
+        proj = library.entries.get(url)
+        existing = set(proj.specs if proj is not None else {}) if proj else set()
+        creatable = sorted(
+            name
+            for name, entry in (self._info.get("specs") or {}).items()
+            if entry.get("create") and name not in existing
+        )
+        if not creatable:
+            self.status_message = "No spec types available to create."
+            return
+
+        def _cb(pick: str | None) -> None:
+            if not pick:
+                return
+            self._set_busy(True)
+            try:
+                path = _url_to_local(url)
+                proj = projspec.Project(path, walk=False)
+                proj.create(pick)
+                fresh = projspec.Project(path, walk=False)
+                library.add_entry(path, fresh)
+                self.status_message = f"Created {pick} in {path}"
+                self._reload()
+            except Exception as e:
+                self.status_message = f"Create failed: {e}"
+            finally:
+                self._set_busy(False)
+
+        self.push_screen(CreateSpecModal(creatable), _cb)
+
+    def _scan_and_reload(self, url: str, walk: bool) -> None:
+        self._set_busy(True)
+        try:
+            path = _url_to_local(url)
+            proj = projspec.Project(path, walk=walk)
+            if walk:
+                for child_url, child in (proj.children or {}).items():
+                    if child.specs:
+                        library.add_entry(child_url, child)
+            if proj.specs:
+                library.add_entry(path, proj)
+            self.status_message = f"Scanned {path}"
+            self._reload()
+        except Exception as e:
+            self.status_message = f"Scan failed: {e}"
+        finally:
+            self._set_busy(False)
+
+    def _action_make(self, url: str, qname: str) -> None:
+        proj = library.entries.get(url)
+        if proj is None:
+            self.status_message = f"Project not found: {url}"
+            return
+        self._set_busy(True)
         try:
             art = proj.make(qname)
             self.status_message = f"Done: {art}"
         except Exception as e:
-            self.status_message = f"Make failed: {e}"
+            self.status_message = f"Make '{qname}' failed: {e}"
+        finally:
+            self._set_busy(False)
 
-    # ── Key actions ───────────────────────────────────────────────────────────
-
-    def action_go_home(self) -> None:
-        self._navigate(str(Path.home()))
-
-    def action_go_up(self) -> None:
-        stripped = str(self._fs._strip_protocol(self._path))
-        parent = posixpath.dirname(stripped.rstrip("/"))
-        if not parent or parent == stripped:
+    def _action_reveal(self, fn: str) -> None:
+        local = _url_to_local(fn)
+        if "://" in local and not local.startswith("/"):
+            self.status_message = f"Cannot reveal remote file: {fn}"
             return
-        self._navigate(self._fs.unstrip_protocol(parent))
+        matches = _expand_glob(local)
+        if not matches:
+            self.status_message = f"No files match: {fn}"
+            return
+        if len(matches) == 1:
+            _open_default(os.path.dirname(matches[0]) or matches[0])
+            return
 
-    def action_goto_path(self) -> None:
-        def _callback(result: str | None) -> None:
-            if result:
-                self._navigate(result)
+        def _cb(pick: str | None) -> None:
+            if pick:
+                _open_default(os.path.dirname(pick) or pick)
 
-        self.push_screen(GoToPathModal(self._path), _callback)
+        self.push_screen(RevealPickModal(matches), _cb)
 
-    def action_scan(self) -> None:
-        self.status_message = f"Scanning {self._path}…"
-        try:
-            proj = projspec.Project(self._path, walk=True, fs=self._fs)
-            for url, child in proj.children.items():
-                if child.specs:
-                    library.add_entry(url, child)
-            if proj.specs:
-                library.add_entry(self._path, proj)
-            self._refresh_library(scroll_to=self._path)
-            self.status_message = f"Scan complete: {self._path}"
-        except Exception as e:
-            self.status_message = f"Scan failed: {e}"
-
-    def action_create_project(self) -> None:
-        info_data = class_infos()
-        spec_names = list(info_data.get("specs", {}).keys())
-
-        def _callback(project_type: str | None) -> None:
-            if not project_type:
-                return
-            try:
-                proj = projspec.Project(self._path, walk=False, fs=self._fs)
-                proj.create(project_type)
-                library.add_entry(self._path, proj)
-                self._refresh_library(scroll_to=self._path)
-                self.status_message = f"Created {project_type} in {self._path}"
-            except Exception as e:
-                self.status_message = f"Create failed: {e}"
-
-        self.push_screen(CreateProjectModal(spec_names), _callback)
+    def _action_info(self, kind: str, klass: str) -> None:
+        table = self._info.get("content" if kind == "content" else "artifact") or {}
+        entry = table.get(klass) or {}
+        doc = entry.get("doc") or "(no documentation)"
+        self.push_screen(InfoPopupModal(klass, doc))
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _format_size(size: int | None) -> str:
-    if size is None:
-        return ""
-    sz: float = size
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if sz < 1024.0:
-            return f"{sz:.1f} {unit}"
-        sz /= 1024.0
-    return f"{sz:.1f} PB"
-    return f"{size:.1f} PB"
-
-
-# ---------------------------------------------------------------------------
-# Entry point
+#  Entry point
 # ---------------------------------------------------------------------------
 
 
 def main() -> None:
-    import sys
-
-    path = sys.argv[1] if len(sys.argv) > 1 else None
-    app = ProjspecApp(path=path)
+    app = ProjspecApp()
     app.run()
 
 

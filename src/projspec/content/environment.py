@@ -28,7 +28,7 @@ class Precision(Enum):
 class Environment(BaseContent):
     """Definition of a python runtime environment"""
 
-    icon = "boxes-stacked"
+    icon = "🗃️"
 
     stack: Stack
     precision: Precision
@@ -49,7 +49,7 @@ class Environment(BaseContent):
 
 # TODO: if a project has both requirements and environment.yml, one will overwrite the other
 class PythonRequirements(ProjectExtra):
-    icon = "list"
+    icon = "📋"
     spec_doc = "https://pip.pypa.io/en/stable/reference/requirements-file-format/"
 
     def match(self) -> bool:
@@ -69,7 +69,7 @@ class PythonRequirements(ProjectExtra):
 
 
 class CondaEnv(ProjectExtra):
-    icon = "cubes"
+    icon = "📦"
     spec_doc = (
         "https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/"
         "manage-environments.html#create-env-file-manually"

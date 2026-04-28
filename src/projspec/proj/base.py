@@ -453,7 +453,7 @@ class ProjectSpec:
     is important).
     """
 
-    icon = "folder"  # default; concrete subclasses should override
+    icon = "📁"  # default; concrete subclasses should override
 
     spec_doc = ""  # URL to prose about this spec
 

@@ -13,7 +13,7 @@ class ComposeStack(BaseArtifact):
     ``state``   is inferred by ``docker compose ps`` (checks for running services).
     """
 
-    icon = "layer-group"
+    icon = "🗂️"
 
     def __init__(self, proj: Project, file: str = "docker-compose.yml", **kwargs):
         self.compose_file = file
@@ -51,7 +51,7 @@ class StaticSite(FileArtifact):
     ``<proj>/site/index.html``.
     """
 
-    icon = "globe"
+    icon = "🌐"
 
     pass
 
@@ -63,7 +63,7 @@ class TerraformPlan(FileArtifact):
     ``clean()`` deletes the plan file
     """
 
-    icon = "cloud"
+    icon = "☁️"
 
     def __init__(self, proj: Project, plan_file: str = "plan.tfplan", **kwargs):
         fn = f"{proj.url}/{plan_file}"

@@ -10,7 +10,7 @@ from projspec.utils import _ipynb_to_py, run_subprocess, AttrDict
 class Django(ProjectSpec):
     """A python web app using the django framework"""
 
-    icon = "server"
+    icon = "🖧"
     # this is the metadata settings reference
     spec_doc = "https://docs.djangoproject.com/en/6.0/ref/settings/"
 
@@ -56,7 +56,7 @@ class Django(ProjectSpec):
 class Streamlit(ProjectSpec):
     """Interactive graphical app served in the browser, with streamlit components"""
 
-    icon = "chart-bar"
+    icon = "📊"
     spec_doc = "https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/file-organization"
     # see also "https://docs.streamlit.io/develop/api-reference/configuration/config.toml", which is
     # mainly theme and server config.
@@ -156,7 +156,7 @@ st.write("Hello world!")
 class Marimo(ProjectSpec):
     """Reactive Python notebook and webapp served in the browser"""
 
-    icon = "book-open"
+    icon = "📖"
     spec_doc = "https://docs.marimo.io/"
     server_args = {"port_arg": "--port", "address_arg": "--host"}
 
@@ -207,7 +207,7 @@ if __name__ == "__main__":
 class Flask(ProjectSpec):
     """Lightweight web application framework in Python"""
 
-    icon = "flask"
+    icon = "🧪"
     spec_doc = "https://flask.palletsprojects.com/en/stable/config/"
     server_args = {"port_arg": "--port", "address_arg": "--host"}
 
@@ -270,7 +270,7 @@ def hello_world():
 class FastAPI(ProjectSpec):
     """Fast web application framework in Python"""
 
-    icon = "bolt"
+    icon = "⚡"
     spec_doc = "https://fastapi.tiangolo.com/advanced/settings/"
     server_args = {"port_arg": "--port", "address_arg": "--host"}
 
@@ -328,7 +328,7 @@ def read_item(item_id: int, q: str | None = None):
 class Dash(ProjectSpec):
     """Interactive data dashboarding with plotly components."""
 
-    icon = "chart-pie"
+    icon = "📊"
     spec_doc = "https://dash.plotly.com/tutorial"  # no actual configuration
     server_args = {"in_env": True, "port_arg": "PORT", "address_arg": "HOST"}
 
@@ -394,7 +394,7 @@ if __name__ == '__main__':
 class Panel(ProjectSpec):
     """Interactive data dashboarding using panel, with holoviz/bokeh components."""
 
-    icon = "table-columns"
+    icon = "📊"
     spec_doc = "https://panel.holoviz.org/api/config.html"
 
     def match(self) -> bool:
@@ -445,7 +445,7 @@ class Gradio(ProjectSpec):
     Detected by scanning Python files for `import gradio` or `gr.Interface` / `gr.Blocks`.
     """
 
-    icon = "sliders"
+    icon = "🎛️"
     spec_doc = "https://www.gradio.app/docs/gradio/interface"
     server_args = {"port_arg": "--server-port", "address_arg": "--server-name"}
 
@@ -508,7 +508,7 @@ class Shiny(ProjectSpec):
     `app = App(` or `@app.` decorator usage.  Also detects `app.py` at root.
     """
 
-    icon = "star"
+    icon = "⭐"
     spec_doc = "https://shiny.posit.co/py/docs/overview.html"
     server_args = {"port_arg": "--port", "address_arg": "--host"}
 

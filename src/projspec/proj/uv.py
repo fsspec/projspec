@@ -55,7 +55,7 @@ class UvScript(PythonLibrary):
     Metadata are declared inline in the script header
     """
 
-    icon = "file-code"
+    icon = "📜"
     spec_doc = "https://docs.astral.sh/uv/guides/scripts/"
 
     def match(self):
@@ -152,7 +152,7 @@ class Uv(PythonLibrary):
     config.
     """
 
-    icon = "rocket"
+    icon = "🚀"
     spec_doc = "https://docs.astral.sh/uv/concepts/configuration-files/"
 
     def match(self):

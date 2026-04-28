@@ -1,50 +1,62 @@
-Textual TUI for projspec
--------------------------
+projspec — Textual TUI
+=======================
 
-Terminal-based filesystem and library browser, functionally equivalent to
-``qtapp`` but running entirely in the terminal via [Textual](https://textual.textualize.io/).
+Terminal UI for projspec, functionally equivalent to the `VSCode extension
+<../vsextension>`_ and the `Qt app <../qtapp>`_.  The three UIs share the
+same two-pane layout and action vocabulary — see ``vsextension/ACTIONS.md``
+for the canonical reference.
 
-## Layout
+Layout
+------
 
 ```
-┌────────────────┬────────────────┬──────────────────────────┐
-│  Filesystem    │    Library     │         Details          │
-│  (left)        │   (centre)     │         (right)          │
-│                │                │                          │
-│  📁 myproject  │ myproject      │ myproject                │
-│  📁 other      │   python_lib   │   python_library         │
-│  📄 README.md  │   git_repo     │     packages: [...]      │
-│                │   • wheel Make │   git_repo               │
-│                │                │     branch: main         │
-└────────────────┴────────────────┴──────────────────────────┘
+┌──────────────────────────┬────────────────────────────┐
+│ + Add  ↻ Reload  ⚙ …     │                            │
+│ ┌ filter ┐   ×            │                            │
+│                          │   title                    │
+│ ┌─ my-project ─┐         │   doc / link               │
+│ │ /path/...    │         │                            │
+│ │ Contents <3> │         │   ┌─ environment ──────┐  │
+│ │ python_lib … │         │   │  stack: CONDA      │  │
+│ │   ⋮          │         │   │  packages: [...]   │  │
+│ └──────────────┘         │   └────────────────────┘  │
+│                          │                            │
+└──────────────────────────┴────────────────────────────┘
 ```
 
-- **Left** — filesystem tree.  Selecting a directory parses it with projspec
-  and adds it to the library if any specs are matched.
-- **Centre** — library panel showing all known projects with their specs,
-  contents, and artifacts.  Selecting an artifact node triggers `make`.
-- **Right** — full detail tree for the selected project.
+- **Library** (left): toolbar (``Add`` / ``Reload`` / ``Configure``),
+  filter input, and one widget per project with chips for ``Contents``,
+  ``Artifacts``, and each registered spec.  A ``⋮`` button opens a menu with
+  ``Open with VSCode / system filebrowser / PyCharm / jupyter``, ``Rescan``,
+  ``Create spec`` and ``Remove from library``.
+- **Details** (right): when a chip is selected, shows the spec's doc + link
+  and per-item widgets with coloured outlines (green for contents, red for
+  artifacts), YAML-rendered data, and action buttons (``→ Reveal`` to open
+  the containing directory, ``▶ Make`` to invoke ``projspec make``,
+  ``ⓘ Info`` for the class docstring).  Enum values render as their
+  member name.
 
-## Key bindings
+Key bindings
+------------
 
-| Key | Action |
-|-----|--------|
-| `h` | Go to home directory |
-| `u` | Go up one directory level |
-| `g` | Go to an arbitrary path (opens dialog) |
-| `s` | Scan the current directory (walk=True, adds all sub-projects) |
-| `c` | Create a new project type in the current directory (opens dialog) |
-| `q` / `Ctrl+C` | Quit |
+=====  ======================================================================
+Key    Action
+=====  ======================================================================
+``a``  Add a directory (or URL) to the library
+``r``  Reload the library from disk
+``/``  Focus the filter input
+``q``  Quit
+=====  ======================================================================
 
-## Running
+Running
+-------
 
-```bash
-python textapp/main.py [path]
-```
+.. code-block:: bash
 
-Or, after installing the package with the `textual` extra:
+    python textapp/main.py
 
-```bash
-pip install "projspec[textual]"
-projspec-tui [path]
-```
+or, after installing the package with the ``textual`` extra::
+
+    projspec-tui
+
+Requirements: `Textual <https://textual.textualize.io/>`_ ≥ 0.60.

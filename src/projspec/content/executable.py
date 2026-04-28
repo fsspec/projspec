@@ -9,7 +9,7 @@ from projspec.content import BaseContent
 class Command(BaseContent):
     """The simplest runnable thing; we don't know what it does/outputs."""
 
-    icon = "terminal"
+    icon = "⌨️"
 
     cmd: list[str] | str
 

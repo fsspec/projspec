@@ -41,7 +41,7 @@ class Process(BaseArtifact):
     value `capture_artifact_output` to False.
     """
 
-    icon = "terminal"
+    icon = "⌨️"
 
     term: bool = False
     environ: dict[str, str] = {}
@@ -101,7 +101,7 @@ class Server(Process):
     will attempt to be inferred.
     """
 
-    icon = "server"
+    icon = "🖧"
 
     _port: int = 0
     _address: str = "0.0.0.0"

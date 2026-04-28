@@ -13,7 +13,7 @@ class TabularData(BaseContent):
     JSON, CSV, and parquet.
     """
 
-    icon = "table"
+    icon = "📊"
 
     name: str
     metadata: dict = field(default_factory=dict)
@@ -32,7 +32,7 @@ class IntakeSource(BaseContent):
     See https://intake.readthedocs.io/en/latest/
     """
 
-    icon = "book-open"
+    icon = "📖"
 
     # TODO: add better fields: args, driver/reader, metadata, description
     name: str
@@ -77,7 +77,7 @@ class DataResource(BaseContent):
     - Unknown / library not available: `{}`
     """
 
-    icon = "file-arrow-down"
+    icon = "📥"
 
     path: str  # basename (or glob pattern / dir/ ) identifying this resource
     format: str  # canonical format string, e.g. "parquet", "csv", "png", "hdf5"

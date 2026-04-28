@@ -14,7 +14,7 @@ class Poetry(PythonLibrary):
     installs, and can build your project for distribution.
     """
 
-    icon = "feather"
+    icon = "🪶"
     spec_doc = "https://python-poetry.org/docs/pyproject/"
 
     def match(self) -> bool:

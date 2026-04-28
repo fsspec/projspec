@@ -5,7 +5,7 @@ from projspec.proj import ProjectSpec
 
 
 class NvidiaAIWorkbench(ProjectSpec):
-    icon = "microchip"
+    icon = "🧠"
     spec_doc = (
         "https://docs.nvidia.com/ai-workbench/user-guide/latest/projects/spec.html"
     )
@@ -27,7 +27,7 @@ class NvidiaAIWorkbench(ProjectSpec):
 
 
 class JetbrainsIDE(ProjectSpec):
-    icon = "jet-fighter"
+    icon = "🛩️"
 
     def match(self) -> bool:
         return self.proj.fs.exists(f"{self.proj.url}/.idea")
@@ -41,7 +41,7 @@ class JetbrainsIDE(ProjectSpec):
 
 
 class VSCode(ProjectSpec):
-    icon = "code"
+    icon = "💻"
     spec_doc = (
         "https://code.visualstudio.com/docs/configure/settings#_settings-json-file"
     )
@@ -56,7 +56,7 @@ class VSCode(ProjectSpec):
 
 
 class Zed(ProjectSpec):
-    icon = "bolt"
+    icon = "⚡"
     spec_doc = "https://zed.dev/docs/configuring-zed#settings"
 
     def match(self) -> bool:

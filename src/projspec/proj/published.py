@@ -6,7 +6,7 @@ from projspec.proj.base import ProjectExtra
 class Cited(ProjectExtra):
     """A github-specified format to say how this project should be cited."""
 
-    icon = "quote-right"
+    icon = "💬"
     spec_doc = "https://citation-file-format.github.io/"
 
     def match(self):
@@ -23,7 +23,7 @@ class Cited(ProjectExtra):
 class Zenodo(ProjectExtra):
     """This project has been published on Zenodo"""
 
-    icon = "upload"
+    icon = "⬆️"
     spec_doc = "https://help.zenodo.org/docs/github/describe-software/zenodo-json/"
 
     def match(self):

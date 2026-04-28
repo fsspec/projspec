@@ -7,7 +7,7 @@ from projspec.content import BaseContent
 class PythonPackage(BaseContent):
     """Importable python directory, i.e., containing an __init__.py file."""
 
-    icon = "python"
+    icon = "🐍"
 
     package_name: str
 
@@ -16,7 +16,7 @@ class PythonPackage(BaseContent):
 class RustModule(BaseContent):
     """Usually a directory with a Cargo.toml file"""
 
-    icon = "rust"
+    icon = "🦀"
 
     name: str
 
@@ -25,6 +25,6 @@ class RustModule(BaseContent):
 class NodePackage(BaseContent):
     """Buildable nodeJS source"""
 
-    icon = "node-js"
+    icon = "🟩"
 
     name: str

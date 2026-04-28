@@ -10,7 +10,7 @@ from projspec.utils import AttrDict, run_subprocess
 class NextJS(Node):
     """Next.js React framework project."""
 
-    icon = "react"
+    icon = "⚛️"
     spec_doc = "https://nextjs.org/docs/app/api-reference/config/next-config-js"
 
     _CONFIG_NAMES = {
@@ -68,7 +68,7 @@ class NextJS(Node):
 class NuxtJS(Node):
     """Nuxt.js Vue framework project."""
 
-    icon = "vuejs"
+    icon = "💚"
     spec_doc = "https://nuxt.com/docs/api/nuxt-config"
 
     _CONFIG_NAMES = {"nuxt.config.js", "nuxt.config.ts", "nuxt.config.mjs"}
@@ -117,7 +117,7 @@ class NuxtJS(Node):
 class SvelteKit(Node):
     """SvelteKit project."""
 
-    icon = "fire-flame-curved"
+    icon = "🔥"
     spec_doc = "https://svelte.dev/docs/kit/configuration"
 
     _CONFIG_NAMES = {"svelte.config.js", "svelte.config.ts"}
@@ -171,7 +171,7 @@ class Vite(Node):
     SvelteKit takes priority via its more-specific match.
     """
 
-    icon = "bolt"
+    icon = "⚡"
     spec_doc = "https://vitejs.dev/config/"
 
     _CONFIG_NAMES = {
@@ -235,7 +235,7 @@ class Vite(Node):
 class Pnpm(Node):
     """Node project managed with pnpm."""
 
-    icon = "npm"
+    icon = "📦"
     spec_doc = "https://pnpm.io/package_json"
 
     def match(self) -> bool:
@@ -281,7 +281,7 @@ class Pnpm(Node):
 class Bun(Node):
     """Node project managed with Bun."""
 
-    icon = "bread-slice"
+    icon = "🍞"
     spec_doc = "https://bun.sh/docs/install/lockfile"
 
     def match(self) -> bool:
@@ -310,7 +310,7 @@ class Deno(ProjectSpec):
     Note: this is a separate runtime, not a Node project.
     """
 
-    icon = "server"
+    icon = "🖧"
     spec_doc = "https://docs.deno.com/runtime/fundamentals/configuration/"
 
     _CONFIG_NAMES = {"deno.json", "deno.jsonc"}

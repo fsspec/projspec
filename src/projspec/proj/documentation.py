@@ -16,7 +16,7 @@ class MDBook(ProjectSpec):
     is an example.
     """
 
-    icon = "book"
+    icon = "📖"
     # to get generated docs output for a rust lib, use `rustdoc`
     # https://doc.rust-lang.org/rustdoc/what-is-rustdoc.html
 
@@ -106,7 +106,7 @@ class RTD(ProjectSpec):
     General description of the platform: https://docs.readthedocs.com/platform/stable/
     """
 
-    icon = "book-open-reader"
+    icon = "📖"
     spec_doc = "https://docs.readthedocs.com/platform/stable/config-file/v2.html"
 
     def match(self) -> bool:
@@ -256,7 +256,7 @@ class RTD(ProjectSpec):
 class MkDocs(ProjectSpec):
     """MkDocs documentation project."""
 
-    icon = "file-alt"
+    icon = "📄"
     spec_doc = "https://www.mkdocs.org/user-guide/configuration/"
 
     _NAMES = {"mkdocs.yml", "mkdocs.yaml"}
@@ -328,7 +328,7 @@ class MkDocs(ProjectSpec):
 class Sphinx(ProjectSpec):
     """Sphinx documentation project (standalone, without ReadTheDocs config)."""
 
-    icon = "scroll"
+    icon = "📜"
     spec_doc = "https://www.sphinx-doc.org/en/master/usage/configuration.html"
 
     def match(self) -> bool:
@@ -409,7 +409,7 @@ class Sphinx(ProjectSpec):
 class Docusaurus(ProjectSpec):
     """Docusaurus documentation/website project."""
 
-    icon = "dragon"
+    icon = "🐉"
     spec_doc = "https://docusaurus.io/docs/configuration"
 
     _CONFIG_NAMES = {

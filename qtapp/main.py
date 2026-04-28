@@ -1,63 +1,88 @@
+"""Qt-based desktop UI for projspec - functional equivalent of the VSCode extension.
+
+This app is a Python port of the `vsextension/` WebView UI.  A single
+QMainWindow hosts a QWebEngineView rendering the same HTML/CSS/JS two-pane
+layout (Library + Details) described in `vsextension/ACTIONS.md`, while the
+Python side plays the role of the "extension host": it calls projspec APIs
+directly (no subprocess), scans/creates/removes projects, and invokes
+artifacts' ``make`` methods.
+
+The look-and-feel is intentionally identical to the VSCode extension so the
+two UIs diverge as little as possible.
+"""
+
+from __future__ import annotations
+
 import json
+import os
 import os.path
-import posixpath
+import subprocess
 import sys
 import webbrowser
+from pathlib import Path
 
-import fsspec
+from PyQt5.QtCore import QObject, QUrl, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWebChannel import QWebChannel
+from PyQt5.QtWebEngineWidgets import QWebEngineSettings, QWebEngineView
 from PyQt5.QtWidgets import (
     QApplication,
-    QDialog,
-    QPushButton,
-    QComboBox,
+    QFileDialog,
     QMainWindow,
-    QTreeWidget,
-    QTreeWidgetItem,
-    QWidget,
-    QStyle,
-    QHBoxLayout,
-    QVBoxLayout,
-    QLineEdit,
     QMessageBox,
-    QSplitter,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtWebChannel import QWebChannel
-from PyQt5.QtCore import Qt, pyqtSignal, QObject, pyqtSlot, QUrl
-from PyQt5.QtGui import QIcon
 
+import projspec
 from projspec.library import ProjectLibrary
 from projspec.utils import class_infos
-import projspec
 
-from views import get_library_html, get_details_html
+from views import get_panel_html
+
+
+# ---------------------------------------------------------------------------
+# Global state
+# ---------------------------------------------------------------------------
 
 library = ProjectLibrary()
 
 
+DEFAULT_CONFIG = {
+    "scan_types": [".py", ".yaml", ".yml", ".toml", ".json", ".md"],
+    "scan_max_files": 100,
+    "scan_max_size": 5000,
+    "remote_artifact_status": False,
+    "capture_artifact_output": True,
+    "preferred_install_methods": ["conda", "pip"],
+}
+
+
 # ---------------------------------------------------------------------------
-# WebChannel bridge — receives messages from JS and dispatches to a handler
+# JS ↔ Python bridge
 # ---------------------------------------------------------------------------
 
 
 class JsBridge(QObject):
-    """Exposed to JavaScript as ``bridge`` on the WebChannel.
+    """Exposed to the webview under the global name ``bridge``.
 
-    All JavaScript → Python calls go through ``handleMessage``.
-    The handler callback is set by the owner widget.
+    Every JavaScript → Python call goes through :meth:`handleMessage`, which
+    decodes a JSON string and hands the dict off to a single Python handler.
+    Python → JavaScript calls emit :attr:`from_python` whose connected JS-side
+    slot dispatches on ``type``.
     """
 
-    message_received = pyqtSignal(str)  # emits raw JSON string
+    from_python = pyqtSignal(str)  # JSON-encoded outbound message
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self._handler = None  # callable(dict)
+        self._handler = None
 
-    def set_handler(self, handler):
+    def set_handler(self, handler) -> None:
         self._handler = handler
 
     @pyqtSlot(str)
-    def handleMessage(self, message: str):
+    def handleMessage(self, message: str) -> None:
         try:
             data = json.loads(message)
         except json.JSONDecodeError:
@@ -65,386 +90,328 @@ class JsBridge(QObject):
         if self._handler:
             self._handler(data)
 
-
-def _make_web_view_with_channel(
-    bridge: JsBridge,
-) -> tuple[QWebEngineView, QWebChannel]:
-    """Create a QWebEngineView with a QWebChannel pre-configured."""
-    view = QWebEngineView()
-    channel = QWebChannel(view.page())
-    channel.registerObject("bridge", bridge)
-    view.page().setWebChannel(channel)
-    return view, channel
+    def send(self, msg: dict) -> None:
+        """Serialise ``msg`` and hand it to the connected JS listener."""
+        self.from_python.emit(json.dumps(msg))
 
 
 # ---------------------------------------------------------------------------
-# FileBrowserWindow
+# Main window
 # ---------------------------------------------------------------------------
 
 
-class FileBrowserWindow(QMainWindow):
-    """A mini filesystem browser with project information.
+class ProjspecWindow(QMainWindow):
+    """Single-window Qt app that mirrors the VSCode Project Library panel."""
 
-    Left pane: filesystem tree.
-    Right pane: project details as the VS Code-style HTML panel.
-    Bottom dock: Library panel with the same HTML view as the VS Code extension.
-    """
-
-    def __init__(self, path=None, parent=None):
-        super().__init__(parent)
-
-        if path is None:
-            path = os.path.expanduser("~")
-        self.fs: fsspec.AbstractFileSystem
-        self.path: str
-        self.fs, self.path = fsspec.url_to_fs(path)
-
+    def __init__(self) -> None:
+        super().__init__()
         self.setWindowTitle("Projspec Browser")
-        self.setGeometry(100, 100, 1400, 700)
+        self.resize(1400, 820)
 
-        # Left pane — file browser
-        left = QVBoxLayout()
+        self._info_data: dict = {}
+        self._enum_members: dict = {}
 
-        nav_bar = QHBoxLayout()
-        home_btn = QPushButton("⌂")
-        home_btn.setToolTip("Home")
-        home_btn.setFixedWidth(32)
-        home_btn.clicked.connect(self.go_home)
-        up_btn = QPushButton("↑")
-        up_btn.setToolTip("Up")
-        up_btn.setFixedWidth(32)
-        up_btn.clicked.connect(self.go_up)
-        self.path_text = QLineEdit(path)
-        self.path_text.returnPressed.connect(self.path_set)
-        nav_bar.addWidget(home_btn)
-        nav_bar.addWidget(up_btn)
-        nav_bar.addWidget(self.path_text)
-
-        self.tree = QTreeWidget(self)
-        self.tree.setHeaderLabels(["Name", "Size"])
-        self.tree.setColumnWidth(0, 250)
-        self.tree.setColumnWidth(1, 50)
-        left.addLayout(nav_bar)
-        left.addWidget(self.tree)
-
-        self.tree.itemExpanded.connect(self.on_item_expanded)
-        self.tree.currentItemChanged.connect(self.on_item_changed)
-        self.tree.itemDoubleClicked.connect(self.on_item_double_clicked)
-
-        left_widget = QWidget(self)
-        left_widget.setLayout(left)
-
-        # Middle pane — library
-        self.library_widget = LibraryWidget(self)
-
-        # Right pane — details
-        self._detail_bridge = JsBridge(self)
-        self._detail_bridge.set_handler(self._on_detail_message)
-        self.detail, _ = _make_web_view_with_channel(self._detail_bridge)
-        self.detail.setHtml(_empty_detail_html())
-
-        self.library_widget.show_details.connect(self._show_project_details)
-
-        central_widget = QWidget(self)
-        self.setCentralWidget(central_widget)
-
-        splitter = QSplitter(Qt.Horizontal, central_widget)
-        splitter.addWidget(left_widget)
-        splitter.addWidget(self.library_widget)
-        splitter.addWidget(self.detail)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
-        splitter.setStretchFactor(2, 2)
-
-        outer = QHBoxLayout(central_widget)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(splitter)
-        central_widget.setLayout(outer)
-
-        self.statusBar().showMessage("Ready")
-        self.populate_tree()
-
-    # ── Path / tree helpers ────────────────────────────────────────────────
-
-    def path_set(self):
-        try:
-            self.fs, _ = fsspec.url_to_fs(self.path_text.text())
-        except Exception:
-            self.statusBar().showMessage("filesystem instantiation failed")
-            return
-        self.path = self.path_text.text()
-        self.populate_tree()
-
-    def go_home(self):
-        self.path_text.setText(os.path.expanduser("~"))
-        self.path_set()
-
-    def go_up(self):
-        # Strip protocol so dirname doesn't eat into "bucket" or the leading slash.
-        stripped = str(self.fs._strip_protocol(self.path))
-        parent_stripped = posixpath.dirname(stripped.rstrip("/"))
-        # If stripping consumed everything (e.g. already at root), stay put.
-        if not parent_stripped or parent_stripped == stripped:
-            return
-        self.path_text.setText(self.fs.unstrip_protocol(parent_stripped))
-        self.path_set()
-
-    def on_item_double_clicked(self, item: QTreeWidgetItem, column: int):
-        detail = item.data(0, Qt.ItemDataRole.UserRole)
-        if detail and detail.get("type") == "directory":
-            path = self.fs.unstrip_protocol(detail["name"])
-            self.path_text.setText(path)
-            self.path_set()
-
-    def populate_tree(self):
-        self.tree.clear()
-        root_item = QTreeWidgetItem(self.tree)
-        root_item.setText(0, self.path)
-        self.add_children(root_item, self.path)
-        root_item.setExpanded(True)
-
-    def add_children(self, parent_item, path):
-        try:
-            details = self.fs.ls(path, detail=True)
-            items = sorted(details, key=lambda x: (x["type"], x["name"].lower()))
-            for item in items:
-                name = item["name"].rsplit("/", 1)[-1]
-                if name.startswith("."):
-                    continue
-                child_item = QTreeWidgetItem(parent_item)
-                child_item.setText(0, name)
-                child_item.setData(0, Qt.ItemDataRole.UserRole, item)
-                style = app.style()
-                if item["type"] == "directory":
-                    dummy = QTreeWidgetItem(child_item)
-                    dummy.setText(0, "Loading...")
-                    if (
-                        item["name"] in library.entries
-                        or self.fs.unstrip_protocol(item["name"]) in library.entries
-                    ):
-                        child_item.setIcon(
-                            0, style.standardIcon(QStyle.SP_FileDialogInfoView)
-                        )
-                    else:
-                        child_item.setIcon(0, style.standardIcon(QStyle.SP_DirIcon))
-                else:
-                    child_item.setText(1, format_size(item["size"]))
-                    child_item.setIcon(0, style.standardIcon(QStyle.SP_FileIcon))
-        except PermissionError:
-            error_item = QTreeWidgetItem(parent_item)
-            error_item.setText(0, "Permission Denied")
-            error_item.setForeground(0, Qt.GlobalColor.red)
-        except Exception as e:
-            error_item = QTreeWidgetItem(parent_item)
-            error_item.setText(0, f"Error: {str(e)}")
-            error_item.setForeground(0, Qt.GlobalColor.red)
-
-    def on_item_expanded(self, item):
-        if item.childCount() == 1 and item.child(0).text(0) == "Loading...":
-            item.removeChild(item.child(0))
-            path = item.data(0, Qt.ItemDataRole.UserRole)["name"]
-            if path:
-                self.add_children(item, path)
-                self.statusBar().showMessage(f"Loaded: {path}")
-
-    def on_item_changed(self, item: QTreeWidgetItem):
-        if not item:
-            return
-        detail = item.data(0, Qt.ItemDataRole.UserRole)
-        if detail is None:
-            return
-        if detail["type"] == "directory":
-            path = self.fs.unstrip_protocol(detail["name"])
-            proj = projspec.Project(path, walk=False, fs=self.fs)
-            if proj.specs:
-                style = app.style()
-                item.setIcon(0, style.standardIcon(QStyle.SP_FileDialogInfoView))
-                library.add_entry(path, proj)
-                self.library_widget.refresh()
-                self._show_project_details(path)
-            else:
-                self.detail.setHtml(_empty_detail_html())
-
-    # ── Details panel ──────────────────────────────────────────────────────
-
-    def _show_project_details(self, project_url: str, highlight_key: str = ""):
-        proj = library.entries.get(project_url)
-        if proj is None:
-            return
-        basename = project_url.split("/")[-1] or project_url
-        html = get_details_html(
-            basename, project_url, proj.to_dict(compact=False), highlight_key
-        )
-        self.detail.setHtml(html)
-
-    def _on_detail_message(self, msg: dict):
-        cmd = msg.get("command")
-        if cmd == "openUrl":
-            webbrowser.open(msg.get("url", ""))
-        elif cmd == "makeArtifact":
-            item = msg.get("item", {})
-            qname = item.get("qname")
-            project_url = item.get("projectUrl")
-            if qname and project_url:
-                self._make_artifact(project_url, qname)
-
-    # ── Artifact make ──────────────────────────────────────────────────────
-
-    def _make_artifact(self, project_url: str, qname: str):
-        proj = library.entries.get(project_url)
-        if proj is None:
-            QMessageBox.warning(
-                self, "Make Artifact", f"Project not found: {project_url}"
-            )
-            return
-        try:
-            self.statusBar().showMessage(f"Making {qname} in {project_url}…")
-            art = proj.make(qname)
-            self.statusBar().showMessage(f"Done: {art}")
-        except Exception as e:
-            self.statusBar().showMessage(f"Make failed: {e}")
-            QMessageBox.warning(
-                self, "Make Artifact", f"Failed to make '{qname}':\n{e}"
-            )
-
-
-# ---------------------------------------------------------------------------
-# LibraryWidget  (replaces Library)
-# ---------------------------------------------------------------------------
-
-
-class LibraryWidget(QWidget):
-    """Panel showing all scanned projects as an HTML view.
-
-    Uses the same HTML view as the VS Code extension's Library panel.
-    """
-
-    show_details = pyqtSignal(str, str)  # emits (project_url, highlight_key)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
+        # Bridge + webview
         self._bridge = JsBridge(self)
         self._bridge.set_handler(self._on_message)
-        self._view, _ = _make_web_view_with_channel(self._bridge)
+        self._view = QWebEngineView(self)
+        channel = QWebChannel(self._view.page())
+        channel.registerObject("bridge", self._bridge)
+        self._view.page().setWebChannel(channel)
 
-        layout = QVBoxLayout(self)
+        # Qt WebEngine's default settings block a ``file://`` page from
+        # loading webfonts referenced by ``data:`` URIs in its CSS.
+        # Flipping these three switches tells Chromium to treat the page
+        # the same way it would an HTTP page so ``@font-face`` resolves.
+        settings = self._view.settings()
+        for attr in (
+            "LocalContentCanAccessRemoteUrls",
+            "LocalContentCanAccessFileUrls",
+            "ErrorPageEnabled",
+        ):
+            constant = getattr(
+                QWebEngineSettings.WebAttribute
+                if hasattr(QWebEngineSettings, "WebAttribute")
+                else QWebEngineSettings,
+                attr,
+                None,
+            )
+            if constant is not None:
+                settings.setAttribute(constant, True)
+
+        central = QWidget(self)
+        layout = QVBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._view)
-        self.setLayout(layout)
+        self.setCentralWidget(central)
 
-        self.refresh()
+        # Load the shared HTML UI.  We write to a temp file and ``setUrl``
+        # it rather than calling ``setHtml``: the latter gives the page an
+        # opaque origin that Chromium treats like a cross-origin document,
+        # breaking anything that touches the page origin (external links,
+        # relative anchors, future ``fetch`` calls).  Loading from a real
+        # ``file://`` URL sidesteps all of that.
+        import tempfile
 
-    def refresh(self, scroll_to: str | None = None):
-        """Re-render the library HTML panel."""
-        data = {
-            url: proj.to_dict(compact=False) for url, proj in library.entries.items()
-        }
-        info_data = class_infos()
-        spec_names = list(info_data.get("specs", {}).keys())
-        html = get_library_html(data, spec_names, scroll_to_project_url=scroll_to)
-        self._view.setHtml(html)
+        tmp = tempfile.NamedTemporaryFile(
+            "w", suffix=".html", delete=False, encoding="utf-8"
+        )
+        tmp.write(get_panel_html())
+        tmp.close()
+        self._html_tempfile = tmp.name  # keep alive for Qt's loader
+        self._view.setUrl(QUrl.fromLocalFile(tmp.name))
 
-    def _on_message(self, msg: dict):
-        cmd = msg.get("command")
+        # Kick off the initial load after the page has finished rendering.
+        self._view.loadFinished.connect(self._on_load_finished)
 
-        if cmd == "openUrl":
-            webbrowser.open(msg.get("url", ""))
+        self._busy = 0
 
-        elif cmd == "scan":
-            # Scan the current workspace (use the first top-level path in the tree)
-            window = self.parent()
-            if isinstance(window, FileBrowserWindow):
-                path = window.path
-                try:
-                    proj = projspec.Project(path, walk=True, fs=window.fs)
-                    for url, child in proj.children.items():
-                        if child.specs:
-                            library.add_entry(url, child)
-                    if proj.specs:
-                        library.add_entry(path, proj)
-                    self.refresh(scroll_to=path)
-                except Exception as e:
-                    self.refresh()
-                    QMessageBox.warning(self, "Scan", f"Scan failed:\n{e}")
-            else:
-                self.refresh()
+    def closeEvent(self, event) -> None:  # - Qt naming
+        """Remove the temp HTML file on window close."""
+        try:
+            os.unlink(self._html_tempfile)
+        except (OSError, AttributeError):
+            pass
+        super().closeEvent(event)
 
-        elif cmd == "removeProject":
-            item = msg.get("item", {})
-            project_url = item.get("infoData")
-            if project_url and project_url in library.entries:
-                del library.entries[project_url]
-                library.save()
-            self.refresh()
+    # ── Busy indicator ──────────────────────────────────────────────────────
 
-        elif cmd == "selectItem":
-            item = msg.get("item", {})
-            project_url = item.get("projectUrl")
-            key = item.get("key", "")
-            if project_url:
-                self.show_details.emit(project_url, key)
+    def _set_busy(self, busy: bool) -> None:
+        """Tell the webview whether any in-flight operation is running.
 
-        elif cmd == "makeArtifact":
-            item = msg.get("item", {})
-            qname = item.get("qname")
-            project_url = item.get("projectUrl")
-            if qname and project_url:
-                window = self.parent()
-                if isinstance(window, FileBrowserWindow):
-                    window._make_artifact(project_url, qname)
+        Uses a reference count so composed actions (scan + reload) keep the
+        spinner up rather than flashing off between steps.
+        """
+        if busy:
+            self._busy += 1
+            if self._busy == 1:
+                self._bridge.send({"type": "loading", "loading": True})
+        else:
+            self._busy = max(0, self._busy - 1)
+            if self._busy == 0:
+                self._bridge.send({"type": "loading", "loading": False})
 
-        elif cmd == "createProject":
-            project_type = msg.get("projectType", "")
-            window = self.parent()
-            if isinstance(window, FileBrowserWindow) and project_type:
-                path = window.path
-                try:
-                    proj = projspec.Project(path, walk=False, fs=window.fs)
-                    proj.create(project_type)
-                    library.add_entry(path, proj)
-                    self.refresh(scroll_to=path)
-                except Exception as e:
-                    self.refresh()
-                    QMessageBox.warning(
-                        self,
-                        "Create Project",
-                        f"Failed to create '{project_type}':\n{e}",
-                    )
+    # ── Initial load ────────────────────────────────────────────────────────
 
-        elif cmd == "setBrowserPath":
-            item = msg.get("item", {})
-            project_url = item.get("infoData", "")
-            this = self
-            while this is not None:
-                this = this.parent()
-                if isinstance(this, FileBrowserWindow) and project_url:
-                    this.path_text.setText(project_url)
-                    this.path_set()
-                    break
-        elif cmd == "openInFileBrowser":
-            item = msg.get("item", {})
-            project_url = item.get("infoData", "")
-            window = self.parent()
-            if project_url:
-                if project_url.startswith("file:///") or "://" not in project_url:
-                    open_path(project_url.replace("file://", ""))
-                elif isinstance(window, FileBrowserWindow):
-                    window.statusBar().showMessage(
-                        f"Cannot open in file browser: not a local path ({project_url})"
-                    )
+    def _on_load_finished(self, ok: bool) -> None:  # - signal arg
+        self._reload(initial=True)
 
-        elif cmd == "openInVSCode":
-            item = msg.get("item", {})
-            project_url = item.get("infoData", "")
-            window = self.parent()
-            _open_local_with(project_url, ["code"], "VSCode")
+    def _reload(self, initial: bool = False) -> None:
+        self._set_busy(True)
+        try:
+            if initial or not self._info_data:
+                self._info_data = class_infos()
+                self._enum_members = _collect_enum_members()
+            library.load()  # re-read the on-disk library file
+            lib_dict = {
+                url: proj.to_dict(compact=False)
+                for url, proj in library.entries.items()
+            }
+            self._bridge.send(
+                {
+                    "type": "data",
+                    "info": self._info_data,
+                    "enums": self._enum_members,
+                    "library": lib_dict,
+                }
+            )
+        except Exception as e:
+            QMessageBox.warning(self, "projspec", f"Reload failed: {e}")
+        finally:
+            self._set_busy(False)
 
-        elif cmd == "openInJupyter":
-            item = msg.get("item", {})
-            project_url = item.get("infoData", "")
-            window = self.parent()
-            _open_local_with(project_url, ["jupyter", "lab"], "Jupyter")
+    # ── Inbound message dispatcher ──────────────────────────────────────────
+
+    def _on_message(self, msg: dict) -> None:
+        cmd = msg.get("cmd")
+        try:
+            if cmd == "ready":
+                # Webview is up and re-asking for data.
+                self._reload(initial=True)
+            elif cmd == "reload":
+                self._reload()
+            elif cmd == "add":
+                self._action_add()
+            elif cmd == "configure":
+                self._action_configure()
+            elif cmd == "openWith":
+                self._action_open_with(msg.get("tool", ""), msg.get("url", ""))
+            elif cmd == "rescan":
+                self._action_rescan(msg.get("url", ""))
+            elif cmd == "createSpec":
+                self._action_create_spec(msg.get("url", ""))
+            elif cmd == "createSpecConfirmed":
+                self._action_create_spec_confirmed(
+                    msg.get("url", ""), msg.get("spec", "")
+                )
+            elif cmd == "removeFromLibrary":
+                self._action_remove(msg.get("url", ""))
+            elif cmd == "make":
+                self._action_make(
+                    msg.get("url", ""),
+                    msg.get("spec"),
+                    msg.get("artifactType", ""),
+                    msg.get("name"),
+                )
+            elif cmd == "copyToLocal":
+                QMessageBox.information(
+                    self, "projspec", "Copy to local: not implemented"
+                )
+            elif cmd == "revealFile":
+                self._action_reveal_file(msg.get("fn", ""))
+        except Exception as e:
+            QMessageBox.warning(self, "projspec", f"{cmd}: {e}")
+
+    # ── Actions ─────────────────────────────────────────────────────────────
+
+    def _action_add(self) -> None:
+        path = QFileDialog.getExistingDirectory(
+            self, "Add directory to library", str(Path.home())
+        )
+        if not path:
+            return
+        self._scan_and_reload(path, walk=True)
+
+    def _action_configure(self) -> None:
+        conf_dir = Path(
+            os.environ.get("PROJSPEC_CONFIG_DIR")
+            or (Path.home() / ".config" / "projspec")
+        )
+        conf_file = conf_dir / "projspec.json"
+        if not conf_file.exists():
+            conf_dir.mkdir(parents=True, exist_ok=True)
+            conf_file.write_text(json.dumps(DEFAULT_CONFIG, indent=4))
+        # Open in the OS default editor - there's no in-app editor here.
+        _open_with_default(str(conf_file))
+
+    def _action_open_with(self, tool: str, url: str) -> None:
+        local = _url_to_local(url)
+        if tool == "vscode":
+            _spawn_detached(["code", local])
+        elif tool == "filebrowser":
+            _open_with_default(local)
+        elif tool == "pycharm":
+            _spawn_detached(["pycharm", local, "nosplash", "dontReopenProjects"])
+        elif tool == "jupyter":
+            _spawn_detached(["jupyter", "lab", local])
+
+    def _action_rescan(self, url: str) -> None:
+        self._scan_and_reload(url, walk=False)
+
+    def _action_create_spec(self, url: str) -> None:
+        proj = library.entries.get(url)
+        existing = set((proj.specs if proj is not None else {}) or {})
+        creatable = sorted(
+            name
+            for name, entry in (self._info_data.get("specs") or {}).items()
+            if entry.get("create") and name not in existing
+        )
+        creatable = sorted(
+            name
+            for name, entry in (self._info_data.get("specs") or {}).items()
+            if entry.get("create") and name not in existing
+        )
+        if not creatable:
+            QMessageBox.information(
+                self, "Create spec", "No spec types available to create."
+            )
+            return
+        self._bridge.send(
+            {"type": "openCreateSpecModal", "url": url, "specs": creatable}
+        )
+
+    def _action_create_spec_confirmed(self, url: str, spec: str) -> None:
+        if not spec:
+            return
+        self._set_busy(True)
+        try:
+            path = _url_to_local(url)
+            proj = projspec.Project(path, walk=False)
+            proj.create(spec)
+            # Rescan and refresh.
+            fresh = projspec.Project(path, walk=False)
+            library.add_entry(path, fresh)
+            self._reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Create spec", f"Failed to create '{spec}': {e}")
+        finally:
+            self._set_busy(False)
+
+    def _action_remove(self, url: str) -> None:
+        if url in library.entries:
+            del library.entries[url]
+            library.save()
+        self._reload()
+
+    def _action_make(
+        self,
+        url: str,
+        spec: str | None,
+        artifact_type: str,
+        name: str | None,
+    ) -> None:
+        qname = ".".join(p for p in (spec, artifact_type, name) if p)
+        proj = library.entries.get(url)
+        if proj is None:
+            QMessageBox.warning(self, "Make", f"Project not found: {url}")
+            return
+        self._set_busy(True)
+        try:
+            art = proj.make(qname)
+            QMessageBox.information(self, "Make", f"Done: {art}")
+        except Exception as e:
+            QMessageBox.warning(self, "Make", f"Make '{qname}' failed: {e}")
+        finally:
+            self._set_busy(False)
+
+    def _action_reveal_file(self, fn: str) -> None:
+        """Best-effort equivalent of the vscode ``revealInExplorer`` command."""
+        if not fn:
+            return
+        local = fn[len("file://") :] if fn.startswith("file://") else fn
+        # Remote artifacts can't be revealed.
+        if "://" in local and not local.startswith("/"):
+            QMessageBox.information(self, "Reveal", f"Remote file: {fn}")
+            return
+        matches = _expand_glob(local)
+        if not matches:
+            QMessageBox.information(self, "Reveal", f"No files match: {fn}")
+            return
+        target = matches[0]
+        if len(matches) > 1:
+            from PyQt5.QtWidgets import QInputDialog
+
+            pick, ok = QInputDialog.getItem(
+                self,
+                "Reveal",
+                f"{len(matches)} matches - pick one:",
+                matches,
+                0,
+                False,
+            )
+            if not ok or not pick:
+                return
+            target = pick
+        _open_with_default(os.path.dirname(target) or target)
+
+    # ── Scan helper ─────────────────────────────────────────────────────────
+
+    def _scan_and_reload(self, url: str, walk: bool) -> None:
+        self._set_busy(True)
+        try:
+            path = _url_to_local(url) if url.startswith("file://") else url
+            proj = projspec.Project(path, walk=walk)
+            if walk:
+                for child_url, child in (proj.children or {}).items():
+                    if child.specs:
+                        library.add_entry(child_url, child)
+            if proj.specs:
+                library.add_entry(path, proj)
+            self._reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Scan", f"Scan failed: {e}")
+        finally:
+            self._set_busy(False)
 
 
 # ---------------------------------------------------------------------------
@@ -452,51 +419,96 @@ class LibraryWidget(QWidget):
 # ---------------------------------------------------------------------------
 
 
-def format_size(size: None | int) -> str:
-    if size is None:
-        return ""
-    for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if size < 1024.0:
-            return f"{size:.1f} {unit}"
-        size /= 1024.0
-    return f"{size:.1f} PB"
+def _url_to_local(url: str) -> str:
+    """Strip ``file://`` prefix so the result is a plain path."""
+    if url.startswith("file://"):
+        return url[len("file://") :]
+    return url
 
 
-def _empty_detail_html() -> str:
-    return """<!DOCTYPE html><html><body style="background:#1e1e1e;color:#666;
-font-family:-apple-system,sans-serif;padding:20px;">
-<p>Select a project directory to see its details.</p></body></html>"""
+def _spawn_detached(cmd: list[str]) -> None:
+    """Launch an external tool without blocking the Qt event loop."""
+    try:
+        subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except FileNotFoundError:
+        QMessageBox.warning(None, "projspec", f"Command not found: {cmd[0]}")
+    except Exception as e:
+        QMessageBox.warning(None, "projspec", f"Failed to run {cmd[0]}: {e}")
 
 
-def open_path(path: str):
-    import subprocess
+def _open_with_default(path: str) -> None:
+    """Open ``path`` with the OS default handler."""
+    try:
+        if sys.platform == "darwin":
+            subprocess.call(["open", path])
+        elif sys.platform == "win32":
+            os.startfile(path)  # type: ignore[attr-defined]
+        else:
+            subprocess.call(["xdg-open", path])
+    except Exception:
+        webbrowser.open(path)
 
-    if sys.platform == "darwin":
-        subprocess.call(["open", path])
-    elif sys.platform == "win32":
-        os.startfile(path)
-    else:
-        subprocess.call(["xdg-open", path])
+
+def _expand_glob(pattern: str) -> list[str]:
+    """Expand a glob pattern into an alphabetical list of concrete paths.
+
+    Uses plain :mod:`glob` on the local filesystem.  For non-glob paths the
+    list is ``[pattern]`` if the file exists, ``[]`` otherwise.
+    """
+    import glob
+
+    if not any(c in pattern for c in "*?["):
+        return [pattern] if os.path.exists(pattern) else []
+    return sorted(glob.glob(pattern))
 
 
-def _open_local_with(project_url: str, cmd: list, app_name: str):
-    """Launch cmd + local_path for a project URL, showing a status message on error."""
-    import subprocess
+def _collect_enum_members() -> dict:
+    """Mirror :code:`getEnumMembers` from the VSCode extension - maps
+    snake-case enum class name to ``{MEMBER: value}``.  Used by the webview
+    to display enum labels instead of raw integer values.
+    """
+    import importlib
+    import pkgutil
 
-    if not project_url:
-        return
-    if project_url.startswith("file:///") or "://" not in project_url:
-        local_path = project_url.replace("file://", "")
-        try:
-            subprocess.call(cmd + [local_path])
-        except Exception as e:
-            if isinstance(window, FileBrowserWindow):
-                window.statusBar().showMessage(f"Could not open in {app_name}: {e}")
-    else:
-        if isinstance(window, FileBrowserWindow):
-            window.statusBar().showMessage(
-                f"Cannot open in {app_name}: not a local path ({project_url})"
-            )
+    import projspec.artifact
+    import projspec.content
+    import projspec.utils as pu
+
+    # Ensure every content / artifact module is imported so
+    # ``Enum.__subclasses__()`` is complete.
+    for pkg in (projspec.content, projspec.artifact):
+        for m in pkgutil.iter_modules(pkg.__path__, pkg.__name__ + "."):
+            try:
+                importlib.import_module(m.name)
+            except Exception:
+                # A module that fails to import shouldn't stop enum collection.
+                pass
+
+    from projspec.utils import camel_to_snake
+
+    out: dict[str, dict[str, int | str]] = {}
+    seen: set[type] = set()
+
+    def walk(cls: type) -> None:
+        for sub in cls.__subclasses__():  # type: ignore[misc]
+            if sub in seen:
+                continue
+            seen.add(sub)
+            walk(sub)
+            # ``sub`` inherits from ``projspec.utils.Enum`` (a subclass of
+            # ``enum.Enum``) and so is iterable over its members.  Static type
+            # checkers don't know this because we accept any ``type``.
+            members = {m.name: m.value for m in sub}  # type: ignore[attr-defined]
+            out[camel_to_snake(sub.__name__)] = members
+
+    walk(pu.Enum)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -504,13 +516,12 @@ def _open_local_with(project_url: str, cmd: list, app_name: str):
 # ---------------------------------------------------------------------------
 
 
-def main():
-    global app, window
+def main() -> None:
     app = QApplication(sys.argv)
-    icon = QIcon(os.path.join(os.path.dirname(__file__), "..", "logo.png"))
-    app.setWindowIcon(icon)
-    window = FileBrowserWindow()
-    window.setWindowIcon(icon)
+    icon_path = os.path.join(os.path.dirname(__file__), "..", "logo.png")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+    window = ProjspecWindow()
     window.show()
     sys.exit(app.exec())
 
