@@ -541,17 +541,10 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
                                color: var(--vscode-menu-selectionForeground, var(--vscode-foreground)); }
 .kebab-menu .menu-item.disabled { color: var(--vscode-disabledForeground); cursor: default; }
 .kebab-menu .menu-item.disabled:hover { background: transparent; }
-.kebab-menu .submenu-wrapper { position: relative; }
-.kebab-menu .submenu {
-    display: none; position: absolute; left: 100%; top: 0;
-    background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
-    border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border));
-    min-width: 160px; padding: 4px 0;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+.kebab-menu .menu-sep {
+    height: 1px; margin: 4px 0;
+    background: var(--vscode-menu-separatorBackground, var(--vscode-panel-border));
 }
-.kebab-menu .submenu-wrapper:hover .submenu { display: block; }
-.kebab-menu .submenu-wrapper > .menu-item::after { content: '\\25B6'; float: right; font-size: 9px;
-                                                    margin-left: 8px; opacity: 0.6; }
 
 /* Details panel */
 #details-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
@@ -805,25 +798,13 @@ const PANEL_JS = String.raw`
         menu.className = 'kebab-menu';
         const isLocal = url.startsWith('file://');
         if (isLocal) {
-            const openItem = document.createElement('div');
-            openItem.className = 'submenu-wrapper';
-            openItem.innerHTML = '<div class="menu-item">Open with...</div>';
-            const sub = document.createElement('div');
-            sub.className = 'submenu';
-            [
-                ['VSCode', 'vscode'],
-                ['System filebrowser', 'filebrowser'],
-                ['PyCharm', 'pycharm'],
-                ['jupyter', 'jupyter'],
-            ].forEach(([label, tool]) => {
-                const mi = document.createElement('div');
-                mi.className = 'menu-item';
-                mi.textContent = label;
-                mi.addEventListener('click', (e) => { e.stopPropagation(); vscode.postMessage({ cmd: 'openWith', tool, url }); closeKebab(); });
-                sub.appendChild(mi);
-            });
-            openItem.appendChild(sub);
-            menu.appendChild(openItem);
+            // "Open with" sub-items are flattened into the main menu so there
+            // is no nested popup to stack above this one.
+            addItem(menu, 'Open with VSCode', () => vscode.postMessage({ cmd: 'openWith', tool: 'vscode', url }));
+            addItem(menu, 'Open with system filebrowser', () => vscode.postMessage({ cmd: 'openWith', tool: 'filebrowser', url }));
+            addItem(menu, 'Open with PyCharm', () => vscode.postMessage({ cmd: 'openWith', tool: 'pycharm', url }));
+            addItem(menu, 'Open with jupyter', () => vscode.postMessage({ cmd: 'openWith', tool: 'jupyter', url }));
+            addSeparator(menu);
             addItem(menu, 'Rescan', () => vscode.postMessage({ cmd: 'rescan', url }));
             addItem(menu, 'Create spec', () => vscode.postMessage({ cmd: 'createSpec', url }));
             addItem(menu, 'Remove from library', () => vscode.postMessage({ cmd: 'removeFromLibrary', url }));
@@ -844,6 +825,11 @@ const PANEL_JS = String.raw`
         mi.addEventListener('click', (e) => { e.stopPropagation(); if (!mi.classList.contains('disabled')) { onClick(); closeKebab(); } });
         menu.appendChild(mi);
         return mi;
+    }
+    function addSeparator(menu) {
+        const sep = document.createElement('div');
+        sep.className = 'menu-sep';
+        menu.appendChild(sep);
     }
     function closeKebab() {
         if (openKebab) {
