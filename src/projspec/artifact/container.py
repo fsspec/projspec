@@ -31,9 +31,11 @@ class DockerRuntime(DockerImage):
         :param args: added to the docker run command
         :param kwargs: affect the docker run subprocess call
         """
-        out = run_subprocess(self.cmd, cwd=self.proj.url, **kwargs).stdout
+        out = run_subprocess(self.cmd, cwd=self.proj.path, **kwargs).stdout
         if self.tag:
-            run_subprocess(["docker", "run", self.tag], cwd=self.proj.url, output=False)
+            run_subprocess(
+                ["docker", "run", self.tag], cwd=self.proj.path, output=False
+            )
         else:
             lines = [
                 l for l in out.splitlines() if l.startswith(b"Successfully built ")
@@ -41,7 +43,7 @@ class DockerRuntime(DockerImage):
             img = lines[-1].split()[-1]
             run_subprocess(
                 ["docker", "run", img.decode()] + list(args),
-                cwd=self.proj.url,
+                cwd=self.proj.path,
                 output=False,
                 **kwargs,
             )

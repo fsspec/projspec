@@ -34,12 +34,12 @@ class Deployment(BaseArtifact):
         super().__init__(proj, cmd=cmd, **kwargs)
 
     def _make(self, **kwargs):
-        run_subprocess(self.cmd, cwd=self.proj.url, output=False, **kwargs)
+        run_subprocess(self.cmd, cwd=self.proj.path, output=False, **kwargs)
 
     def clean(self):
         """Tear down the deployment (e.g. ``helm uninstall <release>``)."""
         if self.clean_cmd:
-            run_subprocess(self.clean_cmd, cwd=self.proj.url, output=False)
+            run_subprocess(self.clean_cmd, cwd=self.proj.path, output=False)
 
     def _is_done(self) -> bool:
         """Return True when the release exists and is deployed."""
@@ -80,7 +80,7 @@ class HelmDeployment(Deployment):
         try:
             run_subprocess(
                 ["helm", "status", self.release],
-                cwd=self.proj.url,
+                cwd=self.proj.path,
                 output=False,
             )
             return True

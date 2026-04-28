@@ -24,7 +24,7 @@ class Wheel(FileArtifact):
     icon = "⦿"
 
     def __init__(self, proj, fn=None, **kw):
-        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.whl", **kw)
+        super().__init__(proj=proj, fn=fn or f"{proj.path}/dist/*.whl", **kw)
 
     def _is_clean(self) -> bool:
         files = self.proj.fs.glob(self.fn)
@@ -57,7 +57,7 @@ class CondaPackage(FileArtifact):
         import re
 
         logger.debug(" ".join(self.cmd))
-        out = run_subprocess(self.cmd, cwd=self.proj.url).stdout.decode("utf-8")
+        out = run_subprocess(self.cmd, cwd=self.proj.path).stdout.decode("utf-8")
         if fn := re.match(r"'(.*?\.conda)'\n", out):
             if os.path.exists(fn.group(1)):
                 self.fn = fn.group(1)
@@ -109,4 +109,4 @@ class SystemInstallablePackage(FileArtifact):
     def __init__(self, proj, ext: str, fn=None, arch=None, **kw):
         self.arch = arch or types[ext]
         self.filetype = ext
-        super().__init__(proj=proj, fn=fn or f"{proj.url}/dist/*.{ext}", **kw)
+        super().__init__(proj=proj, fn=fn or f"{proj.path}/dist/*.{ext}", **kw)

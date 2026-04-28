@@ -58,7 +58,7 @@ class BaseArtifact:
 
     def _make(self, *args, **kwargs):
         logger.info("running %s", self.cmd)
-        run_subprocess(self.cmd, cwd=self.proj.url, output=False, **kwargs)
+        run_subprocess(self.cmd, cwd=self.proj.path, output=False, **kwargs)
 
     def remake(self):
         """Recreate the artifact and any runtime it depends on"""
