@@ -123,6 +123,40 @@ def _project_icon(kind: str, name: str, infos: dict) -> str:
     return DEFAULT_ICON.get(kind, "❔")
 
 
+# Approximate width of the library pane in a typical terminal, minus the
+# project card's border / padding.  Used by :func:`_wrap_chips` to split
+# a flat chip list into wrapped rows.  Slightly conservative so wide
+# emojis (which count as two cells in most monospace fonts) still fit.
+_CHIPS_ROW_WIDTH = 36
+
+
+def _wrap_chips(chips: list, row_width: int) -> list[list]:
+    """Split ``chips`` into rows each no wider than ``row_width`` cells.
+
+    Each chip is ``(label, url, kind, spec_name)``; the decision is based
+    solely on ``label`` length plus 3 cells for padding/margin.  A chip
+    that is itself wider than ``row_width`` still gets its own row - we
+    never drop chips on the floor.
+    """
+    rows: list[list] = []
+    current: list = []
+    used = 0
+    for chip in chips:
+        label = chip[0]
+        # Rough cell-width estimate: emoji presentation-qualified chars
+        # render as 2 cells in most terminals; everything else as 1.
+        width = sum(2 if ord(c) >= 0x1F000 else 1 for c in label) + 3
+        if current and used + width > row_width:
+            rows.append(current)
+            current = []
+            used = 0
+        current.append(chip)
+        used += width
+    if current:
+        rows.append(current)
+    return rows
+
+
 def _role(text: str, role: str) -> str:
     return f"[{ROLE_COLOUR.get(role, '#cccccc')}]{text}[/]"
 
@@ -531,12 +565,15 @@ class Chip(Static):
 
     DEFAULT_CSS = """
     Chip {
-        padding: 0 1; margin: 0 1 0 0;
-        background: #555; color: #dcdcaa;
-        border: tall #454545;
+        width: auto;
+        height: 1;
+        padding: 0 1;
+        margin: 0 1 0 0;
+        background: #555;
+        color: #dcdcaa;
     }
     Chip:hover { background: #094771; }
-    Chip.active { background: #094771; color: #ffffff; border: tall #007acc; }
+    Chip.active { background: #094771; color: #ffffff; }
     """
 
     def __init__(
@@ -589,12 +626,16 @@ class ProjectWidget(Static):
     ProjectWidget .title { color: #dcb67a; text-style: bold; }
     ProjectWidget .url { color: #858585; }
     ProjectWidget .storage { color: #858585; text-style: italic; }
-    ProjectWidget #chips-row {
-        height: auto;
-        padding-top: 0;
-    }
-    ProjectWidget #kebab-row { height: 1; padding: 0; }
-    ProjectWidget Button#kebab { min-width: 3; padding: 0 1; }
+    /* Each chips row is a plain horizontal run of ``Chip`` statics laid
+       out left-to-right.  ``#chips-wrap`` stacks multiple such rows when
+       the total chip width exceeds ``_CHIPS_ROW_WIDTH``. */
+    ProjectWidget #chips-wrap { height: auto; padding-top: 0; }
+    ProjectWidget .chips-row { height: 1; }
+    /* Action button rows need 3 cells of height because Textual's default
+       Button renders a 1-line border + 1-line label + 1-line border; clip
+       it shorter and the label disappears. */
+    ProjectWidget #kebab-row { height: 3; padding: 0; }
+    ProjectWidget Button#kebab { min-width: 5; width: 5; padding: 0; }
     """
 
     def __init__(self, url: str, project: dict, infos: dict) -> None:
@@ -609,24 +650,40 @@ class ProjectWidget(Static):
         so = self.project.get("storage_options") or {}
         if so:
             yield Static(f"storage_options: {json.dumps(so)}", classes="storage")
-        with Horizontal(id="chips-row"):
-            contents = self.project.get("contents") or {}
-            artifacts = self.project.get("artifacts") or {}
-            if contents:
-                yield Chip(
+        # Build the full list of chips first, then split into horizontal
+        # rows that each fit into roughly ``_CHIPS_ROW_WIDTH`` cells.  This
+        # keeps chips visible in narrow library panes (a plain Horizontal
+        # happily lays chips past the right edge where they can't be
+        # clicked) while still giving a pill-row look when there's room.
+        chip_args: list[tuple[str, str, str, str | None]] = []
+        contents = self.project.get("contents") or {}
+        artifacts = self.project.get("artifacts") or {}
+        if contents:
+            chip_args.append(
+                (
                     f"{DEFAULT_ICON['content']} Contents <{len(contents)}>",
                     self.url,
                     "contents",
+                    None,
                 )
-            if artifacts:
-                yield Chip(
+            )
+        if artifacts:
+            chip_args.append(
+                (
                     f"{DEFAULT_ICON['artifact']} Artifacts <{len(artifacts)}>",
                     self.url,
                     "artifacts",
+                    None,
                 )
-            for spec_name in (self.project.get("specs") or {}).keys():
-                icon = _project_icon("spec", spec_name, self._infos)
-                yield Chip(f"{icon} {spec_name}", self.url, "spec", spec_name)
+            )
+        for spec_name in (self.project.get("specs") or {}).keys():
+            icon = _project_icon("spec", spec_name, self._infos)
+            chip_args.append((f"{icon} {spec_name}", self.url, "spec", spec_name))
+        with Vertical(id="chips-wrap"):
+            for row in _wrap_chips(chip_args, _CHIPS_ROW_WIDTH):
+                with Horizontal(classes="chips-row"):
+                    for label, url, kind, spec_name in row:
+                        yield Chip(label, url, kind, spec_name)
         with Horizontal(id="kebab-row"):
             yield Button(CHROME_ICONS["kebab"], id="kebab", variant="default")
 
@@ -663,8 +720,8 @@ class ItemWidget(Static):
     ItemWidget.kind-artifact { border: solid #c66060; }
     ItemWidget .widget-title { text-style: bold; }
     ItemWidget .widget-subtitle { color: #858585; }
-    ItemWidget #actions { height: 1; }
-    ItemWidget #actions Button { min-width: 10; margin-right: 1; }
+    ItemWidget #actions { height: 3; }
+    ItemWidget #actions Button { min-width: 5; width: 6; margin-right: 1; padding: 0; }
     ItemWidget .body { padding: 0 0 0 1; }
     """
 
@@ -706,20 +763,22 @@ class ItemWidget(Static):
             classes="widget-title",
         )
 
-        # Actions row
+        # Actions row - emoji-only labels to match the horizontal-TUI
+        # style; the accessible name (tooltip) spells them out for users
+        # who can see it.
         buttons: list[Widget] = []
         fn = data.get("fn") if isinstance(data, dict) else None
         if self._kind == "artifact" and isinstance(fn, str) and _is_local_path(fn):
-            buttons.append(Button(f"{CHROME_ICONS['reveal']} Reveal", id="btn-reveal"))
+            rb = Button(CHROME_ICONS["reveal"], id="btn-reveal")
+            rb.tooltip = "Reveal file"
+            buttons.append(rb)
         if self._show_make:
-            buttons.append(
-                Button(
-                    f"{CHROME_ICONS['play']} Make",
-                    id="btn-make",
-                    variant="primary",
-                )
-            )
-        buttons.append(Button(f"{CHROME_ICONS['info']} Info", id="btn-info"))
+            mb = Button(CHROME_ICONS["play"], id="btn-make", variant="primary")
+            mb.tooltip = "Make artifact"
+            buttons.append(mb)
+        ib = Button(CHROME_ICONS["info"], id="btn-info")
+        ib.tooltip = "Info"
+        buttons.append(ib)
         if buttons:
             with Horizontal(id="actions"):
                 for b in buttons:
