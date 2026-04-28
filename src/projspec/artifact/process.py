@@ -64,7 +64,7 @@ class Process(BaseArtifact):
                 kwargs["output"] = False
             proc = run_subprocess(
                 self.cmd,
-                cwd=self.proj.url,
+                cwd=self.proj.path,
                 popen=True,
                 **kwargs,
             )

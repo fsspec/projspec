@@ -21,12 +21,12 @@ class ComposeStack(BaseArtifact):
         super().__init__(proj, cmd=cmd, **kwargs)
 
     def _make(self, **kwargs):
-        run_subprocess(self.cmd, cwd=self.proj.url, output=False, **kwargs)
+        run_subprocess(self.cmd, cwd=self.proj.path, output=False, **kwargs)
 
     def clean(self):
         run_subprocess(
             ["docker", "compose", "-f", self.compose_file, "down"],
-            cwd=self.proj.url,
+            cwd=self.proj.path,
             output=False,
         )
 
@@ -34,7 +34,7 @@ class ComposeStack(BaseArtifact):
         try:
             result = run_subprocess(
                 ["docker", "compose", "-f", self.compose_file, "ps", "-q"],
-                cwd=self.proj.url,
+                cwd=self.proj.path,
             )
             return bool(result.stdout.strip())
         except Exception:
@@ -66,7 +66,7 @@ class TerraformPlan(FileArtifact):
     icon = "☁️"
 
     def __init__(self, proj: Project, plan_file: str = "plan.tfplan", **kwargs):
-        fn = f"{proj.url}/{plan_file}"
+        fn = f"{proj.path}/{plan_file}"
         cmd = ["terraform", "plan", "-out", plan_file]
         super().__init__(proj, fn=fn, cmd=cmd, **kwargs)
 

@@ -71,7 +71,6 @@ class Project:
         :param xtypes: disallow specs whose names are in this set
         :param excludes: directory names to ignore. If None, uses default_excludes.
         """
-        self.path = path
         if fs is None:
             fs, path = fsspec.url_to_fs(path, **(storage_options or {}))
         else:
@@ -81,6 +80,7 @@ class Project:
             fs is not None
         )  # guaranteed by the if/else above; url_to_fs lacks return annotation
         self.fs = fs
+        self.path = path
         self.url = path  # this is the FS-specific variant
         self.specs = AttrDict()
         self.children = AttrDict()
