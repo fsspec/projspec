@@ -10,13 +10,14 @@ from projspec.utils import AttrDict
 class HelmChart(ProjectSpec):
     """A Kubernetes application packaged as a Helm chart.
 
-    A Helm chart is a directory tree containing a ``Chart.yaml`` manifest,
-    a ``templates/`` directory of Kubernetes resource manifests, and an
-    optional ``values.yaml`` file with default configuration values.
-    Dependency charts may be declared in ``Chart.yaml`` under the
-    ``dependencies`` key; pinned versions are recorded in ``Chart.lock``.
+    A Helm chart is a directory tree containing a `Chart.yaml` manifest,
+    a `templates/` directory of Kubernetes resource manifests, and an
+    optional `values.yaml` file with default configuration values.
+    Dependency charts may be declared in `Chart.yaml` under the
+    `dependencies` key; pinned versions are recorded in `Chart.lock`.
     """
 
+    icon = "dharmachakra"
     spec_doc = "https://helm.sh/docs/topics/charts/#the-chartyaml-file"
 
     def match(self) -> bool:
@@ -28,9 +29,6 @@ class HelmChart(ProjectSpec):
         from projspec.artifact.process import Process
         from projspec.content.metadata import DescriptiveMetadata
 
-        # ------------------------------------------------------------------ #
-        # Chart.yaml — required by the Helm spec
-        # ------------------------------------------------------------------ #
         try:
             with self.proj.fs.open(self.proj.basenames["Chart.yaml"], "rt") as f:
                 chart = yaml.safe_load(f)
@@ -43,9 +41,6 @@ class HelmChart(ProjectSpec):
         name = chart.get("name", "")
         version = chart.get("version", "")
 
-        # ------------------------------------------------------------------ #
-        # Contents
-        # ------------------------------------------------------------------ #
         meta: dict[str, str] = {}
         for key in (
             "name",
@@ -74,10 +69,6 @@ class HelmChart(ProjectSpec):
         self._contents = AttrDict(
             descriptive_metadata=DescriptiveMetadata(proj=self.proj, meta=meta)
         )
-
-        # ------------------------------------------------------------------ #
-        # Artifacts
-        # ------------------------------------------------------------------ #
         arts = AttrDict()
 
         # helm package . → produces <name>-<version>.tgz

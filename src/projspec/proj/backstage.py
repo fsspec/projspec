@@ -11,11 +11,12 @@ class BackstageCatalog(ProjectSpec):
     """A Backstage software catalog descriptor file (catalog-info.yaml).
 
     Backstage catalogs describe software components, APIs, resources, systems,
-    domains and other entities using a Kubernetes-style envelope with ``apiVersion``,
-    ``kind``, ``metadata``, and ``spec`` sections.  A single file may contain multiple
-    ``---``-separated documents.
+    domains and other entities using a Kubernetes-style envelope with `apiVersion`,
+    `kind`, `metadata`, and `spec` sections.  A single file may contain multiple
+    `---`-separated documents.
     """
 
+    icon = "sitemap"
     spec_doc = "https://backstage.io/docs/features/software-catalog/descriptor-format/"
 
     def match(self) -> bool:

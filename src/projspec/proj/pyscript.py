@@ -13,6 +13,7 @@ class PyScript(ProjectSpec):
     apps on pyscript.com.
     """
 
+    icon = "globe"
     spec_doc = "https://docs.pyscript.net/2023.11.2/user-guide/configuration/"
 
     def match(self) -> bool:

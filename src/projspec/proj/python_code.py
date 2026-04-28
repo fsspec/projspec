@@ -21,6 +21,7 @@ class PythonCode(ProjectSpec):
      A package is executable if it contains a ``__main__.py`` file.
     """
 
+    icon = "python"
     spec_doc = "https://docs.python.org/3/reference/import.html#regular-packages"
 
     def match(self) -> bool:
@@ -55,6 +56,7 @@ class PythonLibrary(ProjectSpec):
     Defined by the existence of pyproject.toml or setup.py.
     """
 
+    icon = "cube"
     # setup.py never had a spec
     spec_doc = "https://packaging.python.org/en/latest/specifications/pyproject-toml/"
 

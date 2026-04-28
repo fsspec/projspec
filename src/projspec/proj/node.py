@@ -14,6 +14,7 @@ class Node(ProjectSpec):
     This is a project that contains a package.json file.
     """
 
+    icon = "node-js"
     spec_doc = "https://docs.npmjs.com/cli/v11/configuring-npm/package-json"
 
     def match(self):
@@ -83,7 +84,8 @@ class Node(ProjectSpec):
         for script_name, script_cmd in scripts.items():
             if script_name == "build":
                 arts["build"] = Process(
-                    proj=self.proj, cmd=[package_manager_name, "run", script_name]
+                    proj=self.proj,
+                    cmd=[package_manager_name, "run", script_name],
                 )
             else:
                 cmd[script_name] = Command(
@@ -127,6 +129,7 @@ class Node(ProjectSpec):
 class Yarn(Node):
     """A node project that uses `yarn` for building"""
 
+    icon = "yarn"
     spec_doc = "https://yarnpkg.com/configuration/yarnrc"
 
     def match(self):
@@ -174,6 +177,8 @@ class JLabExtension(Yarn):
     Some jlab projects will also have python components (i.e., server extensions
     https://jupyter-server.readthedocs.io/en/latest/developers/extensions.html).
     """
+
+    icon = "puzzle-piece"
 
     # TODO: we may add a jupyter server extension python project type in the
     #  future, defined by a JSON server config file.

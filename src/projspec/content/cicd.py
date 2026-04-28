@@ -1,15 +1,51 @@
 """Run definitions that are part of code productionalisation"""
 
+from dataclasses import dataclass, field
+
 from projspec.content import BaseContent
 
 
-class GithubAction(BaseContent):
-    """A run prescription that runs in github on push/merge"""
+@dataclass
+class CIWorkflow(BaseContent):
+    """A CI/CD workflow or pipeline definition.
 
-    # TODO: we probably want to extract out the jobs and runs, maybe the steps.
-    #  It may be interesting to provide links to the browser or API to view
-    #  details.
-    ...
+    Captures the name, triggering events, and high-level job/stage names from
+    CI configuration files (GitHub Actions, GitLab CI, CircleCI, etc.).
+    """
+
+    icon = "arrows-spin"
+
+    name: str = ""
+    triggers: list = field(default_factory=list)
+    jobs: list = field(default_factory=list)
+    provider: str = ""  # e.g. "github", "gitlab", "circleci"
 
 
-# TODO: there are many of these, but we don't extract much information from them
+# Keep legacy stub under old name for backwards compatibility
+GithubAction = CIWorkflow
+
+
+@dataclass
+class PipelineStage(BaseContent):
+    """A named stage or step in a data/ML/workflow pipeline."""
+
+    icon = "diagram-next"
+
+    name: str = ""
+    cmd: list = field(default_factory=list)
+    depends_on: list = field(default_factory=list)
+
+
+@dataclass
+class ServiceDependency(BaseContent):
+    """An external service that a project depends on at runtime.
+
+    Typically exposed via an open TCP port, e.g., as used in container orchestration.
+    """
+
+    icon = "plug"
+
+    name: str = ""
+    service_type: str = ""  # e.g. "postgres", "redis", "kafka"
+    version: str = ""
+    image: str = ""

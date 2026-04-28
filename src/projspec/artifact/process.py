@@ -41,6 +41,8 @@ class Process(BaseArtifact):
     value `capture_artifact_output` to False.
     """
 
+    icon = "terminal"
+
     term: bool = False
     environ: dict[str, str] = {}
     queue: Queue[bytes] | None = None  # lines of binary output by the subprocess
@@ -98,6 +100,8 @@ class Server(Process):
     After creating the process, is scan is True, the actual listening address and port
     will attempt to be inferred.
     """
+
+    icon = "server"
 
     _port: int = 0
     _address: str = "0.0.0.0"

@@ -14,6 +14,7 @@ class Poetry(PythonLibrary):
     installs, and can build your project for distribution.
     """
 
+    icon = "feather"
     spec_doc = "https://python-poetry.org/docs/pyproject/"
 
     def match(self) -> bool:
@@ -41,7 +42,9 @@ class Poetry(PythonLibrary):
             for k, v in deep_get(alt, "tool.poetry.group", {}).items():
                 if "dependencies" in v:
                     deep_set(
-                        alt, ["dependency-groups", k], _table_to_list(v["dependencies"])
+                        alt,
+                        ["dependency-groups", k],
+                        _table_to_list(v["dependencies"]),
                     )
 
             super().parse()

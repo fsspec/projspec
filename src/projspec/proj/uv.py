@@ -4,7 +4,12 @@ import fsspec
 
 from projspec.proj.base import ParseFailed, Project, ProjectSpec
 from projspec.proj.python_code import PythonLibrary
-from projspec.utils import AttrDict, PickleableTomlDecoder, deep_get, run_subprocess
+from projspec.utils import (
+    AttrDict,
+    PickleableTomlDecoder,
+    deep_get,
+    run_subprocess,
+)
 
 
 def _parse_conf(self: ProjectSpec, conf: dict | None = None):
@@ -50,6 +55,7 @@ class UvScript(PythonLibrary):
     Metadata are declared inline in the script header
     """
 
+    icon = "file-code"
     spec_doc = "https://docs.astral.sh/uv/guides/scripts/"
 
     def match(self):
@@ -146,6 +152,7 @@ class Uv(PythonLibrary):
     config.
     """
 
+    icon = "rocket"
     spec_doc = "https://docs.astral.sh/uv/concepts/configuration-files/"
 
     def match(self):
@@ -156,7 +163,7 @@ class Uv(PythonLibrary):
         if "uv" in self.proj.pyproject.get("tools", {}):
             # even if it is present, uv can be explicitly directed to ignore the
             # project https://docs.astral.sh/uv/reference/settings/#managed
-            return self.proj.pyproject.get["tool"]["uv"].get("managed", True)
+            return self.proj.pyproject["tool"]["uv"].get("managed", True)
         if (
             self.proj.pyproject.get("build-system", {}).get("build-backend", "")
             == "uv_build"
