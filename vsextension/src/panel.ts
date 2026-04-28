@@ -114,6 +114,9 @@ export class ProjspecPanel {
                 case 'createSpec':
                     await this.createSpecFor(msg.url);
                     break;
+                case 'createSpecConfirmed':
+                    await this.createSpecConfirmed(msg.url, msg.spec);
+                    break;
                 case 'removeFromLibrary':
                     await this.removeFromLibrary(msg.url);
                     break;
@@ -263,16 +266,19 @@ export class ProjspecPanel {
             vscode.window.showInformationMessage('No spec types available to create.');
             return;
         }
-        const pick = await vscode.window.showQuickPick(creatable, {
-            placeHolder: 'Select the type of spec to create',
-            matchOnDescription: true,
+        // Delegate the picker UI to the webview - it will post
+        // createSpecConfirmed back to us with the chosen spec name.
+        this.panel.webview.postMessage({
+            type: 'openCreateSpecModal',
+            url,
+            specs: creatable,
         });
-        if (!pick) {
-            return;
-        }
+    }
+
+    private async createSpecConfirmed(url: string, spec: string): Promise<void> {
         await this.withBusy(async () => {
             const p = urlToPath(url);
-            const res = await createSpec(pick, p);
+            const res = await createSpec(spec, p);
             if (res.code !== 0) {
                 vscode.window.showWarningMessage(`projspec create: ${res.stderr.trim() || 'failed'}`);
             }
@@ -409,6 +415,20 @@ export class ProjspecPanel {
     </div>
 </div>
 <div id="popup" class="hidden"></div>
+<div id="modal-overlay" class="hidden">
+    <div id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div id="modal-title">Create spec</div>
+        <div id="modal-body">
+            <label for="modal-input">Spec type:</label>
+            <input type="text" id="modal-input" autocomplete="off" spellcheck="false" placeholder="Start typing..." />
+            <div id="modal-suggestions"></div>
+        </div>
+        <div id="modal-actions">
+            <button id="modal-cancel" class="secondary">Cancel</button>
+            <button id="modal-ok" class="primary" disabled>Create</button>
+        </div>
+    </div>
+</div>
 <script nonce="${nonce}">${js}</script>
 </body>
 </html>`;
@@ -607,6 +627,13 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
    variables when available but falls back to plain colour values. */
 .item-widget.kind-content { border-color: #4ca97a; box-shadow: 0 0 0 1px rgba(76,169,122,0.15); }
 .item-widget.kind-artifact { border-color: #c66060; box-shadow: 0 0 0 1px rgba(198,96,96,0.15); }
+.item-widget .widget-html { margin-top: 6px; font-size: 12px; line-height: 1.4; }
+.item-widget .widget-html img { max-width: 100%; height: auto; }
+.item-widget .widget-html a { color: var(--vscode-textLink-foreground); }
+.item-widget .widget-html table { border-collapse: collapse; }
+.item-widget .widget-html th, .item-widget .widget-html td {
+    border: 1px solid var(--vscode-panel-border); padding: 2px 6px;
+}
 .item-widget .widget-title { font-weight: bold; font-size: 13px; }
 .item-widget .widget-subtitle { font-size: 11px; color: var(--vscode-descriptionForeground); }
 .item-widget .widget-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px;
@@ -659,6 +686,70 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
     box-shadow: 0 4px 10px rgba(0,0,0,0.4); font-size: 12px;
 }
 #popup a { color: var(--vscode-textLink-foreground); }
+
+/* Create-spec modal */
+#modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2000;
+}
+#modal {
+    background: var(--vscode-editorWidget-background);
+    color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+    border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+    border-radius: 6px;
+    min-width: 360px; max-width: 80%;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column;
+}
+#modal-title {
+    padding: 10px 14px; font-weight: bold; font-size: 14px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+#modal-body { padding: 12px 14px; }
+#modal-body label { display: block; font-size: 12px; margin-bottom: 4px;
+                    color: var(--vscode-descriptionForeground); }
+#modal-input {
+    width: 100%; box-sizing: border-box;
+    background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border, var(--vscode-focusBorder, transparent));
+    padding: 6px 8px; font-size: 13px; border-radius: 3px;
+    outline: none;
+}
+#modal-input:focus { border-color: var(--vscode-focusBorder); }
+#modal-suggestions {
+    margin-top: 6px; max-height: 220px; overflow-y: auto;
+    border: 1px solid var(--vscode-panel-border); border-radius: 3px;
+    font-size: 12px; background: var(--vscode-input-background);
+}
+#modal-suggestions .suggestion { padding: 4px 8px; cursor: pointer; }
+#modal-suggestions .suggestion:hover,
+#modal-suggestions .suggestion.active {
+    background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+    color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+}
+#modal-suggestions .empty {
+    padding: 4px 8px; color: var(--vscode-descriptionForeground); font-style: italic;
+}
+#modal-actions {
+    display: flex; justify-content: flex-end; gap: 6px;
+    padding: 10px 14px; border-top: 1px solid var(--vscode-panel-border);
+}
+#modal-actions button {
+    border: none; cursor: pointer; padding: 6px 14px; font-size: 12px;
+    border-radius: 3px;
+}
+#modal-actions button.primary {
+    background: var(--vscode-button-background); color: var(--vscode-button-foreground);
+}
+#modal-actions button.primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+#modal-actions button.primary:disabled { opacity: 0.5; cursor: default; }
+#modal-actions button.secondary {
+    background: var(--vscode-button-secondaryBackground, transparent);
+    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+    border: 1px solid var(--vscode-panel-border);
+}
+#modal-actions button.secondary:hover { background: var(--vscode-toolbar-hoverBackground); }
 `;
 }
 
@@ -1044,13 +1135,53 @@ const PANEL_JS = String.raw`
         actions.appendChild(ib);
         w.appendChild(actions);
 
-        // YAML tree
-        const tree = document.createElement('div');
-        tree.className = 'tree yaml';
-        tree.appendChild(renderYaml(stripKlass(data)));
-        w.appendChild(tree);
+        // Body: prefer a content widget's own _html when present; otherwise
+        // fall back to the generic YAML tree over the remaining fields.
+        const html = (kind === 'content' && data && typeof data === 'object') ? data._html : undefined;
+        if (typeof html === 'string') {
+            const body = document.createElement('div');
+            body.className = 'widget-html';
+            body.innerHTML = sanitizeHtml(html);
+            w.appendChild(body);
+        } else {
+            const tree = document.createElement('div');
+            tree.className = 'tree yaml';
+            tree.appendChild(renderYaml(stripKlass(data)));
+            w.appendChild(tree);
+        }
 
         return w;
+    }
+
+    /**
+     * Minimal sanitisation of content-provided HTML.  The markup comes from
+     * the projspec library itself so we don't need a full DOMPurify - but we
+     * do strip <script> and inline event handlers as a defence against
+     * accidental XSS through content authored by third parties.
+     */
+    function sanitizeHtml(html) {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = String(html);
+        const walker = document.createTreeWalker(tpl.content, NodeFilter.SHOW_ELEMENT);
+        const toRemove = [];
+        let n = walker.nextNode();
+        while (n) {
+            const tag = n.tagName.toLowerCase();
+            if (tag === 'script' || tag === 'iframe' || tag === 'object' || tag === 'embed') {
+                toRemove.push(n);
+            } else {
+                for (const attr of Array.from(n.attributes)) {
+                    const an = attr.name.toLowerCase();
+                    if (an.startsWith('on')) { n.removeAttribute(attr.name); continue; }
+                    if ((an === 'href' || an === 'src') && /^\s*javascript:/i.test(attr.value)) {
+                        n.removeAttribute(attr.name);
+                    }
+                }
+            }
+            n = walker.nextNode();
+        }
+        for (const el of toRemove) el.remove();
+        return tpl.innerHTML;
     }
 
     function stripKlass(obj) {
@@ -1262,6 +1393,115 @@ const PANEL_JS = String.raw`
     }
     function hideInfoPopup() { popup.classList.add('hidden'); }
 
+    // ----- create-spec modal -----
+    //
+    // Shown when the host posts {type:'openCreateSpecModal', url, specs}.
+    // On accept, we post {cmd:'createSpecConfirmed', url, spec} back.
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalInput = document.getElementById('modal-input');
+    const modalSuggestions = document.getElementById('modal-suggestions');
+    const modalOk = document.getElementById('modal-ok');
+    const modalCancel = document.getElementById('modal-cancel');
+    const modalEl = document.getElementById('modal');
+    let modalState = null; // { url, specs, filtered, active }
+
+    function openCreateSpecModal(url, specs) {
+        modalState = { url, specs: specs.slice(), filtered: specs.slice(), active: 0 };
+        modalInput.value = '';
+        modalOk.disabled = true;
+        renderSuggestions();
+        modalOverlay.classList.remove('hidden');
+        // Focus after the overlay becomes visible.
+        setTimeout(() => modalInput.focus(), 0);
+    }
+    function closeCreateSpecModal() {
+        modalOverlay.classList.add('hidden');
+        modalState = null;
+    }
+    function renderSuggestions() {
+        modalSuggestions.innerHTML = '';
+        if (!modalState) return;
+        if (modalState.filtered.length === 0) {
+            const e = document.createElement('div');
+            e.className = 'empty';
+            e.textContent = modalState.specs.length === 0
+                ? 'No spec types available'
+                : 'No matches';
+            modalSuggestions.appendChild(e);
+            return;
+        }
+        modalState.filtered.forEach((s, i) => {
+            const row = document.createElement('div');
+            row.className = 'suggestion' + (i === modalState.active ? ' active' : '');
+            row.textContent = s;
+            row.addEventListener('mousedown', (e) => {
+                // mousedown so we don't lose input focus before click fires
+                e.preventDefault();
+                modalState.active = i;
+                modalInput.value = s;
+                modalOk.disabled = false;
+                submitCreateSpec();
+            });
+            modalSuggestions.appendChild(row);
+        });
+    }
+    function filterSuggestions() {
+        if (!modalState) return;
+        const q = modalInput.value.trim().toLowerCase();
+        modalState.filtered = q
+            ? modalState.specs.filter((s) => s.toLowerCase().includes(q))
+            : modalState.specs.slice();
+        modalState.active = 0;
+        // OK enabled only when the current input exactly matches a spec.
+        modalOk.disabled = !modalState.specs.includes(modalInput.value.trim());
+        renderSuggestions();
+    }
+    function submitCreateSpec() {
+        if (!modalState) return;
+        let pick = modalInput.value.trim();
+        // If the user hasn't typed a full name but there's a unique match,
+        // accept the single filtered result.
+        if (!modalState.specs.includes(pick) && modalState.filtered.length === 1) {
+            pick = modalState.filtered[0];
+        }
+        if (!modalState.specs.includes(pick)) {
+            // no-op: let the user keep typing
+            return;
+        }
+        const url = modalState.url;
+        closeCreateSpecModal();
+        vscode.postMessage({ cmd: 'createSpecConfirmed', url, spec: pick });
+    }
+    modalInput.addEventListener('input', filterSuggestions);
+    modalInput.addEventListener('keydown', (e) => {
+        if (!modalState) return;
+        if (e.key === 'Escape') { closeCreateSpecModal(); e.preventDefault(); return; }
+        if (e.key === 'Enter') { submitCreateSpec(); e.preventDefault(); return; }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            const dir = e.key === 'ArrowDown' ? 1 : -1;
+            const n = modalState.filtered.length;
+            if (n === 0) return;
+            modalState.active = (modalState.active + dir + n) % n;
+            modalInput.value = modalState.filtered[modalState.active];
+            modalOk.disabled = false;
+            renderSuggestions();
+            e.preventDefault();
+        }
+        if (e.key === 'Tab' && modalState.filtered.length > 0) {
+            // Tab completes to the currently active suggestion.
+            modalInput.value = modalState.filtered[modalState.active];
+            modalOk.disabled = false;
+            filterSuggestions();
+            e.preventDefault();
+        }
+    });
+    modalOk.addEventListener('click', () => submitCreateSpec());
+    modalCancel.addEventListener('click', () => closeCreateSpecModal());
+    modalOverlay.addEventListener('click', (e) => {
+        // Click on the dimmed backdrop (not the modal itself) closes.
+        if (e.target === modalOverlay) closeCreateSpecModal();
+    });
+
     // ----- toolbar -----
     document.getElementById('btn-add').addEventListener('click', () => vscode.postMessage({ cmd: 'add' }));
     document.getElementById('btn-reload').addEventListener('click', () => vscode.postMessage({ cmd: 'reload' }));
@@ -1281,6 +1521,8 @@ const PANEL_JS = String.raw`
             // Drop selection if its target disappeared.
             if (selection && !library[selection.url]) selection = null;
             render();
+        } else if (msg.type === 'openCreateSpecModal') {
+            openCreateSpecModal(msg.url, msg.specs || []);
         }
     });
     vscode.postMessage({ cmd: 'ready' });
