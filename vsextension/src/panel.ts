@@ -62,7 +62,6 @@ export class ProjspecPanel {
                 enableScripts: true,
                 retainContextWhenHidden: true,
                 localResourceRoots: [
-                    vscode.Uri.joinPath(extensionUri, 'node_modules', '@fortawesome', 'fontawesome-free'),
                     vscode.Uri.joinPath(extensionUri, 'media'),
                 ],
             },
@@ -359,17 +358,10 @@ export class ProjspecPanel {
     // ----------------------------------------------------------------------
     private getHtml(): string {
         const webview = this.panel.webview;
-        const faCssUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(
-                this.extensionUri,
-                'node_modules', '@fortawesome', 'fontawesome-free', 'css', 'all.min.css',
-            ),
-        );
         const nonce = getNonce();
         const csp = [
             `default-src 'none'`,
             `style-src ${webview.cspSource} 'unsafe-inline'`,
-            `font-src ${webview.cspSource}`,
             `img-src ${webview.cspSource} data:`,
             `script-src 'nonce-${nonce}'`,
         ].join('; ');
@@ -383,7 +375,6 @@ export class ProjspecPanel {
 <head>
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
-<link rel="stylesheet" href="${faCssUri}" />
 <style>${css}</style>
 <title>Project Library</title>
 </head>
@@ -391,24 +382,24 @@ export class ProjspecPanel {
 <div id="app">
     <div id="library">
         <div class="toolbar">
-            <button id="btn-add"><i class="fa-solid fa-plus"></i> Add</button>
-            <button id="btn-reload"><i class="fa-solid fa-rotate"></i> Reload</button>
-            <button id="btn-configure"><i class="fa-solid fa-gear"></i> Configure</button>
+            <button id="btn-add">➕ Add</button>
+            <button id="btn-reload">🔄 Reload</button>
+            <button id="btn-configure">⚙️ Configure</button>
         </div>
         <div class="search">
-            <i class="fa-solid fa-magnifying-glass"></i>
+            <span class="search-icon">🔍</span>
             <input type="text" id="search" placeholder="Filter projects..." />
-            <button id="search-clear" title="Clear"><i class="fa-solid fa-xmark"></i></button>
+            <button id="search-clear" title="Clear">✖️</button>
         </div>
         <div id="projects"></div>
         <div id="spinner" class="hidden">
-            <i class="fa-solid fa-spinner fa-spin"></i> Loading...
+            <span class="spin">⏳</span> Loading...
         </div>
     </div>
     <div id="details">
         <div id="details-header">
             <div id="details-title">Details</div>
-            <button id="details-toggle" title="Toggle info"><i class="fa-solid fa-chevron-up"></i></button>
+            <button id="details-toggle" title="Toggle info">🔼</button>
         </div>
         <div id="details-info"></div>
         <div id="details-list"></div>
@@ -542,6 +533,8 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
 
 #projects { flex: 1; overflow-y: auto; padding: 6px; }
 #spinner { text-align: center; padding: 16px; color: var(--vscode-descriptionForeground); }
+#spinner .spin { display: inline-block; animation: spin 1.2s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .hidden { display: none !important; }
 
 .project {
@@ -798,15 +791,15 @@ const PANEL_JS = String.raw`
     function specDisplayName(snake) { return snake; }
     function iconForSpec(snake) {
         const entry = info && info.specs && info.specs[snake];
-        return entry && entry.icon ? entry.icon : 'cube';
+        return (entry && entry.icon) || '\u{1F9E9}'; // puzzle piece
     }
     function iconForContent(snake) {
         const entry = info && info.content && info.content[snake];
-        return entry && entry.icon ? entry.icon : 'circle-info';
+        return (entry && entry.icon) || '\u{1F4C4}'; // page
     }
     function iconForArtifact(snake) {
         const entry = info && info.artifact && info.artifact[snake];
-        return entry && entry.icon ? entry.icon : 'cube';
+        return (entry && entry.icon) || '\u{1F4E6}'; // box
     }
 
     // ----- rendering -----
@@ -881,7 +874,7 @@ const PANEL_JS = String.raw`
         const kebabBtn = document.createElement('button');
         kebabBtn.className = 'kebab';
         kebabBtn.title = 'More actions';
-        kebabBtn.innerHTML = '<i class="fa-solid fa-ellipsis-vertical"></i>';
+        kebabBtn.textContent = '⋮';
         kebabBtn.addEventListener('click', (ev) => {
             ev.stopPropagation();
             toggleKebab(wrap, url);
@@ -897,7 +890,7 @@ const PANEL_JS = String.raw`
         chip.className = 'chip';
         chip.style.background = chipColour(label);
         if (icon) {
-            chip.innerHTML = '<i class="fa-solid fa-' + icon + '"></i><span>' + escapeHtml(label) + '</span>';
+            chip.innerHTML = '<span class="chip-icon">' + escapeHtml(icon) + '</span><span>' + escapeHtml(label) + '</span>';
         } else {
             chip.textContent = label;
         }
@@ -979,7 +972,7 @@ const PANEL_JS = String.raw`
     detailsToggle.addEventListener('click', () => {
         detailsInfo.classList.toggle('collapsed');
         const icon = detailsToggle.querySelector('i');
-        if (icon) icon.className = detailsInfo.classList.contains('collapsed') ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
+        if (icon) icon.textContent = detailsInfo.classList.contains('collapsed') ? '🔽' : '🔼';
     });
 
     function renderDetails() {
@@ -1089,7 +1082,7 @@ const PANEL_JS = String.raw`
         title.className = 'widget-title';
         const klass = (data && data.klass && Array.isArray(data.klass)) ? data.klass[1] : typeName;
         const iconName = kind === 'content' ? iconForContent(klass) : iconForArtifact(klass);
-        title.innerHTML = '<i class="fa-solid fa-' + iconName + '"></i> ' + escapeHtml(klass) + (name ? ' <span class="widget-subtitle">- ' + escapeHtml(name) + '</span>' : '');
+        title.innerHTML = '<span class="widget-icon">' + escapeHtml(iconName) + '</span> ' + escapeHtml(klass) + (name ? ' <span class="widget-subtitle">- ' + escapeHtml(name) + '</span>' : '');
         w.appendChild(title);
 
         const actions = document.createElement('div');
@@ -1101,7 +1094,7 @@ const PANEL_JS = String.raw`
         if (kind === 'artifact' && typeof fn === 'string' && fn.length > 0 && isLocalPath(fn)) {
             const rv = document.createElement('button');
             rv.title = 'Reveal ' + fn + ' in Explorer';
-            rv.innerHTML = '<i class="fa-solid fa-arrow-right-long"></i>';
+            rv.textContent = '➡️';
             rv.addEventListener('click', (e) => {
                 e.stopPropagation();
                 vscode.postMessage({ cmd: 'revealFile', fn });
@@ -1112,7 +1105,7 @@ const PANEL_JS = String.raw`
         if (showMake) {
             const mk = document.createElement('button');
             mk.title = 'Make';
-            mk.innerHTML = '<i class="fa-solid fa-play"></i>';
+            mk.textContent = '▶️';
             mk.addEventListener('click', (e) => {
                 e.stopPropagation();
                 vscode.postMessage({
@@ -1127,7 +1120,7 @@ const PANEL_JS = String.raw`
         }
         const ib = document.createElement('button');
         ib.title = 'Info';
-        ib.innerHTML = '<i class="fa-solid fa-circle-info"></i>';
+        ib.textContent = 'ℹ️';
         ib.addEventListener('click', (e) => {
             e.stopPropagation();
             showInfoPopup(klass, kind, e.clientX, e.clientY);

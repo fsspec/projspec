@@ -22,7 +22,7 @@ class CondaEnv(FileArtifact):
     the path may be outside the project tree.
     """
 
-    icon = "cubes"
+    icon = "📦"
 
     @staticmethod
     @cache
@@ -39,7 +39,7 @@ class VirtualEnv(FileArtifact):
     Some tools like pipenv put these environments in a global location.
     """
 
-    icon = "box"
+    icon = "📦"
 
 
 class EnvPack(FileArtifact):
@@ -49,10 +49,10 @@ class EnvPack(FileArtifact):
     - pixi-pack: https://pixi.sh/latest/deployment/pixi_pack/
     """
 
-    icon = "file-zipper"
+    icon = "🗜️"
 
 
 class LockFile(FileArtifact):
     """File containing exact environment specification"""
 
-    icon = "lock"
+    icon = "🔒"

@@ -12,7 +12,7 @@ class DescriptiveMetadata(BaseContent):
     Typically includes authors, tags, and text.
     """
 
-    icon = "circle-info"
+    icon = "ℹ️"
 
     meta: dict[str, str] = field(default_factory=dict)
 
@@ -21,7 +21,7 @@ class DescriptiveMetadata(BaseContent):
 class Citation(BaseContent):
     """A citation for the project, or associated publication"""
 
-    icon = "quote-right"
+    icon = "💬"
 
     meta: dict[str, str] = field(default_factory=dict)
 
@@ -35,7 +35,7 @@ class License(BaseContent):
     conditions on their replication and use.
     """
 
-    icon = "scale-balanced"
+    icon = "⚖️"
 
     # https://opensource.org/licenses
 
@@ -47,7 +47,7 @@ class License(BaseContent):
 class Licensed(ProjectExtra):
     """A license for the repo, as an isolated top-level text file"""
 
-    icon = "scale-balanced"
+    icon = "⚖️"
 
     pattern = re.compile(r"LICEN[SC]E($|([.].*))", re.IGNORECASE)  # COPYING?
     lic_file: str

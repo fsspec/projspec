@@ -4,7 +4,7 @@ from projspec.proj.base import ProjectSpec
 class AIEnabled(ProjectSpec):
     """This project has text files intended for LLM/AI to read."""
 
-    icon = "robot"
+    icon = "🤖"
     spec_doc = "https://agents.md/"
 
     def match(self) -> bool:

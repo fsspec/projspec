@@ -34,7 +34,7 @@ def supported(apps: dict, app: str, *config) -> bool:
 
 
 class Briefcase(ProjectSpec):
-    icon = "briefcase"
+    icon = "💼"
     spec_doc = "https://briefcase.readthedocs.io/en/stable/reference/configuration.html"
 
     def match(self) -> bool:

@@ -16,7 +16,7 @@ class DockerCompose(ProjectSpec):
     and networks, and expose ports.
     """
 
-    icon = "layer-group"
+    icon = "🗂️"
     spec_doc = "https://docs.docker.com/reference/compose-file/"
 
     _NAMES = {
@@ -92,7 +92,7 @@ class DockerCompose(ProjectSpec):
 class Terraform(ProjectSpec):
     """Terraform infrastructure-as-code project."""
 
-    icon = "cloud"
+    icon = "☁️"
     spec_doc = "https://developer.hashicorp.com/terraform/language"
 
     def match(self) -> bool:
@@ -181,7 +181,7 @@ class Terraform(ProjectSpec):
 class Ansible(ProjectSpec):
     """Ansible automation project."""
 
-    icon = "gears"
+    icon = "⚙️"
     spec_doc = "https://docs.ansible.com/ansible/latest/reference_appendices/playbooks_keywords.html"
 
     _PLAYBOOK_NAMES = {"playbook.yml", "playbook.yaml", "site.yml", "site.yaml"}
@@ -245,7 +245,7 @@ class Ansible(ProjectSpec):
 class Pulumi(ProjectSpec):
     """Pulumi infrastructure-as-code project."""
 
-    icon = "cloud-arrow-up"
+    icon = "☁️"
     spec_doc = "https://www.pulumi.com/docs/reference/pulumi-yaml/"
 
     _NAMES = {"Pulumi.yaml", "Pulumi.yml"}
@@ -319,7 +319,7 @@ class Pulumi(ProjectSpec):
 class CDK(ProjectSpec):
     """AWS Cloud Development Kit (CDK) project."""
 
-    icon = "aws"
+    icon = "☁️"
     spec_doc = "https://docs.aws.amazon.com/cdk/v2/guide/projects.html"
 
     def match(self) -> bool:
@@ -379,7 +379,7 @@ class CDK(ProjectSpec):
 class Earthfile(ProjectSpec):
     """Earthly build project."""
 
-    icon = "earth-americas"
+    icon = "🌎"
     spec_doc = "https://docs.earthly.dev/docs/earthfile"
 
     def match(self) -> bool:
@@ -438,7 +438,7 @@ class Earthfile(ProjectSpec):
 class Nixpacks(ProjectSpec):
     """Nixpacks build configuration project."""
 
-    icon = "snowflake"
+    icon = "❄️"
     spec_doc = "https://nixpacks.com/docs/configuration/file"
 
     def match(self) -> bool:
@@ -499,7 +499,7 @@ class Nixpacks(ProjectSpec):
 class Vagrant(ProjectSpec):
     """Vagrant virtual machine project."""
 
-    icon = "box-archive"
+    icon = "🗃️"
     spec_doc = "https://developer.hashicorp.com/vagrant/docs/vagrantfile"
 
     def match(self) -> bool:

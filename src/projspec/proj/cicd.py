@@ -14,7 +14,7 @@ class GitHubActions(ProjectExtra):
     Each YAML file under .github/workflows/ defines one workflow.
     """
 
-    icon = "github"
+    icon = "🐙"
     spec_doc = "https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions"
 
     def match(self) -> bool:
@@ -104,7 +104,7 @@ class GitHubActions(ProjectExtra):
 class GitLabCI(ProjectExtra):
     """GitLab CI/CD pipeline defined in .gitlab-ci.yml."""
 
-    icon = "gitlab"
+    icon = "🦊"
     spec_doc = "https://docs.gitlab.com/ci/yaml/"
 
     def match(self) -> bool:
@@ -167,7 +167,7 @@ class GitLabCI(ProjectExtra):
 class CircleCI(ProjectExtra):
     """CircleCI pipeline defined in .circleci/config.yml."""
 
-    icon = "circle-dot"
+    icon = "⦿"
     spec_doc = "https://circleci.com/docs/configuration-reference/"
 
     def match(self) -> bool:
@@ -232,7 +232,7 @@ class CircleCI(ProjectExtra):
 class Taskfile(ProjectSpec):
     """Task runner using Taskfile (go-task)."""
 
-    icon = "list-check"
+    icon = "✅"
     spec_doc = "https://taskfile.dev/reference/schema/"
 
     _NAMES = {"Taskfile.yml", "Taskfile.yaml", "taskfile.yml", "taskfile.yaml"}
@@ -293,7 +293,7 @@ class JustFile(ProjectSpec):
     A justfile defines named recipes that can be run with `just <recipe>`.
     """
 
-    icon = "play"
+    icon = "▶️"
     spec_doc = "https://just.systems/man/en/"
 
     _NAMES = {"justfile", "Justfile", ".justfile"}
@@ -349,7 +349,7 @@ class Tox(ProjectSpec):
     A set of environments and run commands to be run as a workflow.
     """
 
-    icon = "vial"
+    icon = "🧪"
     spec_doc = "https://tox.wiki/en/stable/config.html"
 
     def match(self) -> bool:

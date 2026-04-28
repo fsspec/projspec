@@ -8,7 +8,7 @@ from projspec.utils import AttrDict
 class Golang(ProjectSpec):
     """A Go module project, identified by the presence of a go.mod file."""
 
-    icon = "golang"
+    icon = "🐹"
     spec_doc = "https://go.dev/doc/modules/gomod-ref"
 
     def match(self) -> bool:

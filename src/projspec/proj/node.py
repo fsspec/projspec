@@ -14,7 +14,7 @@ class Node(ProjectSpec):
     This is a project that contains a package.json file.
     """
 
-    icon = "node-js"
+    icon = "🟩"
     spec_doc = "https://docs.npmjs.com/cli/v11/configuring-npm/package-json"
 
     def match(self):
@@ -129,7 +129,7 @@ class Node(ProjectSpec):
 class Yarn(Node):
     """A node project that uses `yarn` for building"""
 
-    icon = "yarn"
+    icon = "🧶"
     spec_doc = "https://yarnpkg.com/configuration/yarnrc"
 
     def match(self):
@@ -178,7 +178,7 @@ class JLabExtension(Yarn):
     https://jupyter-server.readthedocs.io/en/latest/developers/extensions.html).
     """
 
-    icon = "puzzle-piece"
+    icon = "🧩"
 
     # TODO: we may add a jupyter server extension python project type in the
     #  future, defined by a JSON server config file.

@@ -1,1330 +1,1035 @@
-"""HTML view generators for the Qt application.
+"""HTML/CSS/JS for the Qt webview panel.
 
-These are ports of the TypeScript HTML panel generators in vsextension/src/extension.ts.
-The Qt app calls Python directly instead of shelling out to subprocesses.
+The markup, styles and webview-side script mirror the VSCode extension's
+panel (``vsextension/src/panel.ts``).  Keeping them in lock-step means the
+two UIs look and behave identically; the only real difference is the host
+bridge (``QWebChannel``'s ``bridge`` object vs VSCode's ``acquireVsCodeApi``).
+
+Icons are emoji characters.  ``projspec`` itself stores an emoji in each
+spec / content / artifact class's ``icon`` attribute, so the webview just
+renders whatever ``class_infos()`` returns.  The small set of *chrome*
+icons (toolbar buttons, kebab trigger, etc.) lives in
+:mod:`qtapp.emoji` so the three UIs share a single source of truth.
 """
+
+from __future__ import annotations
 
 import json
-import html as _html_mod
-from typing import Any
 
-from projspec.utils import class_infos
+from emoji import CHROME
 
 
-def _escape(s: str) -> str:
-    return _html_mod.escape(str(s), quote=True)
+def get_panel_html() -> str:
+    """Return the full HTML document served to the Qt webview.
 
-
-def _get_info_data() -> dict:
-    """Return {specs, content, artifact} info dict (equivalent to getInfoData())."""
-    return class_infos()
-
-
-# ---------------------------------------------------------------------------
-# Shared CSS strings
-# ---------------------------------------------------------------------------
-
-_TREE_SHARED_CSS = """
-    * { box-sizing: border-box; }
-
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-size: 13px;
-        color: #cccccc;
-        background-color: #1e1e1e;
-        margin: 0;
-        padding: 0;
-        position: relative;
-    }
-
-    .tree { list-style: none; margin: 0; padding: 0; }
-    .tree-item { margin: 0; padding: 0; }
-
-    .tree-node {
-        display: flex;
-        align-items: center;
-        padding: 4px 8px;
-        cursor: pointer;
-        border-radius: 4px;
-        transition: background-color 0.1s ease;
-    }
-
-    .tree-node:hover { background-color: #2a2d2e; }
-
-    .tree-node.selected {
-        background-color: #094771;
-        color: #ffffff;
-    }
-
-    .tree-icon {
-        width: 16px; height: 16px; margin-right: 4px;
-        display: flex; align-items: center; justify-content: center;
-        cursor: pointer; flex-shrink: 0;
-    }
-
-    .tree-icon.expandable::before { content: "▶"; font-size: 10px; transition: transform 0.1s ease; }
-    .tree-icon.expanded::before { transform: rotate(90deg); }
-    .tree-icon.leaf::before {
-        content: ""; width: 6px; height: 6px;
-        background: #888; border-radius: 50%; display: block;
-    }
-
-    .tree-label { flex: 1; padding: 2px 4px; }
-
-    .tree-children { list-style: none; margin: 0; padding-left: 20px; display: none; }
-    .tree-children.expanded { display: block; }
-
-    .project-node { font-weight: bold; color: #dcb67a; }
-    .content-node { color: #4ec9b0; }
-    .artifact-node { color: #ce9178; }
-    .spec-node { color: #dcdcaa; }
-    .folder-node { color: #dcb67a; font-weight: 500; }
-    .field-node { color: #cccccc; }
-
-    .field-value { color: #9cdcfe; font-style: italic; }
-
-    .info-button {
-        width: 20px; height: 20px; border-radius: 50%;
-        background: #0e639c; color: #ffffff;
-        border: none; cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 12px; font-weight: bold; margin-left: 8px;
-        opacity: 0.7; transition: all 0.2s ease; flex-shrink: 0;
-    }
-    .info-button:hover { opacity: 1; background: #1177bb; transform: scale(1.1); }
-
-    .make-button {
-        padding: 2px 8px;
-        background-color: #0e639c; color: #ffffff;
-        border: 1px solid #0e639c; border-radius: 2px; cursor: pointer;
-        font-size: 10px; font-family: inherit; margin-left: 8px;
-        opacity: 0.8; transition: all 0.2s ease; flex-shrink: 0;
-    }
-    .make-button:hover { opacity: 1; background-color: #1177bb; }
-
-    .info-popup {
-        position: absolute;
-        background: #252526; border: 1px solid #454545; border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-        padding: 16px; max-width: 400px; min-width: 250px;
-        z-index: 1000; font-size: 13px; line-height: 1.5; display: none;
-    }
-    .info-popup.visible { display: block; }
-    .popup-header {
-        display: flex; align-items: center; margin-bottom: 12px;
-        padding-bottom: 8px; border-bottom: 1px solid #454545;
-    }
-    .popup-icon {
-        width: 20px; height: 20px; margin-right: 8px; border-radius: 50%;
-        background-color: #0e639c; color: #fff;
-        display: flex; align-items: center; justify-content: center;
-        font-weight: bold; font-size: 12px; flex-shrink: 0;
-    }
-    .popup-title { font-weight: bold; margin: 0; color: #cccccc; }
-    .popup-content { margin-bottom: 8px; }
-    .popup-section { margin-bottom: 12px; }
-    .popup-section:last-child { margin-bottom: 0; }
-    .section-title {
-        font-weight: bold; margin-bottom: 4px; color: #9e9e9e;
-        font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
-    }
-    .section-content { white-space: pre-wrap; word-wrap: break-word; }
-    .popup-link { color: #3794ff; text-decoration: none; word-break: break-all; }
-    .popup-link:hover { text-decoration: underline; }
-    .popup-link-btn {
-        background: none; border: none; padding: 0; cursor: pointer;
-        color: #3794ff; font-family: inherit; font-size: inherit;
-        text-align: left; word-break: break-all; white-space: normal;
-    }
-    .popup-link-btn:hover { text-decoration: underline; }
-    .no-info { color: #9e9e9e; font-style: italic; }
-    .info-popup::before { content: none; }
-    .info-popup::after  { content: none; }
-
-    .control-button {
-        padding: 2px 8px;
-        background-color: #3c3c3c; color: #cccccc;
-        border: 1px solid #454545; border-radius: 2px;
-        cursor: pointer; font-size: 11px; font-family: inherit;
-    }
-    .control-button:hover { background-color: #494949; }
-    .control-button.active { background-color: #0e639c; color: #fff; }
-
-    .loading-overlay {
-        position: fixed; inset: 0;
-        background: rgba(0,0,0,0.35);
-        display: none; align-items: center; justify-content: center;
-        z-index: 4000; cursor: wait;
-    }
-    .loading-overlay.visible { display: flex; }
-    .loading-spinner {
-        width: 28px; height: 28px;
-        border: 3px solid #cccccc; border-top-color: transparent;
-        border-radius: 50%; animation: spin 0.7s linear infinite; opacity: 0.8;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .html-preview {
-        display: block;
-        width: 100%;
-        border: none;
-        margin-top: 4px;
-        margin-left: 20px;
-        min-height: 40px;
-        max-height: 600px;
-    }
-"""
-
-_INFO_POPUP_JS = """
-    function showInfoPopup(button, itemData) {
-        const popup = document.getElementById('info-popup');
-        const popupTitle = document.getElementById('popup-title');
-        const popupContent = document.getElementById('popup-content');
-        const rect = button.getBoundingClientRect();
-        const container = document.getElementById('tree-container');
-        const containerRect = container.getBoundingClientRect();
-        popup.style.top = (rect.top - containerRect.top - 10) + 'px';
-        popupTitle.textContent = itemData.key || itemData.label || '';
-
-        let contentHtml = '';
-        if (itemData.infoData && itemData.infoData.trim() !== '') {
-            let doc = '', link = '';
-            try {
-                const info = JSON.parse(itemData.infoData);
-                doc = info.doc || ''; link = info.link || '';
-            } catch(e) {
-                const parts = itemData.infoData.split('\\n\\n');
-                doc = parts[0] || ''; link = parts[1] || '';
-            }
-            const docParts = doc.split('\\n').map(p => p.trim()).filter(p => p.length > 0);
-            const summary = docParts[0] || '';
-            const extra = docParts.slice(1);
-            if (summary) contentHtml += '<div class="popup-section"><div class="section-content" style="font-weight:bold;margin-bottom:8px;">' + summary + '</div></div>';
-            if (extra.length > 0) contentHtml += '<div class="popup-section"><div class="section-content">' + extra.map(p => '<p style="margin-top:0;margin-bottom:8px;">' + p + '</p>').join('') + '</div></div>';
-            if (link) contentHtml += '<div class="popup-section"><div class="section-title">More Information</div><div class="section-content"><button class="popup-link-btn" onclick="postMessage({command:\\'openUrl\\',url:\\'' + link.replace(/'/g, '%27') + '\\'})">&#x1F517; ' + link + '</button></div></div>';
-        }
-        if (!contentHtml) {
-            contentHtml = '<div class="no-info">Information for ' + (itemData.itemType || 'item') + ' type "' + (itemData.key || itemData.label || '') + '" is not currently available.</div>';
-        }
-        popupContent.innerHTML = contentHtml;
-        // Position to the left of the button; measure after making visible so width is known
-        popup.style.left = '-9999px';
-        popup.classList.add('visible');
-        const popupRect = popup.getBoundingClientRect();
-        popup.style.left = (rect.left - containerRect.left - popupRect.width - 10) + 'px';
-        // If that goes off the left edge, fall back to right of the button
-        if (rect.left - popupRect.width - 10 < 0) {
-            popup.style.left = (rect.right - containerRect.left + 10) + 'px';
-        }
-        if (popupRect.bottom > window.innerHeight) popup.style.top = (rect.bottom - containerRect.top - popupRect.height + 10) + 'px';
-    }
-
-    function hideInfoPopup() {
-        document.getElementById('info-popup').classList.remove('visible');
-    }
-"""
-
-_INFO_POPUP_HTML = """
-    <div id="info-popup" class="info-popup">
-        <div class="popup-header">
-            <div class="popup-icon">i</div>
-            <h3 class="popup-title" id="popup-title"></h3>
-        </div>
-        <div class="popup-content" id="popup-content"></div>
-    </div>
-"""
-
-
-# ---------------------------------------------------------------------------
-# Library / tree panel
-# ---------------------------------------------------------------------------
-
-
-def _build_tree_nodes(project_url: str, project: dict, info_data: dict) -> list:
-    """Equivalent to buildTreeNodes() in extension.ts."""
-    children = []
-
-    def _build_tooltip(doc, link):
-        return json.dumps({"doc": doc or "", "link": link or ""})
-
-    # Top-level contents
-    for name in (project.get("contents") or {}).keys():
-        basename = name.split("/")[-1]
-        content_type = basename.split(".")[0]
-        info = (info_data.get("content") or {}).get(content_type)
-        info_text = (
-            _build_tooltip(info.get("doc"), info.get("link", "")) if info else None
-        )
-        children.append(
-            {
-                "key": basename,
-                "infoData": info_text,
-                "projectUrl": project_url,
-                "itemType": "content",
-            }
-        )
-
-    # Top-level artifacts
-    for artifact_type, artifact_data in (project.get("artifacts") or {}).items():
-        info = (info_data.get("artifact") or {}).get(artifact_type)
-        info_text = (
-            _build_tooltip(info.get("doc"), info.get("link", "")) if info else None
-        )
-        if isinstance(artifact_data, str):
-            children.append(
-                {
-                    "key": artifact_type,
-                    "infoData": info_text,
-                    "projectUrl": project_url,
-                    "itemType": "artifact",
-                    "qname": artifact_type,
-                }
-            )
-        elif isinstance(artifact_data, dict):
-            for name in artifact_data.keys():
-                children.append(
-                    {
-                        "key": f"{artifact_type}.{name}",
-                        "infoData": info_text,
-                        "projectUrl": project_url,
-                        "itemType": "artifact",
-                        "qname": f"{artifact_type}.{name}",
-                    }
-                )
-
-    # Specs
-    for spec_name, spec_data in (project.get("specs") or {}).items():
-        info = (info_data.get("specs") or {}).get(spec_name)
-        info_text = (
-            _build_tooltip(info.get("doc"), info.get("link", "")) if info else None
-        )
-        spec_children = []
-        for artifact_type, artifact_data in (spec_data.get("_artifacts") or {}).items():
-            art_info = (info_data.get("artifact") or {}).get(artifact_type)
-            art_info_text = (
-                _build_tooltip(art_info.get("doc"), art_info.get("link", ""))
-                if art_info
-                else None
-            )
-            if isinstance(artifact_data, str):
-                spec_children.append(
-                    {
-                        "key": artifact_type,
-                        "infoData": art_info_text,
-                        "projectUrl": project_url,
-                        "itemType": "artifact",
-                        "qname": f"{spec_name}.{artifact_type}",
-                    }
-                )
-            elif isinstance(artifact_data, dict):
-                for name in artifact_data.keys():
-                    spec_children.append(
-                        {
-                            "key": f"{artifact_type}.{name}",
-                            "infoData": art_info_text,
-                            "projectUrl": project_url,
-                            "itemType": "artifact",
-                            "qname": f"{spec_name}.{artifact_type}.{name}",
-                        }
-                    )
-        node = {
-            "key": spec_name,
-            "infoData": info_text,
-            "projectUrl": project_url,
-            "itemType": "spec",
-        }
-        if spec_children:
-            node["children"] = spec_children
-        children.append(node)
-
-    return children
-
-
-def _generate_tree_html(node: dict, level: int = 0) -> str:
-    """Equivalent to generateTreeHTML() in extension.ts."""
-    html = ""
-    for child in node.get("children") or []:
-        has_children = bool(child.get("children"))
-        node_class = _get_node_class(child)
-        icon_class = "tree-icon expandable" if has_children else "tree-icon leaf"
-        has_info = child.get("itemType") in ("content", "artifact", "spec")
-        is_artifact = child.get("itemType") == "artifact"
-        item_data_json = _escape(json.dumps(child))
-        key_text = _escape(str(child.get("key", "")))
-        make_btn = (
-            f'<button class="make-button" data-item="{item_data_json}" title="Make artifact">Make</button>'
-            if is_artifact
-            else ""
-        )
-        info_btn = (
-            f'<button class="info-button" data-item="{item_data_json}" title="Show information">i</button>'
-            if has_info
-            else ""
-        )
-        children_html = ""
-        if has_children:
-            children_html = f'<ul class="tree-children">{_generate_tree_html(child, level + 1)}</ul>'
-        html += f"""
-            <li class="tree-item">
-                <div class="tree-node {node_class}" data-item="{item_data_json}">
-                    <span class="{icon_class}"></span>
-                    <span class="tree-label">{key_text}</span>
-                    {make_btn}
-                    {info_btn}
-                </div>
-                {children_html}
-            </li>"""
-    return html
-
-
-def _get_node_class(node: dict) -> str:
-    if node.get("isProject"):
-        return "project-node"
-    elif node.get("itemType") == "content":
-        return "content-node"
-    elif node.get("itemType") == "artifact":
-        return "artifact-node"
-    elif node.get("itemType") == "spec":
-        return "spec-node"
-    elif node.get("children"):
-        return "folder-node"
-    return ""
-
-
-def get_library_html(
-    library_data: dict,
-    spec_names: list[str],
-    scroll_to_project_url: str | None = None,
-) -> str:
-    """Generate the Library panel HTML.
-
-    Equivalent to getTreeWebviewContent() in extension.ts.
-
-    Parameters
-    ----------
-    library_data:
-        ``{project_url: project_dict}`` — the full library JSON.
-    spec_names:
-        List of known spec type names for the Create project autocomplete.
-    scroll_to_project_url:
-        If given, this project will be expanded and selected on load.
+    The bridge is registered on Python-side as ``bridge`` (class
+    :class:`~main.JsBridge`).  The script below waits for QWebChannel to wire
+    it up and then mirrors the same API the VSCode webview uses
+    (``postMessage`` / ``window.addEventListener('message', ...)``).
     """
-    info_data = _get_info_data()
-
-    # Build tree data
-    project_children = []
-    for project_url, project in library_data.items():
-        pchildren = _build_tree_nodes(project_url, project, info_data)
-        project_basename = project_url.split("/")[-1] or project_url
-        node = {
-            "key": f"{project_basename} ({project_url})",
-            "infoData": project_url,
-            "children": pchildren,
-            "data": project,
-            "isProject": True,
-        }
-        project_children.append(node)
-
-    tree_root = {"key": "projects", "children": project_children}
-    tree_html = _generate_tree_html(tree_root)
-
-    spec_names_json = json.dumps(spec_names)
-    scroll_url_js = (
-        f"'{_escape(scroll_to_project_url)}'" if scroll_to_project_url else "null"
+    html = _HTML_TEMPLATE
+    for key, glyph in CHROME.items():
+        html = html.replace(f"<!--ICON:{key}-->", glyph)
+    js = _PANEL_JS.replace(
+        "__CHROME_ICONS_JSON__", json.dumps(CHROME, separators=(",", ":"))
     )
+    return html.replace("/*__CSS__*/", _PANEL_CSS).replace("/*__JS__*/", js)
 
-    return f"""<!DOCTYPE html>
+
+# ---------------------------------------------------------------------------
+#  HTML skeleton
+# ---------------------------------------------------------------------------
+
+_HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Library</title>
-    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-    <style>
-{_TREE_SHARED_CSS}
-
-        .search-container {{
-            padding: 8px;
-            position: sticky; top: 0;
-            background-color: #1e1e1e; z-index: 10;
-            border-bottom: 1px solid #454545; margin-bottom: 8px;
-        }}
-        .search-input-wrapper {{ position: relative; display: flex; align-items: center; }}
-        #search-input {{
-            width: 100%; padding: 4px 24px 4px 8px; box-sizing: border-box;
-            background-color: #3c3c3c; color: #cccccc; border: 1px solid #555;
-            border-radius: 2px; font-family: inherit; font-size: inherit;
-        }}
-        #search-input:focus {{ outline: 1px solid #007acc; border-color: #007acc; }}
-        #search-clear {{
-            position: absolute; right: 4px; background: none; border: none;
-            padding: 0 2px; cursor: pointer; color: #cccccc; opacity: 0.6;
-            font-size: 14px; line-height: 1; display: none;
-        }}
-        #search-clear:hover {{ opacity: 1; }}
-
-        .controls-top-container {{
-            padding: 8px; display: flex; gap: 8px;
-            border-bottom: 1px solid #454545; margin-bottom: 8px;
-        }}
-        .controls-bottom-container {{
-            padding: 8px; display: flex; gap: 8px;
-            border-bottom: 1px solid #454545; margin-bottom: 8px;
-        }}
-
-        /* Modal */
-        .modal-overlay {{
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); display: none;
-            align-items: center; justify-content: center; z-index: 2000;
-        }}
-        .modal-overlay.visible {{ display: flex; }}
-        .modal-dialog {{
-            background: #252526; border: 1px solid #454545; border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 20px;
-            width: 350px; max-width: 90%;
-        }}
-        .modal-title {{ margin-top: 0; margin-bottom: 16px; font-size: 16px; font-weight: bold; color: #cccccc; }}
-        .modal-content {{ margin-bottom: 20px; }}
-        .modal-label {{ display: block; margin-bottom: 8px; color: #cccccc; }}
-        .modal-input {{
-            width: 100%; padding: 6px;
-            background: #3c3c3c; color: #cccccc; border: 1px solid #555;
-            border-radius: 2px; font-family: inherit; box-sizing: border-box;
-        }}
-        .autocomplete-container {{ position: relative; width: 100%; }}
-        .autocomplete-suggestions {{
-            position: absolute; top: 100%; left: 0; right: 0;
-            background: #252526; border: 1px solid #454545; border-top: none;
-            max-height: 150px; overflow-y: auto; z-index: 2100;
-            display: none; box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        }}
-        .autocomplete-suggestions.visible {{ display: block; }}
-        .suggestion-item {{ padding: 6px 10px; cursor: pointer; transition: background-color 0.1s ease; }}
-        .suggestion-item:hover, .suggestion-item.active {{ background-color: #2a2d2e; }}
-        .modal-buttons {{ display: flex; justify-content: flex-end; gap: 8px; }}
-        .modal-button {{
-            padding: 6px 16px; border-radius: 2px; border: 1px solid #555;
-            cursor: pointer; font-family: inherit; font-size: 13px;
-        }}
-        .modal-button-primary {{ background: #0e639c; color: #fff; }}
-        .modal-button-primary:hover {{ background: #1177bb; }}
-        .modal-button-secondary {{ background: #3c3c3c; color: #cccccc; }}
-        .modal-button-secondary:hover {{ background: #494949; }}
-
-        /* Context menu */
-        .context-menu {{
-            position: fixed; background: #252526;
-            border: 1px solid #454545; border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-            padding: 4px 0; z-index: 3000; display: none; min-width: 140px;
-        }}
-        .context-menu.visible {{ display: block; }}
-        .context-menu-item {{
-            padding: 6px 16px; cursor: pointer; color: #cccccc;
-            font-family: inherit; font-size: 13px; white-space: nowrap;
-        }}
-        .context-menu-item:hover {{ background: #094771; color: #fff; }}
-    </style>
+<meta charset="UTF-8" />
+<title>Project Library</title>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<style>/*__CSS__*/</style>
 </head>
 <body>
-    <div class="controls-top-container">
-        <button id="scan-project" class="control-button">Scan</button>
-        <button id="create-project" class="control-button">Create</button>
-    </div>
-    <div class="search-container">
-        <div class="search-input-wrapper">
-            <input type="text" id="search-input" placeholder="Search projects..." aria-label="Search projects">
-            <button id="search-clear" title="Clear search">&#x2715;</button>
+<div id="app">
+    <div id="library">
+        <div class="toolbar">
+            <button id="btn-add"><!--ICON:add--> Add</button>
+            <button id="btn-reload"><!--ICON:reload--> Reload</button>
+            <button id="btn-configure"><!--ICON:configure--> Configure</button>
+        </div>
+        <div class="search">
+            <!--ICON:search-->
+            <input type="text" id="search" placeholder="Filter projects..." />
+            <button id="search-clear" title="Clear"><!--ICON:clear--></button>
+        </div>
+        <div id="projects"></div>
+        <div id="spinner" class="hidden">
+            <span class="icon spin"><!--ICON:spinner--></span>
+            Loading...
         </div>
     </div>
-    <div class="controls-bottom-container">
-        <button id="expand-all" class="control-button">Expand All</button>
-        <button id="collapse-all" class="control-button">Collapse All</button>
+    <div id="details">
+        <div id="details-header">
+            <div id="details-title">Details</div>
+            <button id="details-toggle" title="Toggle info"><!--ICON:chevron_up--></button>
+        </div>
+        <div id="details-info"></div>
+        <div id="details-list"></div>
     </div>
-    <div id="tree-container">
-        <ul class="tree">
-            {tree_html}
-        </ul>
-    </div>
-
-    <div id="loading-overlay" class="loading-overlay">
-        <div class="loading-spinner"></div>
-    </div>
-
-    {_INFO_POPUP_HTML}
-
-    <div id="context-menu" class="context-menu">
-        <div class="context-menu-item" id="context-open">Set browser path</div>
-        <div class="context-menu-item" id="context-file-browser">Open in system file browser</div>
-        <div class="context-menu-item" id="context-vscode">Open in VSCode</div>
-        <div class="context-menu-item" id="context-jupyter">Open in Jupyter</div>
-        <div class="context-menu-item" id="context-remove">Remove from library</div>
-    </div>
-
-    <div id="create-modal" class="modal-overlay">
-        <div class="modal-dialog">
-            <h3 class="modal-title">Create Project</h3>
-            <div class="modal-content">
-                <label for="project-type-input" class="modal-label">Project Type:</label>
-                <div class="autocomplete-container">
-                    <input type="text" id="project-type-input" class="modal-input" placeholder="Search or select type..." autocomplete="off">
-                    <div id="autocomplete-suggestions" class="autocomplete-suggestions"></div>
-                </div>
-            </div>
-            <div class="modal-buttons">
-                <button id="modal-cancel" class="modal-button modal-button-secondary">Cancel</button>
-                <button id="modal-create" class="modal-button modal-button-primary">Create</button>
-            </div>
+</div>
+<div id="popup" class="hidden"></div>
+<div id="modal-overlay" class="hidden">
+    <div id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div id="modal-title">Create spec</div>
+        <div id="modal-body">
+            <label for="modal-input">Spec type:</label>
+            <input type="text" id="modal-input" autocomplete="off" spellcheck="false" placeholder="Start typing..." />
+            <div id="modal-suggestions"></div>
+        </div>
+        <div id="modal-actions">
+            <button id="modal-cancel" class="secondary">Cancel</button>
+            <button id="modal-ok" class="primary" disabled>Create</button>
         </div>
     </div>
-
-    <script>
-        // Qt WebChannel bridge
-        let bridge = null;
-        function postMessage(msg) {{
-            if (bridge) {{
-                bridge.handleMessage(JSON.stringify(msg));
-            }}
-        }}
-
-        new QWebChannel(qt.webChannelTransport, function(channel) {{
-            bridge = channel.objects.bridge;
-        }});
-
-        const specNames = {spec_names_json};
-        let activeSuggestionIndex = -1;
-        let contextMenuItem = null;
-        const scrollToProjectUrl = {scroll_url_js};
-
-        function setLoading(active) {{
-            document.getElementById('loading-overlay').classList.toggle('visible', active);
-        }}
-
-        // ── Scroll to project on load ──────────────────────────────────────
-        if (scrollToProjectUrl) {{
-            window.addEventListener('DOMContentLoaded', () => {{
-                for (const node of document.querySelectorAll('.tree-node.project-node')) {{
-                    const itemData = JSON.parse(node.dataset.item || '{{}}');
-                    if (itemData.infoData === scrollToProjectUrl) {{
-                        const treeItem = node.closest('.tree-item');
-                        const children = treeItem && treeItem.querySelector('.tree-children');
-                        const icon = treeItem && treeItem.querySelector('.tree-icon');
-                        if (children) children.classList.add('expanded');
-                        if (icon) icon.classList.add('expanded');
-                        node.classList.add('selected');
-                        node.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
-                        break;
-                    }}
-                }}
-            }});
-        }}
-
-        // ── Scan ───────────────────────────────────────────────────────────
-        document.getElementById('scan-project').addEventListener('click', () => {{
-            setLoading(true);
-            postMessage({{ command: 'scan' }});
-        }});
-
-        // ── Create ─────────────────────────────────────────────────────────
-        document.getElementById('create-project').addEventListener('click', () => {{
-            document.getElementById('create-modal').classList.add('visible');
-            const inp = document.getElementById('project-type-input');
-            inp.value = '';
-            inp.focus();
-            renderSuggestions('');
-        }});
-
-        // ── Autocomplete ───────────────────────────────────────────────────
-        function renderSuggestions(filter) {{
-            const sc = document.getElementById('autocomplete-suggestions');
-            const filtered = specNames.filter(s => s.toLowerCase().includes(filter.toLowerCase()));
-            sc.innerHTML = '';
-            activeSuggestionIndex = -1;
-            if (filtered.length > 0) {{
-                filtered.forEach(spec => {{
-                    const item = document.createElement('div');
-                    item.className = 'suggestion-item';
-                    item.textContent = spec;
-                    item.addEventListener('click', () => selectSuggestion(spec));
-                    sc.appendChild(item);
-                }});
-                sc.classList.add('visible');
-            }} else {{
-                sc.classList.remove('visible');
-            }}
-        }}
-        function updateActiveSuggestion(suggestions) {{
-            suggestions.forEach((s, i) => {{
-                s.classList.toggle('active', i === activeSuggestionIndex);
-                if (i === activeSuggestionIndex) s.scrollIntoView({{ block: 'nearest' }});
-            }});
-        }}
-        function selectSuggestion(spec) {{
-            document.getElementById('project-type-input').value = spec;
-            document.getElementById('autocomplete-suggestions').classList.remove('visible');
-            activeSuggestionIndex = -1;
-        }}
-
-        const typeInput = document.getElementById('project-type-input');
-        typeInput.addEventListener('input', e => renderSuggestions(e.target.value));
-        typeInput.addEventListener('keydown', e => {{
-            const sugs = document.getElementById('autocomplete-suggestions').querySelectorAll('.suggestion-item');
-            if (e.key === 'ArrowDown') {{ activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, sugs.length - 1); updateActiveSuggestion(sugs); e.preventDefault(); }}
-            else if (e.key === 'ArrowUp') {{ activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, -1); updateActiveSuggestion(sugs); e.preventDefault(); }}
-            else if (e.key === 'Enter' && activeSuggestionIndex >= 0) {{ selectSuggestion(sugs[activeSuggestionIndex].textContent); e.preventDefault(); }}
-        }});
-
-        // ── Search ─────────────────────────────────────────────────────────
-        document.getElementById('search-input').addEventListener('input', e => {{
-            const term = e.target.value.toLowerCase();
-            document.getElementById('search-clear').style.display = e.target.value ? 'block' : 'none';
-            document.querySelectorAll('.tree > .tree-item').forEach(item => {{
-                const labels = item.querySelectorAll('.tree-label');
-                let found = false;
-                for (const lbl of labels) {{
-                    if (lbl.textContent.toLowerCase().includes(term)) {{ found = true; break; }}
-                }}
-                item.style.display = found ? '' : 'none';
-            }});
-        }});
-        document.getElementById('search-clear').addEventListener('click', () => {{
-            document.getElementById('search-input').value = '';
-            document.getElementById('search-clear').style.display = 'none';
-            document.querySelectorAll('.tree > .tree-item').forEach(i => i.style.display = '');
-            document.getElementById('search-input').focus();
-        }});
-
-        // ── Expand / Collapse ──────────────────────────────────────────────
-        document.getElementById('expand-all').addEventListener('click', () => {{
-            document.querySelectorAll('.tree-children').forEach(c => c.classList.add('expanded'));
-            document.querySelectorAll('.tree-icon.expandable').forEach(i => i.classList.add('expanded'));
-        }});
-        document.getElementById('collapse-all').addEventListener('click', () => {{
-            document.querySelectorAll('.tree-children').forEach(c => c.classList.remove('expanded'));
-            document.querySelectorAll('.tree-icon.expandable').forEach(i => i.classList.remove('expanded'));
-        }});
-
-        // ── Modal lifecycle ────────────────────────────────────────────────
-        document.getElementById('modal-cancel').addEventListener('click', () =>
-            document.getElementById('create-modal').classList.remove('visible'));
-        document.getElementById('modal-create').addEventListener('click', () => {{
-            const pt = document.getElementById('project-type-input').value;
-            if (pt) {{
-                postMessage({{ command: 'createProject', projectType: pt }});
-                document.getElementById('create-modal').classList.remove('visible');
-            }} else {{
-                document.getElementById('project-type-input').focus();
-            }}
-        }});
-        document.addEventListener('click', e => {{
-            if (!typeInput.contains(e.target) && !document.getElementById('autocomplete-suggestions').contains(e.target))
-                document.getElementById('autocomplete-suggestions').classList.remove('visible');
-        }});
-
-        // ── Tree clicks ────────────────────────────────────────────────────
-        document.addEventListener('click', e => {{
-            // Expand/collapse arrow
-            if (e.target.classList.contains('tree-icon') && e.target.classList.contains('expandable')) {{
-                const treeItem = e.target.closest('.tree-item');
-                const children = treeItem.querySelector('.tree-children');
-                const expanded = children.classList.toggle('expanded');
-                e.target.classList.toggle('expanded', expanded);
-                return;
-            }}
-            // Info button
-            if (e.target.classList.contains('info-button')) {{
-                e.stopPropagation();
-                showInfoPopup(e.target, JSON.parse(e.target.dataset.item));
-                return;
-            }}
-            // Make button
-            if (e.target.classList.contains('make-button')) {{
-                e.stopPropagation();
-                postMessage({{ command: 'makeArtifact', item: JSON.parse(e.target.dataset.item) }});
-                return;
-            }}
-            // Close info popup
-            const popup = document.getElementById('info-popup');
-            if (!popup.contains(e.target) && !e.target.classList.contains('info-button')) hideInfoPopup();
-            // Hide context menu
-            if (!document.getElementById('context-menu').contains(e.target)) hideContextMenu();
-            // Node selection
-            if (e.target.classList.contains('tree-node') || e.target.classList.contains('tree-label')) {{
-                const treeNode = e.target.closest('.tree-node');
-                const itemData = JSON.parse(treeNode.dataset.item || '{{}}');
-                document.querySelectorAll('.tree-node.selected').forEach(n => n.classList.remove('selected'));
-                treeNode.classList.add('selected');
-                if (!itemData.isProject && itemData.projectUrl) {{
-                    postMessage({{ command: 'selectItem', item: itemData }});
-                }}
-            }}
-        }});
-
-        // ── Context menu ───────────────────────────────────────────────────
-        document.addEventListener('contextmenu', e => {{
-            const treeNode = e.target.closest && e.target.closest('.tree-node');
-            if (treeNode) {{
-                const itemData = JSON.parse(treeNode.dataset.item || '{{}}');
-                if (itemData.isProject) {{
-                    e.preventDefault();
-                    contextMenuItem = itemData;
-                    document.querySelectorAll('.tree-node.selected').forEach(n => n.classList.remove('selected'));
-                    treeNode.classList.add('selected');
-                    const cm = document.getElementById('context-menu');
-                    cm.style.left = e.clientX + 'px';
-                    cm.style.top = e.clientY + 'px';
-                    cm.classList.add('visible');
-                    return;
-                }}
-            }}
-            hideContextMenu();
-        }});
-        document.getElementById('context-open').addEventListener('click', () => {{
-            if (contextMenuItem) postMessage({{ command: 'setBrowserPath', item: contextMenuItem }});
-            hideContextMenu();
-        }});
-        document.getElementById('context-file-browser').addEventListener('click', () => {{
-            if (contextMenuItem) postMessage({{ command: 'openInFileBrowser', item: contextMenuItem }});
-            hideContextMenu();
-        }});
-        document.getElementById('context-vscode').addEventListener('click', () => {{
-            if (contextMenuItem) postMessage({{ command: 'openInVSCode', item: contextMenuItem }});
-            hideContextMenu();
-        }});
-        document.getElementById('context-jupyter').addEventListener('click', () => {{
-            if (contextMenuItem) postMessage({{ command: 'openInJupyter', item: contextMenuItem }});
-            hideContextMenu();
-        }});
-        document.getElementById('context-remove').addEventListener('click', () => {{
-            if (contextMenuItem) {{
-                setLoading(true);
-                postMessage({{ command: 'removeProject', item: contextMenuItem }});
-            }}
-            hideContextMenu();
-        }});
-        function hideContextMenu() {{
-            document.getElementById('context-menu').classList.remove('visible');
-            contextMenuItem = null;
-        }}
-
-        document.addEventListener('keydown', e => {{
-            if (e.key === 'Escape') {{
-                hideInfoPopup();
-                document.getElementById('create-modal').classList.remove('visible');
-            }}
-        }});
-
-{_INFO_POPUP_JS}
-    </script>
+</div>
+<script>/*__JS__*/</script>
 </body>
-</html>"""
+</html>
+"""
 
 
 # ---------------------------------------------------------------------------
-# Details panel
+#  CSS - ported from vsextension/src/panel.ts getPanelCss()
 # ---------------------------------------------------------------------------
+#
+# Qt webviews don't have VSCode's CSS theme variables, so every
+# ``var(--vscode-...)`` is given a sensible fallback that produces a dark
+# theme similar to VSCode's default dark+ palette.
+#
 
-_SKIP_KEYS = {"klass", "proc", "storage_options", "children", "url", "_html"}
+_PANEL_CSS = r"""
+* { box-sizing: border-box; }
+
+body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    color: #cccccc;
+    background: #1e1e1e;
+}
+
+/* Emoji icons don't need any wrapper styling for themselves, but we still
+   want the spinner to rotate. */
+.icon.spin {
+    display: inline-block;
+    animation: spin 1.2s linear infinite;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+#app { display: flex; height: 100vh; overflow: hidden; }
+#library {
+    width: 40%; min-width: 320px; max-width: 520px;
+    border-right: 1px solid #3c3c3c;
+    display: flex; flex-direction: column; overflow: hidden;
+}
+#details { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.toolbar {
+    display: flex; gap: 6px; padding: 8px;
+    border-bottom: 1px solid #3c3c3c;
+}
+.toolbar button {
+    background: #3c3c3c; color: #cccccc;
+    border: none; padding: 4px 10px; cursor: pointer;
+    font-size: 12px; border-radius: 3px;
+}
+.toolbar button:hover { background: #505050; }
+
+.search {
+    display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+    border-bottom: 1px solid #3c3c3c;
+}
+.search input {
+    flex: 1; background: #3c3c3c; color: #cccccc;
+    border: 1px solid transparent; padding: 4px 8px;
+    font-size: 12px; border-radius: 2px;
+}
+.search button {
+    background: transparent; color: #858585;
+    border: none; cursor: pointer; padding: 2px 4px;
+}
+.search button:hover { color: #cccccc; }
+
+#projects { flex: 1; overflow-y: auto; padding: 6px; }
+#spinner { text-align: center; padding: 16px; color: #858585; }
+.hidden { display: none !important; }
+
+.project {
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    position: relative;
+    background: #252526;
+}
+.project:hover { background: #2a2d2e; }
+.project.active {
+    border-color: #007acc;
+    background: #094771;
+}
+.project .title { font-weight: bold; margin-right: 24px; }
+.project .url { font-size: 11px; color: #858585; word-break: break-all; margin-top: 2px; }
+.project .storage-opts { font-size: 11px; color: #858585; margin-top: 2px; font-style: italic; }
+.project .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+
+.chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #c5e0c1; color: #222;
+    padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; cursor: pointer;
+    border: 1px solid transparent;
+    user-select: none;
+}
+.chip:hover { filter: brightness(0.95); }
+.chip.active { border-color: #007acc; box-shadow: 0 0 0 1px #007acc; }
+
+.kebab {
+    position: absolute; top: 6px; right: 6px;
+    background: transparent; border: none; color: #cccccc;
+    cursor: pointer; padding: 2px 6px; border-radius: 3px;
+}
+.kebab:hover { background: #3c3c3c; }
+.kebab-menu {
+    position: absolute; right: 6px; top: 28px;
+    background: #252526; color: #cccccc;
+    border: 1px solid #3c3c3c;
+    border-radius: 3px; padding: 4px 0; z-index: 10;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3); min-width: 200px;
+}
+.kebab-menu .menu-item {
+    padding: 4px 12px; cursor: pointer; font-size: 12px; white-space: nowrap;
+}
+.kebab-menu .menu-item:hover { background: #094771; color: #ffffff; }
+.kebab-menu .menu-item.disabled { color: #6a6a6a; cursor: default; }
+.kebab-menu .menu-item.disabled:hover { background: transparent; color: #6a6a6a; }
+.kebab-menu .menu-sep { height: 1px; margin: 4px 0; background: #3c3c3c; }
+
+#details-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-bottom: 1px solid #3c3c3c;
+}
+#details-title { font-weight: bold; font-size: 14px; flex: 1; }
+#details-toggle {
+    background: transparent; border: none; color: #cccccc; cursor: pointer;
+    padding: 2px 6px;
+}
+#details-info {
+    padding: 8px 12px; border-bottom: 1px solid #3c3c3c;
+    color: #858585; font-size: 12px;
+}
+#details-info a { color: #3794ff; }
+#details-info.collapsed { display: none; }
+#details-list { flex: 1; overflow-y: auto; padding: 8px 12px; }
+
+.item-widget {
+    position: relative;
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    background: #252526;
+}
+.item-widget.kind-content { border-color: #4ca97a; box-shadow: 0 0 0 1px rgba(76,169,122,0.15); }
+.item-widget.kind-artifact { border-color: #c66060; box-shadow: 0 0 0 1px rgba(198,96,96,0.15); }
+.item-widget .widget-html { margin-top: 6px; font-size: 12px; line-height: 1.4; }
+.item-widget .widget-html img { max-width: 100%; height: auto; }
+.item-widget .widget-html a { color: #3794ff; }
+.item-widget .widget-html table { border-collapse: collapse; }
+.item-widget .widget-html th, .item-widget .widget-html td {
+    border: 1px solid #3c3c3c; padding: 2px 6px;
+}
+.item-widget .widget-title { font-weight: bold; font-size: 13px; }
+.item-widget .widget-subtitle { font-size: 11px; color: #858585; }
+.item-widget .widget-actions {
+    position: absolute; top: 6px; right: 6px; display: flex; gap: 4px;
+    opacity: 0; transition: opacity 0.1s;
+}
+.item-widget:hover .widget-actions { opacity: 1; }
+.item-widget .widget-actions button {
+    background: transparent; border: none; color: #cccccc;
+    cursor: pointer; padding: 2px 6px; border-radius: 3px;
+}
+.item-widget .widget-actions button:hover { background: #3c3c3c; }
+
+.tree { font-family: monospace; font-size: 12px; margin-top: 6px; }
+.tree .key { color: #9cdcfe; }
+.tree .value.str { color: #ce9178; }
+.tree .value.num { color: #b5cea8; }
+.tree .value.bool, .tree .value.null { color: #569cd6; }
+.tree .value.enum { color: #4ec9b0; font-weight: 600; }
+.tree .value.empty { color: #858585; font-style: italic; }
+
+.tree.yaml .yaml-item { position: relative; padding-left: 0; }
+.tree.yaml .yaml-item.list-item { display: flex; align-items: flex-start; flex-wrap: wrap; }
+.tree.yaml .yaml-item .marker {
+    color: #858585; user-select: none; padding-right: 2px;
+}
+.tree.yaml .yaml-item.collapsible > .marker,
+.tree.yaml .yaml-item.collapsible > .label { cursor: pointer; }
+.tree.yaml .yaml-item.collapsible > .marker::after,
+.tree.yaml .yaml-item.collapsible > .label::after {
+    content: ' \25BE'; font-size: 9px; color: #858585;
+}
+.tree.yaml .yaml-item.collapsible.collapsed > .marker::after,
+.tree.yaml .yaml-item.collapsible.collapsed > .label::after { content: ' \25B8'; }
+.tree.yaml .yaml-item.collapsible.collapsed > .children { display: none; }
+.tree.yaml .yaml-item .body.empty { display: none; }
+.tree.yaml .yaml-item > .children { padding-left: 16px; width: 100%; }
+
+#popup {
+    position: fixed; background: #252526; color: #cccccc;
+    border: 1px solid #454545; padding: 8px 10px; border-radius: 4px;
+    max-width: 360px; z-index: 1000;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4); font-size: 12px;
+}
+#popup a { color: #3794ff; }
+
+/* Create-spec modal - identical rules to the VSCode extension */
+#modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2000;
+}
+#modal {
+    background: #252526; color: #cccccc; border: 1px solid #454545;
+    border-radius: 6px; min-width: 360px; max-width: 80%;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column;
+}
+#modal-title {
+    padding: 10px 14px; font-weight: bold; font-size: 14px;
+    border-bottom: 1px solid #3c3c3c;
+}
+#modal-body { padding: 12px 14px; }
+#modal-body label { display: block; font-size: 12px; margin-bottom: 4px; color: #858585; }
+#modal-input {
+    width: 100%; box-sizing: border-box;
+    background: #3c3c3c; color: #cccccc; border: 1px solid transparent;
+    padding: 6px 8px; font-size: 13px; border-radius: 3px; outline: none;
+}
+#modal-input:focus { border-color: #007acc; }
+#modal-suggestions {
+    margin-top: 6px; max-height: 220px; overflow-y: auto;
+    border: 1px solid #3c3c3c; border-radius: 3px;
+    font-size: 12px; background: #3c3c3c;
+}
+#modal-suggestions .suggestion { padding: 4px 8px; cursor: pointer; }
+#modal-suggestions .suggestion:hover,
+#modal-suggestions .suggestion.active { background: #094771; color: #ffffff; }
+#modal-suggestions .empty { padding: 4px 8px; color: #858585; font-style: italic; }
+#modal-actions {
+    display: flex; justify-content: flex-end; gap: 6px;
+    padding: 10px 14px; border-top: 1px solid #3c3c3c;
+}
+#modal-actions button {
+    border: none; cursor: pointer; padding: 6px 14px; font-size: 12px;
+    border-radius: 3px;
+}
+#modal-actions button.primary { background: #0e639c; color: #ffffff; }
+#modal-actions button.primary:hover:not(:disabled) { background: #1177bb; }
+#modal-actions button.primary:disabled { opacity: 0.5; cursor: default; }
+#modal-actions button.secondary {
+    background: transparent; color: #cccccc; border: 1px solid #3c3c3c;
+}
+#modal-actions button.secondary:hover { background: #3c3c3c; }
+"""
 
 
-def _build_tooltip(doc, link):
-    return json.dumps({"doc": doc or "", "link": link or ""})
+# ---------------------------------------------------------------------------
+#  JavaScript - ported from vsextension/src/panel.ts PANEL_JS
+# ---------------------------------------------------------------------------
+#
+# Differences from the VSCode version:
+#   - Uses QWebChannel instead of ``acquireVsCodeApi``.  Python -> JS
+#     messages arrive on the bridge's ``from_python`` signal; JS -> Python
+#     go through ``bridge.handleMessage`` with a JSON string.
+#   - Boot sequence waits for ``new QWebChannel()`` before posting the
+#     initial ``ready`` handshake.
+#
 
+_PANEL_JS = r"""
+(function() {
+    let bridge = null;
+    let info = null;
+    let enums = {};
+    let library = {};
+    let selection = null;
 
-def _build_detail_nodes(
-    obj: Any, role: str, qname_path: str, project_url: str, info_data: dict
-) -> list:
-    """Equivalent to buildNodes() in extension.ts."""
-    if obj is None:
-        return []
+    // Emoji icons used by the UI itself (not per-spec/content/artifact -
+    // those come from ``entry.icon``).  Injected here rather than in a
+    // separate shared file so the Python / TS ports of this JS don't need
+    // additional JSON loading at runtime.
+    const CHROME_ICONS = __CHROME_ICONS_JSON__;
+    const DEFAULT_ICONS = { spec: '🧩', content: '📄', artifact: '📦' };
 
-    def scalar_label(v):
-        if v is None:
-            return "null"
-        return str(v)
+    // Post a message to Python once the bridge is available.  Pre-bridge
+    // messages are queued and flushed on connection.
+    const pending = [];
+    function postMessage(msg) {
+        if (bridge) { bridge.handleMessage(JSON.stringify(msg)); }
+        else { pending.push(msg); }
+    }
 
-    if isinstance(obj, list):
-        result = []
-        for i, item in enumerate(obj):
-            if item is not None and isinstance(item, dict):
-                result.append(
-                    {
-                        "label": str(i),
-                        "role": role,
-                        "children": _build_detail_nodes(
-                            item,
-                            role,
-                            f"{qname_path}.{i}",
-                            project_url,
-                            info_data,
-                        ),
-                    }
-                )
-            else:
-                result.append({"label": scalar_label(item), "role": "field"})
-        return result
+    new QWebChannel(qt.webChannelTransport, (channel) => {
+        bridge = channel.objects.bridge;
+        bridge.from_python.connect((raw) => {
+            let msg;
+            try { msg = JSON.parse(raw); } catch { return; }
+            dispatch(msg);
+        });
+        while (pending.length) bridge.handleMessage(JSON.stringify(pending.shift()));
+        postMessage({ cmd: 'ready' });
+    });
 
-    if not isinstance(obj, dict):
-        return [{"label": scalar_label(obj), "role": "field"}]
+    function dispatch(msg) {
+        if (msg.type === 'loading') {
+            spinnerEl.classList.toggle('hidden', !msg.loading);
+        } else if (msg.type === 'data') {
+            info = msg.info;
+            enums = msg.enums || {};
+            library = msg.library || {};
+            if (selection && !library[selection.url]) selection = null;
+            render();
+        } else if (msg.type === 'openCreateSpecModal') {
+            openCreateSpecModal(msg.url, msg.specs || []);
+        }
+    }
 
-    nodes = []
-    for key, value in obj.items():
-        if key in _SKIP_KEYS:
-            continue
-        child_path = f"{qname_path}.{key}" if qname_path else key
+    // ----- pastel palette for chip colours -----
+    const PALETTE = [
+        '#f9c0c0', '#f9dcc0', '#f9f0c0', '#d9f9c0', '#c0f9d2',
+        '#c0f9f0', '#c0e3f9', '#c0ccf9', '#d6c0f9', '#efc0f9',
+        '#f9c0e3', '#d9c9b5', '#b5d9c9', '#b5c9d9', '#c9b5d9',
+    ];
+    function hashStr(s) {
+        let h = 0;
+        for (let i = 0; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
+        return Math.abs(h);
+    }
+    function chipColour(label) { return PALETTE[hashStr(label) % PALETTE.length]; }
 
-        # Container keys — inline children with correct role
-        if key in ("specs", "_contents", "contents", "_artifacts", "artifacts"):
-            child_role = (
-                "spec"
-                if key == "specs"
-                else "content"
-                if key in ("_contents", "contents")
-                else "artifact"
-            )
-            nodes.extend(
-                _build_detail_nodes(
-                    value, child_role, qname_path, project_url, info_data
-                )
-            )
-            continue
+    function basename(url) {
+        try {
+            const stripped = url.replace(/\/+$/, '');
+            const idx = stripped.lastIndexOf('/');
+            return idx >= 0 ? stripped.slice(idx + 1) : stripped;
+        } catch { return url; }
+    }
+    function iconForSpec(snake) {
+        const entry = info && info.specs && info.specs[snake];
+        return (entry && entry.icon) || DEFAULT_ICONS.spec;
+    }
+    function iconForContent(snake) {
+        const entry = info && info.content && info.content[snake];
+        return (entry && entry.icon) || DEFAULT_ICONS.content;
+    }
+    function iconForArtifact(snake) {
+        const entry = info && info.artifact && info.artifact[snake];
+        return (entry && entry.icon) || DEFAULT_ICONS.artifact;
+    }
 
-        # Artifact special handling
-        if role == "artifact":
-            art_info = (info_data.get("artifact") or {}).get(key)
-            art_info_data = (
-                _build_tooltip(art_info.get("doc"), art_info.get("link", ""))
-                if art_info
-                else None
-            )
+    // ----- DOM refs -----
+    const projectsEl = document.getElementById('projects');
+    const spinnerEl = document.getElementById('spinner');
+    const searchEl = document.getElementById('search');
+    const searchClear = document.getElementById('search-clear');
+    const detailsTitle = document.getElementById('details-title');
+    const detailsInfo = document.getElementById('details-info');
+    const detailsList = document.getElementById('details-list');
+    const detailsToggle = document.getElementById('details-toggle');
+    const popup = document.getElementById('popup');
 
-            if isinstance(value, str) or value is None:
-                nodes.append(
-                    {
-                        "label": key,
-                        "role": "artifact",
-                        "qname": child_path,
-                        "projectUrl": project_url,
-                        "infoData": art_info_data,
-                        "itemType": "artifact",
-                    }
-                )
-            elif isinstance(value, dict):
-                entries = list(value.items())
-                all_strings = all(isinstance(v, (str, type(None))) for _, v in entries)
-                if all_strings:
-                    named_children = [
-                        {
-                            "label": name,
-                            "role": "artifact",
-                            "qname": f"{child_path}.{name}",
-                            "projectUrl": project_url,
-                            "itemType": "artifact",
-                        }
-                        for name, _ in entries
-                    ]
-                    nodes.append(
-                        {
-                            "label": key,
-                            "role": "artifact",
-                            "children": named_children or None,
-                            "infoData": art_info_data,
-                            "itemType": "artifact",
-                        }
-                    )
-                else:
-                    children = _build_detail_nodes(
-                        value, "field", child_path, project_url, info_data
-                    )
-                    nodes.append(
-                        {
-                            "label": key,
-                            "role": "artifact",
-                            "qname": child_path,
-                            "projectUrl": project_url,
-                            "children": children or None,
-                            "infoData": art_info_data,
-                            "itemType": "artifact",
-                        }
-                    )
-            continue
+    detailsToggle.addEventListener('click', () => {
+        detailsInfo.classList.toggle('collapsed');
+        const collapsed = detailsInfo.classList.contains('collapsed');
+        detailsToggle.textContent = collapsed ? CHROME_ICONS.chevron_down : CHROME_ICONS.chevron_up;
+    });
 
-        # Scalar leaf
-        if value is None or not isinstance(value, (dict, list)):
-            effective_role = (
-                "content"
-                if role == "content"
-                else ("spec" if role == "spec" else "field")
-            )
-            nodes.append(
-                {
-                    "label": key,
-                    "value": scalar_label(value),
-                    "role": effective_role,
+    function render() {
+        const filter = (searchEl.value || '').trim().toLowerCase();
+        projectsEl.innerHTML = '';
+        const urls = Object.keys(library).sort();
+        let any = false;
+        for (const url of urls) {
+            const project = library[url];
+            if (filter) {
+                const hay = (url + ' ' + basename(url) + ' ' + Object.keys(project.specs || {}).join(' ')).toLowerCase();
+                if (!hay.includes(filter)) continue;
+            }
+            any = true;
+            projectsEl.appendChild(renderProject(url, project));
+        }
+        if (!any) {
+            const e = document.createElement('div');
+            e.style.padding = '20px';
+            e.style.color = '#858585';
+            e.style.textAlign = 'center';
+            e.textContent = urls.length === 0
+                ? 'Library is empty. Click "Add" to scan a directory.'
+                : 'No projects match the filter.';
+            projectsEl.appendChild(e);
+        }
+        if (selection) renderDetails();
+    }
+
+    function renderProject(url, project) {
+        const wrap = document.createElement('div');
+        wrap.className = 'project';
+        wrap.dataset.url = url;
+
+        const title = document.createElement('div');
+        title.className = 'title';
+        title.textContent = basename(url);
+        wrap.appendChild(title);
+
+        const urlLine = document.createElement('div');
+        urlLine.className = 'url';
+        urlLine.textContent = url;
+        wrap.appendChild(urlLine);
+
+        if (project.storage_options && Object.keys(project.storage_options).length > 0) {
+            const so = document.createElement('div');
+            so.className = 'storage-opts';
+            so.textContent = 'storage_options: ' + JSON.stringify(project.storage_options);
+            wrap.appendChild(so);
+        }
+
+        const chips = document.createElement('div');
+        chips.className = 'chips';
+        const contents = project.contents || {};
+        const artifacts = project.artifacts || {};
+        if (Object.keys(contents).length > 0)
+            chips.appendChild(makeChip('Contents <' + Object.keys(contents).length + '>', url, 'contents', null, null));
+        if (Object.keys(artifacts).length > 0)
+            chips.appendChild(makeChip('Artifacts <' + Object.keys(artifacts).length + '>', url, 'artifacts', null, null));
+        for (const specName of Object.keys(project.specs || {})) {
+            chips.appendChild(makeChip(specName, url, 'spec', specName, iconForSpec(specName)));
+        }
+        wrap.appendChild(chips);
+
+        const kebabBtn = document.createElement('button');
+        kebabBtn.className = 'kebab';
+        kebabBtn.textContent = CHROME_ICONS.kebab;
+        kebabBtn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            toggleKebab(wrap, url);
+        });
+        wrap.appendChild(kebabBtn);
+
+        if (selection && selection.url === url) wrap.classList.add('active');
+        return wrap;
+    }
+
+    function makeChip(label, url, kind, specName, icon) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.style.background = chipColour(label);
+        if (icon)
+            chip.innerHTML = '<span class="chip-icon">' + escapeHtml(icon) + '</span><span>' + escapeHtml(label) + '</span>';
+        else chip.textContent = label;
+        chip.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            selection = { url, kind, specName };
+            document.querySelectorAll('.project.active').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.chip.active').forEach(el => el.classList.remove('active'));
+            const projEl = ev.target.closest('.project');
+            if (projEl) projEl.classList.add('active');
+            chip.classList.add('active');
+            renderDetails();
+        });
+        if (selection && selection.url === url &&
+            ((selection.kind === kind && kind !== 'spec') ||
+             (selection.kind === 'spec' && kind === 'spec' && selection.specName === specName))) {
+            chip.classList.add('active');
+        }
+        return chip;
+    }
+
+    // ----- kebab menu -----
+    let openKebab = null;
+    function toggleKebab(projectEl, url) {
+        if (openKebab && openKebab.el === projectEl) { closeKebab(); return; }
+        closeKebab();
+        const menu = document.createElement('div');
+        menu.className = 'kebab-menu';
+        const isLocal = url.startsWith('file://');
+        if (isLocal) {
+            addItem(menu, 'Open with VSCode', () => postMessage({ cmd: 'openWith', tool: 'vscode', url }));
+            addItem(menu, 'Open with system filebrowser', () => postMessage({ cmd: 'openWith', tool: 'filebrowser', url }));
+            addItem(menu, 'Open with PyCharm', () => postMessage({ cmd: 'openWith', tool: 'pycharm', url }));
+            addItem(menu, 'Open with jupyter', () => postMessage({ cmd: 'openWith', tool: 'jupyter', url }));
+            addSeparator(menu);
+            addItem(menu, 'Rescan', () => postMessage({ cmd: 'rescan', url }));
+            addItem(menu, 'Create spec', () => postMessage({ cmd: 'createSpec', url }));
+            addItem(menu, 'Remove from library', () => postMessage({ cmd: 'removeFromLibrary', url }));
+        } else {
+            const ctl = addItem(menu, 'Copy to local', () => postMessage({ cmd: 'copyToLocal', url }));
+            ctl.classList.add('disabled');
+            addItem(menu, 'Rescan', () => postMessage({ cmd: 'rescan', url }));
+            addItem(menu, 'Remove from library', () => postMessage({ cmd: 'removeFromLibrary', url }));
+        }
+        projectEl.appendChild(menu);
+        openKebab = { el: projectEl, menu };
+        setTimeout(() => document.addEventListener('click', closeKebab, { once: true }), 0);
+    }
+    function addItem(menu, label, onClick) {
+        const mi = document.createElement('div');
+        mi.className = 'menu-item';
+        mi.textContent = label;
+        mi.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!mi.classList.contains('disabled')) { onClick(); closeKebab(); }
+        });
+        menu.appendChild(mi);
+        return mi;
+    }
+    function addSeparator(menu) {
+        const sep = document.createElement('div');
+        sep.className = 'menu-sep';
+        menu.appendChild(sep);
+    }
+    function closeKebab() {
+        if (openKebab) { openKebab.menu.remove(); openKebab = null; }
+    }
+
+    // ----- details -----
+    function renderDetails() {
+        detailsList.innerHTML = '';
+        detailsInfo.innerHTML = '';
+        if (!selection) { detailsTitle.textContent = 'Details'; return; }
+        const project = library[selection.url];
+        if (!project) { detailsTitle.textContent = 'Details'; return; }
+
+        if (selection.kind === 'spec') {
+            detailsTitle.textContent = selection.specName;
+            const entry = info && info.specs && info.specs[selection.specName];
+            if (entry) {
+                const doc = document.createElement('div');
+                doc.textContent = entry.doc || '';
+                detailsInfo.appendChild(doc);
+                if (entry.link) {
+                    const a = document.createElement('a');
+                    a.href = entry.link;
+                    a.textContent = entry.link;
+                    a.target = '_blank';
+                    detailsInfo.appendChild(document.createElement('br'));
+                    detailsInfo.appendChild(a);
                 }
-            )
-            continue
-        if isinstance(value, list):
-            if all(not isinstance(v, dict) for v in value):
-                array_children = [
-                    {"label": scalar_label(v), "role": "field"} for v in value
-                ]
-                effective_role = (
-                    "content"
-                    if role == "content"
-                    else ("spec" if role == "spec" else "field")
-                )
-                nodes.append(
-                    {
-                        "label": key,
-                        "role": effective_role,
-                        "children": array_children or None,
-                    }
-                )
-            else:
-                nodes.append(
-                    {
-                        "label": key,
-                        "role": role,
-                        "children": _build_detail_nodes(
-                            value, role, child_path, project_url, info_data
-                        ),
-                    }
-                )
-            continue
-
-        # Object value
-        children = _build_detail_nodes(value, role, child_path, project_url, info_data)
-        node_info_data = None
-        if role == "spec":
-            info = (info_data.get("specs") or {}).get(key)
-            if info:
-                node_info_data = _build_tooltip(info.get("doc"), info.get("link", ""))
-        elif role == "content":
-            info = (info_data.get("content") or {}).get(key)
-            if info:
-                node_info_data = _build_tooltip(info.get("doc"), "")
-        nodes.append(
-            {
-                "label": key,
-                "role": role,
-                "children": children or None,
-                "infoData": node_info_data,
-                "itemType": role if role not in ("none", "field") else None,
-                "htmlContent": (
-                    value["_html"]
-                    if role == "content"
-                    and isinstance(value, dict)
-                    and isinstance(value.get("_html"), str)
-                    else None
-                ),
             }
-        )
-
-    return nodes
-
-
-def _is_leaf_artifact(node: dict) -> bool:
-    if node.get("role") != "artifact" or not node.get("qname"):
-        return False
-    children = node.get("children")
-    if not children:
-        return True
-    return not any(c.get("role") == "artifact" for c in children)
-
-
-# Dark console-green stylesheet injected into every html-preview srcdoc.
-_HTML_PREVIEW_CSS = (
-    "<style>"
-    ":root{--bg:#0d1117;--bg-hd:#161b22;--bg-alt:#111820;--grn:#39d353;--grn-d:#26a641;"
-    "--grn-m:#196127;--bd:#21262d;--bd-d:#161b22;--fg:#c9d1d9;--fg-d:#8b949e;"
-    "--bb:#1f6feb;--bg2:#30363d;--fn:ui-monospace,'Cascadia Code','Fira Mono',monospace}"
-    "*{box-sizing:border-box}"
-    "body{background:var(--bg);color:var(--fg);margin:0;font-family:var(--fn);font-size:12px}"
-    ".ps-data-card{border:1px solid var(--bd);border-radius:6px;overflow:hidden;"
-    "background:var(--bg);color:var(--fg)}"
-    ".ps-data-card-header{background:var(--bg-hd);padding:7px 12px;display:flex;"
-    "align-items:center;gap:8px;border-bottom:1px solid var(--bd)}"
-    ".ps-data-card-header .ps-icon{font-size:16px}"
-    ".ps-data-card-header .ps-name{font-weight:bold;font-size:13px;color:var(--grn)}"
-    ".ps-data-card-header .ps-badge{background:var(--bb);color:#fff;border-radius:10px;"
-    "padding:1px 7px;font-size:10px}"
-    ".ps-data-card-header .ps-badge-gray{background:var(--bg2);color:var(--fg);"
-    "border-radius:10px;padding:1px 7px;font-size:10px}"
-    ".ps-data-meta{padding:8px 12px;border-bottom:1px solid var(--bd-d)}"
-    ".ps-data-meta table{border-collapse:collapse;width:100%}"
-    ".ps-data-meta td{padding:2px 8px 2px 0;vertical-align:top}"
-    ".ps-data-meta td:first-child{color:var(--fg-d);white-space:nowrap;width:110px}"
-    "details>summary{list-style:none;cursor:pointer;color:var(--grn-d);font-size:11px;margin-top:4px}"
-    "details>summary::-webkit-details-marker{display:none}"
-    ".ps-schema-table{font-size:11px;border-collapse:collapse;margin-top:4px;width:100%}"
-    ".ps-schema-table th{background:var(--bg-hd);color:var(--grn-d);padding:2px 8px;"
-    "text-align:left;border:1px solid var(--bd)}"
-    ".ps-schema-table td{padding:2px 8px;border:1px solid var(--bd-d);font-family:var(--fn);color:var(--fg)}"
-    ".ps-schema-table td strong{color:var(--grn)}"
-    ".ps-preview{padding:8px 12px}"
-    ".ps-preview-title{font-weight:bold;font-size:10px;color:var(--grn-m);margin-bottom:5px;"
-    "text-transform:uppercase;letter-spacing:.8px}"
-    ".ps-df-wrap{overflow-x:auto}"
-    ".ps-df-wrap table,.dataframe{font-size:11px!important;border-collapse:collapse!important;"
-    "width:100%!important;color:var(--fg)!important;background:var(--bg)!important}"
-    ".ps-df-wrap th,.dataframe thead th{background:var(--bg-hd)!important;color:var(--grn-d)!important;"
-    "padding:3px 10px!important;border:1px solid var(--bd)!important;white-space:nowrap;text-align:left!important}"
-    ".ps-df-wrap td,.dataframe tbody td{padding:2px 10px!important;border:1px solid var(--bd-d)!important;"
-    "color:var(--fg)!important;background:var(--bg)!important;white-space:nowrap;"
-    "max-width:200px;overflow:hidden;text-overflow:ellipsis}"
-    ".dataframe tbody tr:nth-child(even) td{background:var(--bg-alt)!important}"
-    ".ps-img-preview{max-width:100%;max-height:200px;border-radius:4px}"
-    "</style>"
-)
-
-
-def _render_detail_node(node: dict, depth: int) -> str:
-    has_children = bool(node.get("children"))
-    can_make = _is_leaf_artifact(node)
-    has_info_popup = node.get("infoData") is not None and node.get("role") not in (
-        "field",
-        "none",
-    )
-
-    role = node.get("role", "")
-    node_class = "tree-node"
-    if role == "spec":
-        node_class += " spec-node"
-    elif role == "content":
-        node_class += " content-node"
-    elif role == "artifact":
-        node_class += " artifact-node"
-    elif role == "field":
-        node_class += " field-node"
-
-    icon_class = "tree-icon expandable" if has_children else "tree-icon leaf"
-
-    node_data = _escape(
-        json.dumps(
-            {
-                "key": node.get("label", ""),
-                "label": node.get("label", ""),
-                "qname": node.get("qname"),
-                "projectUrl": node.get("projectUrl"),
-                "itemType": node.get("itemType"),
-                "infoData": node.get("infoData"),
+            const spec = project.specs[selection.specName];
+            if (spec) {
+                renderItemGroup(spec._contents || {}, 'content', false, selection.specName);
+                renderItemGroup(spec._artifacts || {}, 'artifact', true, selection.specName);
             }
-        )
-    )
+        } else if (selection.kind === 'contents') {
+            detailsTitle.textContent = 'Contents';
+            renderItemGroup(project.contents || {}, 'content', false, undefined);
+        } else if (selection.kind === 'artifacts') {
+            detailsTitle.textContent = 'Artifacts';
+            renderItemGroup(project.artifacts || {}, 'artifact', true, undefined);
+        }
+    }
 
-    label = node.get("label", "")
-    value = node.get("value")
-    if value is not None:
-        label_html = (
-            f'{_escape(label)}: <span class="field-value">{_escape(value)}</span>'
-        )
-    else:
-        label_html = _escape(label)
+    function renderItemGroup(items, kind, showMake, specName) {
+        if (!items || typeof items !== 'object') return;
+        const keys = Object.keys(items);
+        if (keys.length === 0) return;
+        if (!hasKlass(items)) {
+            detailsList.appendChild(makePlainWidget(items));
+            return;
+        }
+        for (const typeName of keys) {
+            const entry = items[typeName];
+            if (!entry) continue;
+            if (Array.isArray(entry)) {
+                for (const e of entry)
+                    detailsList.appendChild(makeItemWidget(typeName, null, e, kind, showMake, specName));
+            } else if (entry && typeof entry === 'object' && 'klass' in entry) {
+                detailsList.appendChild(makeItemWidget(typeName, null, entry, kind, showMake, specName));
+            } else if (entry && typeof entry === 'object') {
+                for (const name of Object.keys(entry))
+                    detailsList.appendChild(makeItemWidget(typeName, name, entry[name], kind, showMake, specName));
+            } else {
+                detailsList.appendChild(makePlainWidget({ [typeName]: entry }));
+            }
+        }
+    }
 
-    children_html = ""
-    if has_children:
-        inner = "".join(_render_detail_node(c, depth + 1) for c in node["children"])
-        children_html = (
-            f'<ul class="tree-children" data-depth="{depth + 1}">{inner}</ul>'
-        )
+    function hasKlass(v) {
+        if (!v || typeof v !== 'object') return false;
+        if (!Array.isArray(v) && 'klass' in v) return true;
+        if (Array.isArray(v)) { for (const e of v) if (hasKlass(e)) return true; return false; }
+        for (const k of Object.keys(v)) if (hasKlass(v[k])) return true;
+        return false;
+    }
 
-    html_content = node.get("htmlContent")
-    if html_content:
-        srcdoc = (
-            (_HTML_PREVIEW_CSS + html_content)
-            .replace("&", "&amp;")
-            .replace('"', "&quot;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-        )
-        html_preview = f'<iframe class="html-preview" sandbox="allow-scripts" srcdoc="{srcdoc}"></iframe>'
-    else:
-        html_preview = ""
+    function makePlainWidget(data) {
+        const w = document.createElement('div');
+        w.className = 'item-widget';
+        const tree = document.createElement('div');
+        tree.className = 'tree yaml';
+        tree.appendChild(renderYaml(data));
+        w.appendChild(tree);
+        return w;
+    }
 
-    make_btn = (
-        f'<button class="make-button" data-item="{node_data}" title="Make artifact">Make</button>'
-        if can_make
-        else ""
-    )
-    info_btn = (
-        f'<button class="info-button" data-item="{node_data}" title="Show information">i</button>'
-        if has_info_popup
-        else ""
-    )
+    function makeItemWidget(typeName, name, data, kind, showMake, specName) {
+        const w = document.createElement('div');
+        w.className = 'item-widget kind-' + kind;
 
-    return f"""<li class="tree-item">
-        <div class="{node_class}" data-item="{node_data}">
-            <span class="{icon_class}"></span>
-            <span class="tree-label">{label_html}</span>
-            {make_btn}
-            {info_btn}
-        </div>
-        {html_preview}
-        {children_html}
-    </li>"""
+        const title = document.createElement('div');
+        title.className = 'widget-title';
+        const klass = (data && data.klass && Array.isArray(data.klass)) ? data.klass[1] : typeName;
+        const iconName = kind === 'content' ? iconForContent(klass) : iconForArtifact(klass);
+        title.innerHTML = '<span class="widget-icon">' + escapeHtml(iconName) + '</span> ' + escapeHtml(klass)
+            + (name ? ' <span class="widget-subtitle">- ' + escapeHtml(name) + '</span>' : '');
+        w.appendChild(title);
 
+        const actions = document.createElement('div');
+        actions.className = 'widget-actions';
 
-def get_details_html(
-    project_basename: str,
-    project_url: str,
-    project: dict,
-    highlight_key: str | None = None,
-) -> str:
-    """Generate the Details panel HTML for a single project.
-
-    Equivalent to getDetailsWebviewContent() in extension.ts.
-
-    Parameters
-    ----------
-    project_basename:
-        Display name of the project (last path component).
-    project_url:
-        Full URL/path of the project.
-    project:
-        The project dict (from ``Project.to_dict()``).
-    highlight_key:
-        Dot-separated key path to scroll to and highlight on load.
-    """
-    info_data = _get_info_data()
-    detail_nodes = _build_detail_nodes(project, "none", "", project_url, info_data)
-    tree_html = "".join(_render_detail_node(n, 0) for n in detail_nodes)
-    initial_key_js = json.dumps(highlight_key) if highlight_key else "null"
-
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{_escape(project_basename)} — details</title>
-    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-    <style>
-{_TREE_SHARED_CSS}
-
-        body {{
-            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
-            padding: 0; margin: 0;
-        }}
-        .project-header {{
-            padding: 8px 10px; border-bottom: 1px solid #454545; flex-shrink: 0;
-        }}
-        .project-title {{ font-weight: bold; font-size: 14px; color: #dcb67a; margin-bottom: 2px; }}
-        .project-url {{ font-size: 11px; color: #9e9e9e; word-break: break-all; }}
-        .controls-container {{
-            padding: 6px 8px; display: flex; gap: 6px;
-            border-bottom: 1px solid #454545; flex-shrink: 0;
-        }}
-        #tree-container {{ flex: 1; overflow-y: auto; padding: 6px 10px; position: relative; }}
-    </style>
-</head>
-<body>
-    <div class="project-header">
-        <div class="project-title">{_escape(project_basename)}</div>
-        <div class="project-url">{_escape(project_url)}</div>
-    </div>
-    <div class="controls-container">
-        <button id="btn-default" class="control-button active">Default view</button>
-        <button id="btn-expand" class="control-button">Expand All</button>
-        <button id="btn-collapse" class="control-button">Collapse All</button>
-    </div>
-    <div id="tree-container">
-        <ul class="tree">{tree_html}</ul>
-    </div>
-
-    {_INFO_POPUP_HTML}
-
-    <script>
-        // Qt WebChannel bridge
-        let bridge = null;
-        function postMessage(msg) {{
-            if (bridge) bridge.handleMessage(JSON.stringify(msg));
-        }}
-        new QWebChannel(qt.webChannelTransport, function(channel) {{
-            bridge = channel.objects.bridge;
-        }});
-
-        // ── Expand / collapse ──────────────────────────────────────────────
-        function setExpanded(ul, expanded) {{
-            ul.classList.toggle('expanded', expanded);
-            const icon = ul.closest('.tree-item')?.querySelector(':scope > .tree-node > .tree-icon.expandable');
-            if (icon) icon.classList.toggle('expanded', expanded);
-        }}
-        function expandAll() {{ document.querySelectorAll('.tree-children').forEach(ul => setExpanded(ul, true)); }}
-        function collapseAll() {{ document.querySelectorAll('.tree-children').forEach(ul => setExpanded(ul, false)); }}
-        function defaultView() {{
-            document.querySelectorAll('.tree-children').forEach(ul => {{
-                const depth = parseInt(ul.dataset.depth || '1', 10);
-                setExpanded(ul, depth <= 1);
-            }});
-        }}
-        function setActiveButton(btn) {{
-            document.querySelectorAll('.control-button').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        }}
-        document.getElementById('btn-expand').addEventListener('click', e => {{ expandAll(); setActiveButton(e.target); }});
-        document.getElementById('btn-collapse').addEventListener('click', e => {{ collapseAll(); setActiveButton(e.target); }});
-        document.getElementById('btn-default').addEventListener('click', e => {{ defaultView(); setActiveButton(e.target); }});
-
-        // ── Scroll to key ──────────────────────────────────────────────────
-        function scrollToKey(key) {{
-            if (!key) return;
-            const segments = key.split('.');
-            let searchRoot = document.querySelector('.tree');
-            let targetNode = null;
-            for (const seg of segments) {{
-                if (!searchRoot) break;
-                let found = null;
-                for (const node of searchRoot.querySelectorAll(':scope > .tree-item > .tree-node')) {{
-                    try {{
-                        const data = JSON.parse(node.dataset.item || '{{}}');
-                        if (data.key === seg) {{ found = node; break; }}
-                    }} catch(e) {{}}
-                }}
-                if (!found) break;
-                targetNode = found;
-                const treeItem = found.closest('.tree-item');
-                const childList = treeItem ? treeItem.querySelector(':scope > .tree-children') : null;
-                if (childList) setExpanded(childList, true);
-                searchRoot = childList;
-            }}
-            if (targetNode) {{
-                document.querySelectorAll('.tree-node.selected').forEach(n => n.classList.remove('selected'));
-                targetNode.classList.add('selected');
-                targetNode.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
-            }}
-        }}
-
-        const initialKey = {initial_key_js};
-        window.addEventListener('DOMContentLoaded', () => {{
-            defaultView();
-            if (initialKey) scrollToKey(initialKey);
-        }});
-
-        // ── Tree interaction ───────────────────────────────────────────────
-        document.addEventListener('click', e => {{
-            if (e.target.classList.contains('tree-icon') && e.target.classList.contains('expandable')) {{
-                const treeItem = e.target.closest('.tree-item');
-                const children = treeItem.querySelector(':scope > .tree-children');
-                setExpanded(children, !children.classList.contains('expanded'));
-                return;
-            }}
-            if (e.target.classList.contains('info-button')) {{
+        const fn = (data && typeof data === 'object') ? data.fn : undefined;
+        if (kind === 'artifact' && typeof fn === 'string' && fn.length > 0 && isLocalPath(fn)) {
+            const rv = document.createElement('button');
+            rv.title = 'Reveal ' + fn;
+            rv.textContent = CHROME_ICONS.reveal;
+            rv.addEventListener('click', (e) => {
                 e.stopPropagation();
-                showInfoPopup(e.target, JSON.parse(e.target.dataset.item));
-                return;
-            }}
-            if (e.target.classList.contains('make-button')) {{
-                e.stopPropagation();
-                postMessage({{ command: 'makeArtifact', item: JSON.parse(e.target.dataset.item) }});
-                return;
-            }}
-            const popup = document.getElementById('info-popup');
-            if (!popup.contains(e.target) && !e.target.classList.contains('info-button')) hideInfoPopup();
-        }});
-        document.addEventListener('keydown', e => {{ if (e.key === 'Escape') hideInfoPopup(); }});
+                postMessage({ cmd: 'revealFile', fn });
+            });
+            actions.appendChild(rv);
+        }
 
-{_INFO_POPUP_JS}
-    </script>
-</body>
-</html>"""
+        if (showMake) {
+            const mk = document.createElement('button');
+            mk.title = 'Make';
+            mk.textContent = CHROME_ICONS.play;
+            mk.addEventListener('click', (e) => {
+                e.stopPropagation();
+                postMessage({
+                    cmd: 'make',
+                    url: selection.url,
+                    spec: specName,
+                    artifactType: typeName,
+                    name: name || undefined,
+                });
+            });
+            actions.appendChild(mk);
+        }
+        const ib = document.createElement('button');
+        ib.title = 'Info';
+        ib.textContent = CHROME_ICONS.info;
+        ib.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showInfoPopup(klass, kind, e.clientX, e.clientY);
+        });
+        actions.appendChild(ib);
+        w.appendChild(actions);
+
+        const html = (kind === 'content' && data && typeof data === 'object') ? data._html : undefined;
+        if (typeof html === 'string') {
+            const body = document.createElement('div');
+            body.className = 'widget-html';
+            body.innerHTML = sanitizeHtml(html);
+            w.appendChild(body);
+        } else {
+            const tree = document.createElement('div');
+            tree.className = 'tree yaml';
+            tree.appendChild(renderYaml(stripKlass(data)));
+            w.appendChild(tree);
+        }
+        return w;
+    }
+
+    function sanitizeHtml(html) {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = String(html);
+        const walker = document.createTreeWalker(tpl.content, NodeFilter.SHOW_ELEMENT);
+        const toRemove = [];
+        let n = walker.nextNode();
+        while (n) {
+            const tag = n.tagName.toLowerCase();
+            if (['script','iframe','object','embed'].includes(tag)) toRemove.push(n);
+            else {
+                for (const attr of Array.from(n.attributes)) {
+                    const an = attr.name.toLowerCase();
+                    if (an.startsWith('on')) { n.removeAttribute(attr.name); continue; }
+                    if ((an === 'href' || an === 'src') && /^\s*javascript:/i.test(attr.value))
+                        n.removeAttribute(attr.name);
+                }
+            }
+            n = walker.nextNode();
+        }
+        for (const el of toRemove) el.remove();
+        return tpl.innerHTML;
+    }
+
+    function stripKlass(obj) {
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+        const out = {};
+        for (const k of Object.keys(obj)) if (k !== 'klass') out[k] = obj[k];
+        return out;
+    }
+
+    function renderYaml(data) {
+        const frag = document.createDocumentFragment();
+        if (Array.isArray(data)) {
+            if (data.length === 0) { frag.appendChild(textNode('[]', 'value empty')); return frag; }
+            for (const item of data) frag.appendChild(yamlListItem(item));
+            return frag;
+        }
+        if (data && typeof data === 'object') {
+            const keys = Object.keys(data);
+            if (keys.length === 0) { frag.appendChild(textNode('{}', 'value empty')); return frag; }
+            for (const k of keys) frag.appendChild(yamlMapItem(k, data[k]));
+            return frag;
+        }
+        frag.appendChild(primitiveSpan(data));
+        return frag;
+    }
+
+    function yamlListItem(value) {
+        const node = document.createElement('div');
+        node.className = 'yaml-item list-item';
+        const marker = document.createElement('span');
+        marker.className = 'marker';
+        marker.textContent = '- ';
+        const body = document.createElement('span');
+        body.className = 'body';
+        if (isEnum(value)) {
+            body.appendChild(enumSpan(value));
+            node.appendChild(marker); node.appendChild(body);
+            return node;
+        }
+        if (value && typeof value === 'object') {
+            node.classList.add('collapsible');
+            node.appendChild(marker);
+            body.classList.add('empty');
+            node.appendChild(body);
+            const children = document.createElement('div');
+            children.className = 'children';
+            children.appendChild(renderYaml(value));
+            node.appendChild(children);
+            marker.addEventListener('click', (e) => {
+                e.stopPropagation();
+                node.classList.toggle('collapsed');
+            });
+            return node;
+        }
+        body.appendChild(primitiveSpan(value));
+        node.appendChild(marker); node.appendChild(body);
+        return node;
+    }
+
+    function yamlMapItem(key, value) {
+        const node = document.createElement('div');
+        node.className = 'yaml-item map-item';
+        const label = document.createElement('div');
+        label.className = 'label';
+        if (isEnum(value)) {
+            label.innerHTML = '<span class="key">' + escapeHtml(key) + '</span>: ';
+            label.appendChild(enumSpan(value));
+            node.appendChild(label);
+            return node;
+        }
+        if (value && typeof value === 'object') {
+            node.classList.add('collapsible');
+            label.innerHTML = '<span class="key">' + escapeHtml(key) + '</span>:';
+            node.appendChild(label);
+            const children = document.createElement('div');
+            children.className = 'children';
+            children.appendChild(renderYaml(value));
+            node.appendChild(children);
+            label.addEventListener('click', (e) => {
+                e.stopPropagation();
+                node.classList.toggle('collapsed');
+            });
+            return node;
+        }
+        label.innerHTML = '<span class="key">' + escapeHtml(key) + '</span>: ';
+        label.appendChild(primitiveSpan(value));
+        node.appendChild(label);
+        return node;
+    }
+
+    function isEnum(v) {
+        return v && typeof v === 'object' && !Array.isArray(v)
+            && Array.isArray(v.klass) && v.klass[0] === 'enum' && ('value' in v);
+    }
+
+    function enumSpan(v) {
+        const name = v.klass[1];
+        const raw = v.value;
+        let label = null;
+        const members = enums && enums[name];
+        if (members) {
+            for (const mname of Object.keys(members)) {
+                if (members[mname] === raw) { label = mname; break; }
+            }
+        }
+        const span = document.createElement('span');
+        span.className = 'value enum';
+        span.title = name + ' = ' + String(raw);
+        span.textContent = label !== null ? label : String(raw);
+        return span;
+    }
+
+    function primitiveSpan(v) {
+        const s = document.createElement('span');
+        s.className = 'value';
+        if (typeof v === 'string') { s.classList.add('str'); s.textContent = v; }
+        else if (typeof v === 'number') { s.classList.add('num'); s.textContent = String(v); }
+        else if (typeof v === 'boolean') { s.classList.add('bool'); s.textContent = String(v); }
+        else if (v === null || v === undefined) { s.classList.add('null'); s.textContent = 'null'; }
+        else { s.textContent = String(v); }
+        return s;
+    }
+
+    function textNode(text, cls) {
+        const s = document.createElement('span');
+        if (cls) s.className = cls;
+        s.textContent = text;
+        return s;
+    }
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g,
+            (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function isLocalPath(p) {
+        if (p.startsWith('file://')) return true;
+        return !/^[a-z][a-z0-9+.-]*:\/\//i.test(p);
+    }
+
+    // ----- info popup -----
+    function showInfoPopup(klass, kind, mx, my) {
+        const map = kind === 'content' ? (info && info.content) : (info && info.artifact);
+        const entry = map && map[klass];
+        if (!entry) {
+            popup.innerHTML = '<em>No info for ' + escapeHtml(klass) + '</em>';
+        } else {
+            popup.innerHTML = '<div style="font-weight:bold;margin-bottom:4px;">'
+                + escapeHtml(klass) + '</div>'
+                + '<div style="white-space:pre-wrap;">' + escapeHtml(entry.doc || '') + '</div>';
+        }
+        popup.classList.remove('hidden');
+        popup.style.left = '-9999px'; popup.style.top = '-9999px';
+        requestAnimationFrame(() => {
+            const w = popup.offsetWidth, h = popup.offsetHeight;
+            let x = mx - w - 8, y = my - 8;
+            if (x < 4) x = 4;
+            if (y + h > window.innerHeight - 4) y = window.innerHeight - h - 4;
+            if (y < 4) y = 4;
+            popup.style.left = x + 'px'; popup.style.top = y + 'px';
+        });
+        setTimeout(() => document.addEventListener('click', () => popup.classList.add('hidden'), { once: true }), 0);
+    }
+
+    // ----- create-spec modal -----
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalInput = document.getElementById('modal-input');
+    const modalSuggestions = document.getElementById('modal-suggestions');
+    const modalOk = document.getElementById('modal-ok');
+    const modalCancel = document.getElementById('modal-cancel');
+    let modalState = null;
+
+    function openCreateSpecModal(url, specs) {
+        modalState = { url, specs: specs.slice(), filtered: specs.slice(), active: 0 };
+        modalInput.value = ''; modalOk.disabled = true;
+        renderSuggestions();
+        modalOverlay.classList.remove('hidden');
+        setTimeout(() => modalInput.focus(), 0);
+    }
+    function closeCreateSpecModal() { modalOverlay.classList.add('hidden'); modalState = null; }
+    function renderSuggestions() {
+        modalSuggestions.innerHTML = '';
+        if (!modalState) return;
+        if (modalState.filtered.length === 0) {
+            const e = document.createElement('div');
+            e.className = 'empty';
+            e.textContent = modalState.specs.length === 0 ? 'No spec types available' : 'No matches';
+            modalSuggestions.appendChild(e);
+            return;
+        }
+        modalState.filtered.forEach((s, i) => {
+            const row = document.createElement('div');
+            row.className = 'suggestion' + (i === modalState.active ? ' active' : '');
+            row.textContent = s;
+            row.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                modalState.active = i;
+                modalInput.value = s;
+                modalOk.disabled = false;
+                submitCreateSpec();
+            });
+            modalSuggestions.appendChild(row);
+        });
+    }
+    function filterSuggestions() {
+        if (!modalState) return;
+        const q = modalInput.value.trim().toLowerCase();
+        modalState.filtered = q
+            ? modalState.specs.filter((s) => s.toLowerCase().includes(q))
+            : modalState.specs.slice();
+        modalState.active = 0;
+        modalOk.disabled = !modalState.specs.includes(modalInput.value.trim());
+        renderSuggestions();
+    }
+    function submitCreateSpec() {
+        if (!modalState) return;
+        let pick = modalInput.value.trim();
+        if (!modalState.specs.includes(pick) && modalState.filtered.length === 1)
+            pick = modalState.filtered[0];
+        if (!modalState.specs.includes(pick)) return;
+        const url = modalState.url;
+        closeCreateSpecModal();
+        postMessage({ cmd: 'createSpecConfirmed', url, spec: pick });
+    }
+    modalInput.addEventListener('input', filterSuggestions);
+    modalInput.addEventListener('keydown', (e) => {
+        if (!modalState) return;
+        if (e.key === 'Escape') { closeCreateSpecModal(); e.preventDefault(); return; }
+        if (e.key === 'Enter') { submitCreateSpec(); e.preventDefault(); return; }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            const dir = e.key === 'ArrowDown' ? 1 : -1;
+            const n = modalState.filtered.length;
+            if (n === 0) return;
+            modalState.active = (modalState.active + dir + n) % n;
+            modalInput.value = modalState.filtered[modalState.active];
+            modalOk.disabled = false;
+            renderSuggestions();
+            e.preventDefault();
+        }
+        if (e.key === 'Tab' && modalState.filtered.length > 0) {
+            modalInput.value = modalState.filtered[modalState.active];
+            modalOk.disabled = false;
+            filterSuggestions();
+            e.preventDefault();
+        }
+    });
+    modalOk.addEventListener('click', () => submitCreateSpec());
+    modalCancel.addEventListener('click', () => closeCreateSpecModal());
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) closeCreateSpecModal();
+    });
+
+    // ----- toolbar -----
+    document.getElementById('btn-add').addEventListener('click', () => postMessage({ cmd: 'add' }));
+    document.getElementById('btn-reload').addEventListener('click', () => postMessage({ cmd: 'reload' }));
+    document.getElementById('btn-configure').addEventListener('click', () => postMessage({ cmd: 'configure' }));
+    searchEl.addEventListener('input', () => render());
+    searchClear.addEventListener('click', () => { searchEl.value = ''; render(); });
+})();
+"""

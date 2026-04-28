@@ -18,7 +18,7 @@ class Dbt(ProjectSpec):
     (build your data sets).
     """
 
-    icon = "layer-group"
+    icon = "🗂️"
     spec_doc = "https://docs.getdbt.com/reference/dbt_project.yml"
 
     def match(self) -> bool:
@@ -101,7 +101,7 @@ class Dbt(ProjectSpec):
 class Quarto(ProjectSpec):
     """Quarto publishing system project."""
 
-    icon = "file-code"
+    icon = "📜"
     spec_doc = "https://quarto.org/docs/reference/projects/core.html"
 
     def match(self) -> bool:
@@ -192,7 +192,7 @@ class Quarto(ProjectSpec):
 class Prefect(ProjectSpec):
     """Prefect workflow orchestration project."""
 
-    icon = "water"
+    icon = "💧"
     spec_doc = "https://docs.prefect.io/v3/deploy/infrastructure-concepts/prefect-yaml"
 
     def match(self) -> bool:
@@ -257,7 +257,7 @@ class Prefect(ProjectSpec):
 class Dagster(ProjectSpec):
     """Dagster data orchestration project."""
 
-    icon = "diagram-project"
+    icon = "🗺️"
     spec_doc = "https://docs.dagster.io/api/python-api/workspace"
 
     def match(self) -> bool:
@@ -308,7 +308,7 @@ class Dagster(ProjectSpec):
 class Kedro(ProjectSpec):
     """Kedro data science pipeline project."""
 
-    icon = "circle-nodes"
+    icon = "🕸️"
     spec_doc = "https://docs.kedro.org/en/stable/kedro_project_setup/settings.html"
 
     def match(self) -> bool:
@@ -374,7 +374,7 @@ class Kedro(ProjectSpec):
 class Airflow(ProjectSpec):
     """Apache Airflow workflow orchestration project/DAG spec."""
 
-    icon = "wind"
+    icon = "🌬️"
     spec_doc = (
         "https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/dags.html"
     )
@@ -448,7 +448,7 @@ class Airflow(ProjectSpec):
 class Snakemake(ProjectSpec):
     """Snakemake workflow management system project."""
 
-    icon = "snake"
+    icon = "🐍"
     spec_doc = (
         "https://snakemake.readthedocs.io/en/stable/snakefiles/configuration.html"
     )
@@ -514,7 +514,7 @@ class Nox(ProjectSpec):
     CI runs in one execution.
     """
 
-    icon = "flask"
+    icon = "🧪"
     spec_doc = "https://nox.thea.codes/en/stable/config.html"
 
     def match(self) -> bool:
@@ -594,7 +594,7 @@ class Metaflow(ProjectSpec):
     defaults, and often overridden (and hard to detect).
     """
 
-    icon = "timeline"
+    icon = "📆"
     spec_doc = "https://docs.metaflow.org"
 
     _IMPORT_RE = re.compile(r"from\s+metaflow\s+import|import\s+metaflow")
@@ -730,7 +730,7 @@ class MLFlow(ProjectSpec):
     the environment (conda or pip), and one or more named entry points.
     """
 
-    icon = "chart-line"
+    icon = "📈"
     spec_doc = (
         "https://mlflow.org/docs/latest/ml/projects/#mlproject-file-configuration"
     )

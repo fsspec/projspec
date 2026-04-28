@@ -19,7 +19,7 @@ _DATASET_DISCRIMINATORS = frozenset(
 
 
 class HuggingFaceRepo(ProjectSpec):
-    icon = "face-smile"
+    icon = "🙂"
     spec_doc = "https://huggingface.co/docs/hub/en/model-cards"
 
     # full_spec = ("https://github.com/huggingface/huggingface_hub/blob/"
@@ -128,7 +128,7 @@ class HuggingFaceDataset(ProjectSpec):
         Present when a ``license`` key is found in the front-matter.
     """
 
-    icon = "database"
+    icon = "🗄️"
     # detailed spec: https://raw.githubusercontent.com/huggingface/hub-docs/refs/heads/main/datasetcard.md
     spec_doc = "https://huggingface.co/docs/hub/datasets-cards"
 

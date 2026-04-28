@@ -6,7 +6,7 @@ from projspec.utils import run_subprocess
 class DockerImage(BaseArtifact):
     """Filesystem snapshot as created by bocker-build, which can be instantiated into a container."""
 
-    icon = "docker"
+    icon = "🐳"
 
     def __init__(self, proj: Project, cmd=None, tag=None):
         if tag:
@@ -20,7 +20,7 @@ class DockerImage(BaseArtifact):
 class DockerRuntime(DockerImage):
     """Running container in Docker, tied to a certain image and command."""
 
-    icon = "play"
+    icon = "▶️"
 
     # Note: there are many optional arguments to docker; we could surface the most common
     #  ones (-it, -d, -p). This does the simplest thing.
@@ -50,7 +50,7 @@ class DockerRuntime(DockerImage):
 class Docker(ProjectExtra):
     """A Dockerfile in a project directory, which defines how to build an image."""
 
-    icon = "docker"
+    icon = "🐳"
 
     def match(self):
         return "Dockerfile" in self.proj.basenames

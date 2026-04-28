@@ -13,7 +13,7 @@ class CIWorkflow(BaseContent):
     CI configuration files (GitHub Actions, GitLab CI, CircleCI, etc.).
     """
 
-    icon = "arrows-spin"
+    icon = "🔄"
 
     name: str = ""
     triggers: list = field(default_factory=list)
@@ -29,7 +29,7 @@ GithubAction = CIWorkflow
 class PipelineStage(BaseContent):
     """A named stage or step in a data/ML/workflow pipeline."""
 
-    icon = "diagram-next"
+    icon = "➡️"
 
     name: str = ""
     cmd: list = field(default_factory=list)
@@ -43,7 +43,7 @@ class ServiceDependency(BaseContent):
     Typically exposed via an open TCP port, e.g., as used in container orchestration.
     """
 
-    icon = "plug"
+    icon = "🔌"
 
     name: str = ""
     service_type: str = ""  # e.g. "postgres", "redis", "kafka"
