@@ -22,6 +22,8 @@ class CondaEnv(FileArtifact):
     the path may be outside the project tree.
     """
 
+    icon = "cubes"
+
     @staticmethod
     @cache
     def envs() -> list[str]:
@@ -37,6 +39,8 @@ class VirtualEnv(FileArtifact):
     Some tools like pipenv put these environments in a global location.
     """
 
+    icon = "box"
+
 
 class EnvPack(FileArtifact):
     """Archival form of a python environment
@@ -45,6 +49,10 @@ class EnvPack(FileArtifact):
     - pixi-pack: https://pixi.sh/latest/deployment/pixi_pack/
     """
 
+    icon = "file-zipper"
+
 
 class LockFile(FileArtifact):
     """File containing exact environment specification"""
+
+    icon = "lock"

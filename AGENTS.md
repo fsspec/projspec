@@ -6,7 +6,8 @@ the three central class families, the contract every `parse()` method must
 honour, and the conventions used throughout.
 
 Extensions and the Qt application (`vsextension/`, `pycharm_plugin/`,
-`src/projspec/qtapp/`) are out of scope.
+`src/projspec/qtapp/`) are out of scope. See `vsextension/ACTIONS.md` for
+the VSCode extension specification.
 
 ---
 
@@ -26,6 +27,8 @@ src/projspec/
     *.py               # one file per concrete artifact type
   utils.py             # AttrDict, camel_to_snake, run_subprocess, …
   config.py            # get_conf / set_conf
+vsextension/           # a UI for vscode, calling projspec as a subprocess
+qtapp/                 # standalone UI on pyqt5, calling projspec in-process
 tests/
   conftest.py          # shared fixtures (proj = Project("/data"))
   test_basic.py        # smoke tests

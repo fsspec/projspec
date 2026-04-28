@@ -16,6 +16,7 @@ class MDBook(ProjectSpec):
     is an example.
     """
 
+    icon = "book"
     # to get generated docs output for a rust lib, use `rustdoc`
     # https://doc.rust-lang.org/rustdoc/what-is-rustdoc.html
 
@@ -105,6 +106,7 @@ class RTD(ProjectSpec):
     General description of the platform: https://docs.readthedocs.com/platform/stable/
     """
 
+    icon = "book-open-reader"
     spec_doc = "https://docs.readthedocs.com/platform/stable/config-file/v2.html"
 
     def match(self) -> bool:
@@ -186,6 +188,7 @@ class RTD(ProjectSpec):
                     )
                 )
 
+        # NB: classically, the docs dir has Makefile enabling `make html`.
         if "sphinx" in cfg:
             conf_py = cfg["sphinx"].get("configuration", "docs/conf.py")
             docs_dir = conf_py.rsplit("/", 1)[0] if "/" in conf_py else "."
@@ -253,6 +256,7 @@ class RTD(ProjectSpec):
 class MkDocs(ProjectSpec):
     """MkDocs documentation project."""
 
+    icon = "file-alt"
     spec_doc = "https://www.mkdocs.org/user-guide/configuration/"
 
     _NAMES = {"mkdocs.yml", "mkdocs.yaml"}
@@ -324,6 +328,7 @@ class MkDocs(ProjectSpec):
 class Sphinx(ProjectSpec):
     """Sphinx documentation project (standalone, without ReadTheDocs config)."""
 
+    icon = "scroll"
     spec_doc = "https://www.sphinx-doc.org/en/master/usage/configuration.html"
 
     def match(self) -> bool:
@@ -404,6 +409,7 @@ class Sphinx(ProjectSpec):
 class Docusaurus(ProjectSpec):
     """Docusaurus documentation/website project."""
 
+    icon = "dragon"
     spec_doc = "https://docusaurus.io/docs/configuration"
 
     _CONFIG_NAMES = {

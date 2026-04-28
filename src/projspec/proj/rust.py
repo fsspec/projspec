@@ -6,6 +6,7 @@ from projspec.utils import AttrDict, run_subprocess
 class Rust(ProjectSpec):
     """A directory, which can build a binary executable or library with Cargo."""
 
+    icon = "rust"
     spec_doc = "https://doc.rust-lang.org/cargo/reference/manifest.html"
 
     def match(self) -> bool:
@@ -47,6 +48,7 @@ class RustPython(Rust, PythonLibrary):
     This version assumes the build tool is ``maturin``, which may not be the only possibility.
     """
 
+    icon = "gear"
     spec_doc = "https://www.maturin.rs/config.html"
 
     def match(self) -> bool:

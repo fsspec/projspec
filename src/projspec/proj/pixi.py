@@ -51,6 +51,7 @@ class Pixi(ProjectSpec):
     pixi is a conda-stack, project-oriented (aka "workspace") env and execution manager.
     """
 
+    icon = "cubes-stacked"
     spec_doc = "https://pixi.sh/latest/reference/pixi_manifest"
 
     # some example projects:
