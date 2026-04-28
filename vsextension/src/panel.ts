@@ -40,6 +40,13 @@ export class ProjspecPanel {
     private info: InfoData | null = null;
     private enums: EnumMembers = {};
     private library: LibraryData = {};
+    /**
+     * Number of in-flight long-running operations.  The webview spinner is
+     * shown iff this is > 0, so composed operations (e.g., scan-then-reload)
+     * keep the spinner up continuously instead of flickering off between
+     * steps.
+     */
+    private busyCount = 0;
 
     public static createOrShow(extensionUri: vscode.Uri): void {
         const col = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
@@ -128,22 +135,46 @@ export class ProjspecPanel {
     }
 
     // ----------------------------------------------------------------------
+    //  Busy indicator
+    // ----------------------------------------------------------------------
+    /**
+     * Wrap a promise-returning callback so the webview busy spinner is shown
+     * for its entire duration.  Uses a reference count so nested callers
+     * (e.g., button handlers that call ``reload``) don't let the spinner
+     * flicker off mid-operation.
+     */
+    private async withBusy<T>(fn: () => Promise<T>): Promise<T> {
+        this.busyCount += 1;
+        if (this.busyCount === 1) {
+            this.panel.webview.postMessage({ type: 'loading', loading: true });
+        }
+        try {
+            return await fn();
+        } finally {
+            this.busyCount -= 1;
+            if (this.busyCount === 0) {
+                this.panel.webview.postMessage({ type: 'loading', loading: false });
+            }
+        }
+    }
+
+    // ----------------------------------------------------------------------
     //  Data loading
     // ----------------------------------------------------------------------
     private async reload(initial: boolean): Promise<void> {
-        this.panel.webview.postMessage({ type: 'loading', loading: true });
-        try {
-            if (initial || !this.info) {
-                this.info = await getInfo();
-                this.enums = await getEnumMembers();
+        await this.withBusy(async () => {
+            try {
+                if (initial || !this.info) {
+                    this.info = await getInfo();
+                    this.enums = await getEnumMembers();
+                }
+                this.library = await getLibrary();
+            } catch (err) {
+                vscode.window.showErrorMessage(`projspec: ${err instanceof Error ? err.message : String(err)}`);
+            } finally {
+                this.postData();
             }
-            this.library = await getLibrary();
-        } catch (err) {
-            vscode.window.showErrorMessage(`projspec: ${err instanceof Error ? err.message : String(err)}`);
-        } finally {
-            this.panel.webview.postMessage({ type: 'loading', loading: false });
-            this.postData();
-        }
+        });
     }
 
     private postData(): void {
@@ -169,12 +200,13 @@ export class ProjspecPanel {
             return;
         }
         const target = picks[0].fsPath;
-        this.panel.webview.postMessage({ type: 'loading', loading: true });
-        const res = await scan(target, true);
-        if (res.code !== 0) {
-            vscode.window.showWarningMessage(`projspec scan: ${res.stderr.trim() || 'failed'}`);
-        }
-        await this.reload(false);
+        await this.withBusy(async () => {
+            const res = await scan(target, true);
+            if (res.code !== 0) {
+                vscode.window.showWarningMessage(`projspec scan: ${res.stderr.trim() || 'failed'}`);
+            }
+            await this.reload(false);
+        });
     }
 
     private async configure(): Promise<void> {
@@ -207,12 +239,13 @@ export class ProjspecPanel {
     }
 
     private async rescan(url: string): Promise<void> {
-        this.panel.webview.postMessage({ type: 'loading', loading: true });
-        const res = await scan(url, true);
-        if (res.code !== 0) {
-            vscode.window.showWarningMessage(`projspec scan: ${res.stderr.trim() || 'failed'}`);
-        }
-        await this.reload(false);
+        await this.withBusy(async () => {
+            const res = await scan(url, true);
+            if (res.code !== 0) {
+                vscode.window.showWarningMessage(`projspec scan: ${res.stderr.trim() || 'failed'}`);
+            }
+            await this.reload(false);
+        });
     }
 
     private async createSpecFor(url: string): Promise<void> {
@@ -237,24 +270,26 @@ export class ProjspecPanel {
         if (!pick) {
             return;
         }
-        this.panel.webview.postMessage({ type: 'loading', loading: true });
-        const p = urlToPath(url);
-        const res = await createSpec(pick, p);
-        if (res.code !== 0) {
-            vscode.window.showWarningMessage(`projspec create: ${res.stderr.trim() || 'failed'}`);
-        }
-        // Rescan the specific project, then refresh library.
-        await scan(p, true);
-        await this.reload(false);
+        await this.withBusy(async () => {
+            const p = urlToPath(url);
+            const res = await createSpec(pick, p);
+            if (res.code !== 0) {
+                vscode.window.showWarningMessage(`projspec create: ${res.stderr.trim() || 'failed'}`);
+            }
+            // Rescan the specific project, then refresh library.
+            await scan(p, true);
+            await this.reload(false);
+        });
     }
 
     private async removeFromLibrary(url: string): Promise<void> {
-        this.panel.webview.postMessage({ type: 'loading', loading: true });
-        const res = await libraryDelete(url);
-        if (res.code !== 0) {
-            vscode.window.showWarningMessage(`projspec library delete: ${res.stderr.trim() || 'failed'}`);
-        }
-        await this.reload(false);
+        await this.withBusy(async () => {
+            const res = await libraryDelete(url);
+            if (res.code !== 0) {
+                vscode.window.showWarningMessage(`projspec library delete: ${res.stderr.trim() || 'failed'}`);
+            }
+            await this.reload(false);
+        });
     }
 
     private make(url: string, spec: string | undefined, artifactType: string, name: string | undefined): void {
@@ -293,7 +328,7 @@ export class ProjspecPanel {
             return;
         }
 
-        const matches = await expandGlob(localFn);
+        const matches = await this.withBusy(() => expandGlob(localFn));
         if (matches.length === 0) {
             vscode.window.showInformationMessage(`No files match: ${fn}`);
             return;
@@ -567,6 +602,11 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
     padding: 8px 10px;
     background: var(--vscode-editorWidget-background);
 }
+/* Subtle kind-based outlines: green for contents (descriptive), red for
+   artifacts (actionable outputs).  Uses --vscode-*ForegroundErrorLens-ish
+   variables when available but falls back to plain colour values. */
+.item-widget.kind-content { border-color: #4ca97a; box-shadow: 0 0 0 1px rgba(76,169,122,0.15); }
+.item-widget.kind-artifact { border-color: #c66060; box-shadow: 0 0 0 1px rgba(198,96,96,0.15); }
 .item-widget .widget-title { font-weight: bold; font-size: 13px; }
 .item-widget .widget-subtitle { font-size: 11px; color: var(--vscode-descriptionForeground); }
 .item-widget .widget-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px;
@@ -952,7 +992,7 @@ const PANEL_JS = String.raw`
 
     function makeItemWidget(typeName, name, data, kind, showMake, specName) {
         const w = document.createElement('div');
-        w.className = 'item-widget';
+        w.className = 'item-widget kind-' + kind;
 
         const title = document.createElement('div');
         title.className = 'widget-title';
