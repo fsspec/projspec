@@ -32,6 +32,7 @@ from projspec.utils import get_cls
         "uv",
         "briefcase",
         "conda_project",
+        "conda_workspace",
         "helm_chart",
         "MDBook",
         "RTD",

@@ -15,6 +15,7 @@ from projspec.proj.cicd import (
 )
 from projspec.proj.conda_package import CondaRecipe, RattlerRecipe
 from projspec.proj.conda_project import CondaProject
+from projspec.proj.conda_workspace import CondaWorkspace
 from projspec.proj.data_dir import Data
 from projspec.proj.datapackage import DataPackage, DVCRepo
 from projspec.proj.dataworkflows import (
@@ -78,6 +79,7 @@ __all__ = [
     # Conda
     "CondaRecipe",
     "CondaProject",
+    "CondaWorkspace",
     # Data
     "Data",
     "DataPackage",
