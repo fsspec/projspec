@@ -8,7 +8,7 @@ class GitRepo(ProjectSpec):
     git is a very common version control system for code projects.
     """
 
-    icon = "🌿"
+    icon = "🔀"
     spec_doc = "https://git-scm.com/docs/git-config#_configuration_file"
 
     def match(self) -> bool:
