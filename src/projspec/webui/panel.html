@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Project Library</title>
+<!--EXTRA_HEAD-->
+<style>/*__CSS__*/</style>
+</head>
+<body>
+<div id="app">
+    <div id="library">
+        <div class="toolbar">
+            <button id="btn-add"><!--ICON:add--> Add</button>
+            <button id="btn-reload"><!--ICON:reload--> Reload</button>
+            <button id="btn-configure"><!--ICON:configure--> Configure</button>
+        </div>
+        <div class="search">
+            <span class="search-icon"><!--ICON:search--></span>
+            <input type="text" id="search" placeholder="Filter projects..." />
+            <button id="search-clear" title="Clear"><!--ICON:clear--></button>
+        </div>
+        <div id="projects"></div>
+        <div id="spinner" class="hidden">
+            <span class="icon spin"><!--ICON:spinner--></span>
+            Loading...
+        </div>
+    </div>
+    <div id="details">
+        <div id="details-header">
+            <div id="details-title">Details</div>
+            <button id="details-toggle" title="Toggle info"><!--ICON:chevron_up--></button>
+        </div>
+        <div id="details-info"></div>
+        <div id="details-list"></div>
+    </div>
+</div>
+<div id="popup" class="hidden"></div>
+<div id="modal-overlay" class="hidden">
+    <div id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div id="modal-title">Create spec</div>
+        <div id="modal-body">
+            <label for="modal-input">Spec type:</label>
+            <input type="text" id="modal-input" autocomplete="off" spellcheck="false" placeholder="Start typing..." />
+            <div id="modal-suggestions"></div>
+        </div>
+        <div id="modal-actions">
+            <button id="modal-cancel" class="secondary">Cancel</button>
+            <button id="modal-ok" class="primary" disabled>Create</button>
+        </div>
+    </div>
+</div>
+<!--BOOTSTRAP-->
+<script>/*__JS__*/</script>
+</body>
+</html>
