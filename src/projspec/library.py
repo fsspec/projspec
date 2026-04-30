@@ -55,6 +55,46 @@ class ProjectLibrary:
     def filter(self, filters: list[tuple[str, str]]) -> dict[str, Project]:
         return {k: v for k, v in self.entries.items() if _match(v, filters)}
 
+    # ------------------------------------------------------------------
+    #  Rich display / ipywidget
+    # ------------------------------------------------------------------
+    def ipywidget(self):
+        """Return an interactive Jupyter widget for this library.
+
+        The widget mirrors the two-pane UI used by the VSCode extension,
+        the Qt app and the PyCharm plugin: a filterable project list on
+        the left and a details panel on the right, with chips for each
+        spec, Content and Artifact grouping, a kebab menu for per-project
+        actions (rescan, create spec, remove from library, …) and per-
+        artifact Make buttons.
+
+        Requires the optional ``anywidget`` and ``ipywidgets`` packages;
+        install them via ``pip install projspec[ipywidget]``.
+
+        Only a single widget per notebook is supported - see the
+        :mod:`projspec.webui.ipywidget` module docstring.
+        """
+        from projspec.webui.ipywidget import make_widget
+
+        return make_widget(self)
+
+    def _ipython_display_(self):
+        """Auto-display as the interactive widget when possible.
+
+        Falls back to a plain ``repr`` when ``anywidget`` /
+        ``ipywidgets`` is not available - Jupyter will then use the
+        normal text representation.
+        """
+        try:
+            widget = self.ipywidget()
+        except ImportError:
+            # No optional deps; let Jupyter fall back to repr().
+            print(repr(self))
+            return
+        from IPython.display import display
+
+        display(widget)
+
 
 # move to Project definition?
 def _match(proj: Project, filters: list[tuple[str, str | tuple[str]]]) -> bool:
