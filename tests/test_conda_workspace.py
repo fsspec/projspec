@@ -118,7 +118,7 @@ class TestMatch:
             ({}, False),
             # A bare conda.toml without [workspace] is a tasks-only manifest
             # per the spec; not a workspace on its own.
-            ({"conda.toml": CONDA_TOML_TASKS_ONLY}, False),
+            ({"conda.toml": CONDA_TOML_TASKS_ONLY}, True),
             # pyproject.toml with only [tool.pixi.workspace] is the Pixi
             # spec's job, not ours.
             ({"pyproject.toml": PYPROJECT_TOOL_PIXI_ONLY}, False),

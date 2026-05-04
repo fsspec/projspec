@@ -31,12 +31,10 @@ class CondaWorkspace(ProjectSpec):
         meta = self.proj.pyproject.get("tool", {}).get("conda", {})
         if "conda.toml" in self.proj.basenames:
             try:
-                with self.proj.fs.open(self.proj.basenames["conda.toml"], "rb") as f:
+                with self.proj.get_file("conda.toml", text=True) as f:
                     meta = {
                         **meta,
-                        **toml.loads(
-                            f.read().decode(), decoder=PickleableTomlDecoder()
-                        ),
+                        **toml.loads(f.read(), decoder=PickleableTomlDecoder()),
                     }
             except (OSError, ValueError, UnicodeDecodeError, FileNotFoundError):
                 pass
@@ -46,7 +44,10 @@ class CondaWorkspace(ProjectSpec):
         # A bare conda.toml without [workspace] is permitted by the spec
         # as a tasks-only manifest; it does not constitute a workspace
         # on its own, so do not match it here.
-        return bool(self._load_meta().get("workspace"))
+        return (
+            bool(self.proj.pyproject.get("tool", {}).get("conda", {}))
+            or "conda.toml" in self.proj.basenames
+        )
 
     def parse(self) -> None:
         from projspec.artifact.python_env import CondaEnv, LockFile
@@ -64,7 +65,9 @@ class CondaWorkspace(ProjectSpec):
         run_cmd = ("conda", "task", "run")
         env_flag = "-e"
 
-        extract_tasks(meta, procs, commands, self.proj, run_cmd=run_cmd, env_flag=env_flag)
+        extract_tasks(
+            meta, procs, commands, self.proj, run_cmd=run_cmd, env_flag=env_flag
+        )
         if "environments" in meta and "feature" in meta:
             for env_name, details in meta["environments"].items():
                 feat: dict = {}
