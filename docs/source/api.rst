@@ -44,18 +44,19 @@ User Classes
     proj.conda_package.CondaRecipe
     proj.conda_package.RattlerRecipe
     proj.conda_project.CondaProject
+    proj.conda_workspace.CondaWorkspace
     proj.datapackage.DVCRepo
     proj.datapackage.DataPackage
     proj.dataworkflows.Dbt
     proj.dataworkflows.Quarto
     proj.dataworkflows.Prefect
-     proj.dataworkflows.Dagster
-     proj.dataworkflows.Kedro
-     proj.dataworkflows.Metaflow
-     proj.dataworkflows.MLFlow
-     proj.dataworkflows.Airflow
-     proj.dataworkflows.Snakemake
-     proj.dataworkflows.Nox
+    proj.dataworkflows.Dagster
+    proj.dataworkflows.Kedro
+    proj.dataworkflows.Metaflow
+    proj.dataworkflows.MLFlow
+    proj.dataworkflows.Airflow
+    proj.dataworkflows.Snakemake
+    proj.dataworkflows.Nox
     proj.documentation.Docusaurus
     proj.documentation.MDBook
     proj.documentation.MkDocs
@@ -124,6 +125,7 @@ User Classes
 .. autoclass:: projspec.proj.conda_package.CondaRecipe
 .. autoclass:: projspec.proj.conda_package.RattlerRecipe
 .. autoclass:: projspec.proj.conda_project.CondaProject
+.. autoclass:: projspec.proj.conda_workspace.CondaWorkspace
 .. autoclass:: projspec.proj.datapackage.DVCRepo
 .. autoclass:: projspec.proj.datapackage.DataPackage
 .. autoclass:: projspec.proj.dataworkflows.Dbt

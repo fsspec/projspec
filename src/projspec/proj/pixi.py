@@ -182,30 +182,40 @@ python = ">=3.10"
             )
 
 
-def extract_feature(
+def extract_tasks(
     meta: dict,
     procs: AttrDict,
     commands: AttrDict,
-    pixi: Pixi,
+    proj,
     env: str | None = None,
+    run_cmd: tuple[str, ...] = ("pixi", "run"),
+    env_flag: str = "--environment",
 ):
-    """Consolidate metadata from 'features' to create commands and processes"""
+    """Consolidate metadata from 'features' to create commands and processes.
+
+    Shared by ``Pixi`` and ``CondaWorkspaces``: both formats share the
+    same ``[tasks]`` / ``[target.<platform>.tasks]`` shape, only the
+    runner CLI strings differ.  ``run_cmd`` is the prefix for the
+    runnable form (``pixi run`` vs ``conda task run``); ``env_flag`` is
+    the flag used to target an environment (``--environment`` vs
+    ``-e``).
+    """
     from projspec.artifact.process import Process
     from projspec.content.executable import Command
 
     for name, task in meta.get("tasks", {}).items():
         if env:
             name = f"{name}.{env}"
-        cmd = ["pixi", "run", name]
+        cmd = [*run_cmd, name]
         if env:
-            cmd.extend(["--environment", env])
-        art = Process(proj=pixi.proj, cmd=cmd)
+            cmd.extend([env_flag, env])
+        art = Process(proj=proj, cmd=cmd)
         procs[name] = art
         # tasks without a command are aliases
         cmd = task.get("cmd", "") if isinstance(task, dict) else task
-        # NB: these may have dependencies on other tasks and envs, but pixi
-        # manages those.
-        commands[name] = Command(proj=pixi.proj, cmd=cmd)
+        # NB: these may have dependencies on other tasks and envs, but the
+        # runner manages those.
+        commands[name] = Command(proj=proj, cmd=cmd)
     for platform, v in meta.get("target", {}).items():
         for name, task in v.get("tasks", {}).items():
             if env:
@@ -215,20 +225,36 @@ def extract_feature(
                 if isinstance(task, dict)
                 else task
             )
-            commands[name] = Command(proj=pixi.proj, cmd=cmd)
+            commands[name] = Command(proj=proj, cmd=cmd)
             if platform == this_platform():
                 # only commands on the current platform can be executed
-                cmd = ["pixi", "run", name]
+                cmd = [*run_cmd, name]
                 if env:
-                    cmd.extend(["--environment", env])
-                art = Process(proj=pixi.proj, cmd=cmd)
+                    cmd.extend([env_flag, env])
+                art = Process(proj=proj, cmd=cmd)
                 procs[name] = art
                 commands[name].artifacts.add(art)
 
 
+def extract_feature(
+    meta: dict,
+    procs: AttrDict,
+    commands: AttrDict,
+    pixi: "Pixi",
+    env: str | None = None,
+):
+    """Backwards-compatible wrapper around :func:`extract_tasks` for ``Pixi``."""
+    extract_tasks(meta, procs, commands, pixi.proj, env=env)
+
+
 def envs_from_lock(infile) -> dict:
-    """Extract the environments info from a pixi (yaml) lock file"""
-    # Developed for pixi format format 6
+    """Extract the environments info from a rattler-lock-shaped YAML lock file.
+
+    Developed for pixi lockfile format 6 (``pixi.lock``).  Also accepts
+    conda-workspaces' ``conda.lock``, which is the same schema with an
+    on-disk ``version: 1`` byte (see
+    https://conda-incubator.github.io/conda-workspaces/reference/conda-toml-spec/#lockfile-relationship).
+    """
     import yaml
 
     data = yaml.safe_load(infile)
