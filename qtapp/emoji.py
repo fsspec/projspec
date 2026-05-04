@@ -1,37 +1,26 @@
-"""Emoji icons for projspec UIs.
+"""Backwards-compatibility shim.
 
-The spec / content / artifact classes in ``projspec`` itself already carry
-emoji in their ``icon`` class attribute, so the three UIs can render those
-as-is.  This module only supplies the small fixed set of *chrome* icons
-(toolbar buttons, search box, kebab trigger, etc.) that are specific to
-the UI and a category fallback for icons ``projspec`` doesn't name.
+The canonical chrome emoji map and category defaults now live in
+:mod:`projspec.webui`.  This module re-exports them for any existing
+imports of ``qtapp.emoji``.
 """
 
 from __future__ import annotations
 
+from projspec.webui import chrome_icons
 
-CHROME = {
-    "add": "➕",
-    "reload": "🔄",
-    "configure": "⚙️",
-    "search": "🔍",
-    "clear": "✖️",
-    "spinner": "⏳",
-    "chevron_up": "🔼",
-    "chevron_down": "🔽",
-    "kebab": "⋮",
-    "play": "▶️",
-    "info": "ℹ️",
-    "reveal": "➡️",
-}
+CHROME = chrome_icons()
 
+# Category fallbacks used when a spec/content/artifact class has no
+# ``icon`` attribute.  These match the ``DEFAULT_ICONS`` values baked into
+# ``projspec/webui/panel.js``.
 _CATEGORY_DEFAULT = {
-    "spec": "🧩",
-    "content": "📄",
-    "artifact": "📦",
+    "spec": "\U0001f9e9",  # 🧩
+    "content": "\U0001f4c4",  # 📄
+    "artifact": "\U0001f4e6",  # 📦
 }
 
-_UNKNOWN = "❔"
+_UNKNOWN = "\u2754"  # ❔
 
 
 def icon_for(icon: str | None, category: str | None = None) -> str:
