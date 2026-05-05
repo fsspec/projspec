@@ -60,7 +60,7 @@ class Pixi(ProjectSpec):
     # https://pixi.sh/dev/reference/pixi_manifest/
 
     def match(self) -> bool:
-        meta = self.proj.pyproject.get("tools", {}).get("pixi", {})
+        meta = self.proj.pyproject.get("tool", {}).get("pixi", {})
         return bool(meta) or "pixi.toml" in self.proj.basenames
 
     def parse(self) -> None:
@@ -68,7 +68,7 @@ class Pixi(ProjectSpec):
         from projspec.artifact.python_env import CondaEnv, LockFile
         from projspec.content.environment import Environment, Precision, Stack
 
-        meta = self.proj.pyproject.get("tools", {}).get("pixi", {})
+        meta = self.proj.pyproject.get("tool", {}).get("pixi", {})
         if "pixi.toml" in self.proj.basenames:
             try:
                 with self.proj.fs.open(self.proj.basenames["pixi.toml"], "rb") as f:

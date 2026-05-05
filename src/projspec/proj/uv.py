@@ -113,7 +113,7 @@ class UvScript(PythonLibrary):
                     stack=Stack.PIP,
                     precision=Precision.SPEC,
                     packages=packages,
-                    channels=deep_get(meta, "tools.uv.index", default=[]),
+                    channels=deep_get(meta, "tool.uv.index", default=[]),
                 )
                 found = True
             except (KeyError, ValueError):
@@ -160,7 +160,7 @@ class Uv(PythonLibrary):
             self.proj.basenames
         ):
             return True
-        if "uv" in self.proj.pyproject.get("tools", {}):
+        if "uv" in self.proj.pyproject.get("tool", {}):
             # even if it is present, uv can be explicitly directed to ignore the
             # project https://docs.astral.sh/uv/reference/settings/#managed
             return self.proj.pyproject["tool"]["uv"].get("managed", True)
@@ -183,7 +183,7 @@ class Uv(PythonLibrary):
 
         super().parse()
         meta = self.proj.pyproject
-        conf = meta.get("tools", {}).get("uv", {})
+        conf = meta.get("tool", {}).get("uv", {})
         try:
             with self.get_file("uv.toml") as f:
                 conf2 = toml.load(f, decoder=PickleableTomlDecoder())
