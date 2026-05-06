@@ -16,34 +16,42 @@ from __future__ import annotations
 import json
 import os
 import os.path
+from pathlib import Path
 import subprocess
 import sys
+import warnings
 import webbrowser
-from pathlib import Path
-
-from PyQt5.QtCore import QObject, QUrl, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWebChannel import QWebChannel
-from PyQt5.QtWebEngineWidgets import QWebEngineSettings, QWebEngineView
-from PyQt5.QtWidgets import (
-    QApplication,
-    QFileDialog,
-    QMainWindow,
-    QMessageBox,
-    QVBoxLayout,
-    QWidget,
-)
 
 import projspec
 from projspec.library import ProjectLibrary
 from projspec.utils import class_infos
 
-from views import get_panel_html
+try:
+    from PyQt5.QtCore import QObject, QUrl, pyqtSignal, pyqtSlot
+    from PyQt5.QtGui import QIcon
+    from PyQt5.QtWebChannel import QWebChannel
+    from PyQt5.QtWebEngineWidgets import QWebEngineSettings, QWebEngineView
+    from PyQt5.QtWidgets import (
+        QApplication,
+        QFileDialog,
+        QMainWindow,
+        QMessageBox,
+        QVBoxLayout,
+        QWidget,
+    )
 
+    qt = True
+except ImportError:
+    # fallbacks to make this module importable and give a decent message
+    QObject = object
+    QMainWindow = object
+    pyqtSignal = lambda *_: None
+    pyqtSlot = lambda *_: (lambda *_: None)
+    warnings.warn("PyQt5 not installed", ImportWarning)
+    qt = False
 
-# ---------------------------------------------------------------------------
-# Global state
-# ---------------------------------------------------------------------------
+from projspec.qtapp.views import get_panel_html
+
 
 library = ProjectLibrary()
 
@@ -56,11 +64,6 @@ DEFAULT_CONFIG = {
     "capture_artifact_output": True,
     "preferred_install_methods": ["conda", "pip"],
 }
-
-
-# ---------------------------------------------------------------------------
-# JS ↔ Python bridge
-# ---------------------------------------------------------------------------
 
 
 class JsBridge(QObject):
@@ -93,11 +96,6 @@ class JsBridge(QObject):
     def send(self, msg: dict) -> None:
         """Serialise ``msg`` and hand it to the connected JS listener."""
         self.from_python.emit(json.dumps(msg))
-
-
-# ---------------------------------------------------------------------------
-# Main window
-# ---------------------------------------------------------------------------
 
 
 class ProjspecWindow(QMainWindow):
@@ -511,14 +509,12 @@ def _collect_enum_members() -> dict:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-
 def main() -> None:
+    if not qt:
+        print("No Qt bindings found - cannot continue")
+        return
     app = QApplication(sys.argv)
-    icon_path = os.path.join(os.path.dirname(__file__), "..", "logo.png")
+    icon_path = os.path.join(os.path.dirname(__file__), "../../../..", "logo.png")
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
     window = ProjspecWindow()

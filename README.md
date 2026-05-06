@@ -2,6 +2,14 @@
 
 A common interface to code projects.
 
+Please see the [documentation](https://projspec.readthedocs.io/) for
+full details.
+
+Installation
+```bazaar
+$ pip install projspec
+```
+
 ### What is a project?
 
 From the point of view of this library, any directory of stuff with metadata
