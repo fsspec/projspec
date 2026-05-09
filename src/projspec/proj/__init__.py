@@ -3,6 +3,7 @@
 from projspec.proj.base import ParseFailed, Project, ProjectSpec, ProjectExtra
 
 from projspec.proj.ai import AIEnabled
+from projspec.proj.anaconda_project import AnacondaProject
 from projspec.proj.backstage import BackstageCatalog
 from projspec.proj.briefcase import Briefcase
 from projspec.proj.cicd import (
@@ -77,6 +78,7 @@ __all__ = [
     "Taskfile",
     "Tox",
     # Conda
+    "AnacondaProject",
     "CondaRecipe",
     "CondaProject",
     "CondaWorkspace",
