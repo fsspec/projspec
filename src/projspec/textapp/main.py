@@ -29,29 +29,34 @@ import sys
 import webbrowser
 from pathlib import Path
 from typing import Any
+import warnings
 
 import projspec
 from projspec.library import ProjectLibrary
 from projspec.utils import class_infos
 
-from textual import on
-from textual.app import App, ComposeResult
-from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.message import Message
-from textual.reactive import reactive
-from textual.screen import ModalScreen
-from textual.widget import Widget
-from textual.widgets import (
-    Button,
-    Footer,
-    Header,
-    Input,
-    Label,
-    ListItem,
-    ListView,
-    Static,
-)
+try:
+    from textual import on
+    from textual.app import App, ComposeResult
+    from textual.binding import Binding
+    from textual.containers import Horizontal, Vertical, VerticalScroll
+    from textual.message import Message
+    from textual.reactive import reactive
+    from textual.screen import ModalScreen
+    from textual.widget import Widget
+    from textual.widgets import (
+        Button,
+        Footer,
+        Header,
+        Input,
+        Label,
+        ListItem,
+        ListView,
+        Static,
+    )
+except ImportError as e:
+    warnings.warn("Texutal is required for the TUI")
+    app = None
 
 
 # ---------------------------------------------------------------------------
@@ -1386,6 +1391,9 @@ class ProjspecApp(App):
 
 
 def main() -> None:
+    if app is None:
+        print("Cannot run without textual installed")
+        return
     app = ProjspecApp()
     app.run()
 
