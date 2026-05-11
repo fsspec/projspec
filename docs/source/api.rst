@@ -34,6 +34,7 @@ User Classes
     content.environment.PythonRequirements
     content.metadata.Licensed
     proj.ai.AIEnabled
+    proj.anaconda_project.AnacondaProject
     proj.briefcase.Briefcase
     proj.cicd.GitHubActions
     proj.cicd.GitLabCI
@@ -115,6 +116,7 @@ User Classes
 .. autoclass:: projspec.content.environment.PythonRequirements
 .. autoclass:: projspec.content.metadata.Licensed
 .. autoclass:: projspec.proj.ai.AIEnabled
+.. autoclass:: projspec.proj.anaconda_project.AnacondaProject
 .. autoclass:: projspec.proj.briefcase.Briefcase
 .. autoclass:: projspec.proj.cicd.GitHubActions
 .. autoclass:: projspec.proj.cicd.GitLabCI
