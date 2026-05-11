@@ -50,7 +50,9 @@ class AnacondaProject(ProjectSpec):
                 lock_data = yaml.safe_load(f) or {}
 
         top_channels = list(meta.get("channels", []) or [])
-        top_conda, top_pip = _split_pip(meta.get("packages") or meta.get("dependencies") or [])
+        top_conda, top_pip = _split_pip(
+            meta.get("packages") or meta.get("dependencies") or []
+        )
         top_platforms = list(meta.get("platforms", []) or [])
 
         raw_env_specs = meta.get("env_specs") or {}
@@ -102,7 +104,9 @@ class AnacondaProject(ProjectSpec):
 
             if lock_data is not None:
                 locked_pkgs = _lock_packages_for(
-                    lock_data, env_name, spec_platforms=spec.get("platforms") or top_platforms
+                    lock_data,
+                    env_name,
+                    spec_platforms=spec.get("platforms") or top_platforms,
                 )
                 if locked_pkgs:
                     envs[f"{env_name}.lock"] = Environment(
@@ -138,7 +142,9 @@ class AnacondaProject(ProjectSpec):
             command_kinds=command_kinds,
             command_env_specs=command_env_specs,
             command_http=command_http,
-            lock_enabled=(lock_data or {}).get("locking_enabled") if lock_data else None,
+            lock_enabled=(lock_data or {}).get("locking_enabled")
+            if lock_data
+            else None,
         )
 
         conts = AttrDict(environment=envs, command=cmds)
@@ -359,12 +365,21 @@ def _variables_content(raw_vars, proj):
     return EnvironmentVariables(proj=proj, variables=out)
 
 
-def _collect_extras(meta: dict, *, command_kinds, command_env_specs,
-                    command_http, lock_enabled) -> dict:
+def _collect_extras(
+    meta: dict, *, command_kinds, command_env_specs, command_http, lock_enabled
+) -> dict:
     """Collect fields projspec does not yet model into a flat metadata dict."""
     extras: dict = {}
-    for key in ("name", "description", "icon", "categories",
-                "platforms", "downloads", "services", "skip_imports"):
+    for key in (
+        "name",
+        "description",
+        "icon",
+        "categories",
+        "platforms",
+        "downloads",
+        "services",
+        "skip_imports",
+    ):
         if key in meta and meta[key] not in (None, [], {}):
             extras[key] = meta[key]
     if command_kinds:
