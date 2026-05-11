@@ -1,19 +1,11 @@
-"""Anaconda Project (``anaconda-project.yml``) adapter.
-
-The legacy Anaconda-ecosystem project format used by Anaconda Enterprise /
-Anaconda Workbench. Recognised by the ``anaconda-project.yml`` (or
-``anaconda-project.yaml``) manifest at the project root; the sibling
-``anaconda-project-lock.yml`` holds per-env-spec, per-platform locked
-package lists.
-
-Spec reference:
-https://anaconda-project.readthedocs.io/en/latest/user-guide/reference.html
-"""
+"""Adapter for the legacy ``anaconda-project.yml`` manifest format."""
 
 import os
 
+import yaml
+
 from projspec.proj import ProjectSpec
-from projspec.utils import AttrDict, _yaml_no_jinja
+from projspec.utils import AttrDict
 
 
 _MANIFESTS = ("anaconda-project.yml", "anaconda-project.yaml")
@@ -21,7 +13,16 @@ _LOCKS = ("anaconda-project-lock.yml", "anaconda-project-lock.yaml")
 
 
 class AnacondaProject(ProjectSpec):
-    """Legacy Anaconda Project format (``anaconda-project.yml``)."""
+    """Legacy Anaconda Project format (``anaconda-project.yml``).
+
+    The project format used by Anaconda Enterprise / Anaconda Workbench and
+    the ``anaconda-project`` CLI. Recognised by the ``anaconda-project.yml``
+    (or ``anaconda-project.yaml``) manifest at the project root; the sibling
+    ``anaconda-project-lock.yml`` holds per-env-spec, per-platform locked
+    package lists.
+
+    Reference: https://anaconda-project.readthedocs.io/en/latest/user-guide/reference.html
+    """
 
     icon = "🅰"
     spec_doc = (
@@ -39,14 +40,14 @@ class AnacondaProject(ProjectSpec):
         from projspec.content.metadata import DescriptiveMetadata
 
         manifest_name = next(n for n in _MANIFESTS if n in self.proj.basenames)
-        with self.proj.get_file(manifest_name, text=False) as f:
-            meta = _yaml_no_jinja(f) or {}
+        with self.proj.get_file(manifest_name, text=True) as f:
+            meta = yaml.safe_load(f) or {}
 
         lock_name = next((n for n in _LOCKS if n in self.proj.basenames), None)
         lock_data = None
         if lock_name:
-            with self.proj.get_file(lock_name, text=False) as f:
-                lock_data = _yaml_no_jinja(f) or {}
+            with self.proj.get_file(lock_name, text=True) as f:
+                lock_data = yaml.safe_load(f) or {}
 
         top_channels = list(meta.get("channels", []) or [])
         top_conda, top_pip = _split_pip(meta.get("packages") or meta.get("dependencies") or [])
