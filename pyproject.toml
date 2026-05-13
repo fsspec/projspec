@@ -23,7 +23,6 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "fsspec >=2025.5.1",
     "pyyaml",
     "toml",
     "fsspec",
@@ -41,7 +40,7 @@ ipywidget = ["anywidget>=0.9", "ipywidgets>=8", "ipython"]
 [project.scripts]
 projspec = "projspec.__main__:main"
 projspec-qt = "projspec.qtapp.main:main"
-projspec-tui = "textapp.main:main"
+projspec-tui = "projspec.textapp.main:main"
 
 [tool.poetry.extras]
 po_test = ["pytest"]
@@ -60,6 +59,21 @@ raw-options = {'version_scheme'='post-release'}
 [tool.hatch.build.hooks.vcs]
 version-file = "src/projspec/_version.py"
 
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/vsextension",
+  "/pycharm_plugin",
+  "/docs",
+  "/projspec-rs"
+]
+[tool.hatch.build.targets.wheel]
+exclude = [
+  "/vsextension",
+  "/pycharm_plugin",
+  "/docs",
+  "/projspec-rs",
+  "/tests"
+]
 [tool.coverage.run]
 omit = [
     "src/projspec/qtapp/*.py"

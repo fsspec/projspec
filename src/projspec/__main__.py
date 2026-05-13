@@ -68,6 +68,7 @@ def make(artifact, path, storage_options, types, xtypes, wait):
 
 @main.command()
 def version():
+    """Show version and quit"""
     print(f"projspec version: {projspec.__version__}")
 
 
@@ -223,6 +224,7 @@ def library():
     help="JSON output, for projects only",
 )
 def list(json_out):
+    """Show contents of the library"""
     from projspec.library import ProjectLibrary
 
     library = ProjectLibrary()
@@ -240,6 +242,7 @@ def list(json_out):
 
 @library.command("clear")
 def clear():
+    """Clear all contents of the library"""
     from projspec.library import ProjectLibrary
 
     ProjectLibrary().clear()
@@ -268,6 +271,7 @@ def config():
 @config.command("get")
 @click.argument("key")
 def get(key):
+    """Get a value from the config."""
     from projspec.config import get_conf
 
     print(get_conf(key))
@@ -275,6 +279,7 @@ def get(key):
 
 @config.command("show")
 def show():
+    """Show all contents of the config."""
     from projspec.config import conf
 
     # TODO: show docs and defaults for each key, from projspec.config.config_doc?
@@ -297,6 +302,7 @@ def defaults():
 @config.command("unset")
 @click.argument("key")
 def unset(key):
+    """Remove a value from the config (returns to default)"""
     from projspec.config import set_conf
 
     set_conf(key, None)
@@ -306,6 +312,7 @@ def unset(key):
 @click.argument("key")
 @click.argument("value")
 def set_(key, value):
+    """Set a config value"""
     from projspec.config import set_conf
 
     set_conf(key, value)

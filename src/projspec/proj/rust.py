@@ -16,6 +16,8 @@ class Rust(ProjectSpec):
         from projspec.content.metadata import DescriptiveMetadata
         from projspec.artifact.base import FileArtifact
 
+        # TODO: parse .cargo/config.toml
+
         with self.proj.fs.open(f"{self.proj.url}/Cargo.toml", "rt") as f:
             meta = toml.load(f)
         self.contents["desciptive_metadata"] = DescriptiveMetadata(

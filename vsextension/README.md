@@ -9,8 +9,4 @@ artifact.
 
 To run: open the directory vsextension/ in vscode and press F5!
 
-![screenshot](./im.png)
-
-Like the qt-app, this one of a number of UI POC experiments.
-
 The layout and actions available are documented in ACTIONS.md (in LLM-friendly text).
