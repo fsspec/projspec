@@ -17,30 +17,51 @@ this is already covered in the :ref:`quickstart`. Text feedback is given for eve
 
 Here is the full tree of possible commands
 
-.. code-block::
+.. code-block:: text
 
     projspec
         config   Interact with the projspec config.
-            defaults  Show default config settings for all available values and...
+            defaults  Show default config settings for all available values and short descriptions.
             get       Get a value from the config.
-            set       Set a config value
+            set       Set a config value.
             show      Show all contents of the config.
-            unset     Remove a value from the config (returns to default)
+            unset     Remove a value from the config (returns to default).
         create   Create a new project of the given type in the given path.
-        info     Documentation about all the classes within projspec
+        info     Documentation about all the classes within projspec.
         library  Interact with the project library.
-            clear    Clear all contents of the library
+            clear    Clear all contents of the library.
             delete   Delete the project at the given URL from the library.
-            list     Show contents of the library
+            list     Show contents of the library.
         make     Make the given artifact in the project at the given path.
-        scan     Scan the given path for projects, and display
-        version  Show version and quit
+        scan     Scan the given path for projects, and display.
+        version  Show version and quit.
 
 GUIs
 ----
 
-.. image:: ../img/vscode-extension.png
+Each UI looks something like the following (which is for `vscode`):
+
+.. image:: ./img/vscode-extension.png
    :alt: The VSCode UI snapshot
+
+Ths UI consists of two main areas: the library (left) and project details (right).
+
+*Project Library*: this lists projects that have been scanned, either via this UI or the CLI. The searchable list
+of projects shows the title and location of each project, and the list of project specs it conforms to. Clicking on
+any of the coloured chips will populate that information into the details pane. Each project also has a set of
+commands in a menu under the "⋮" button, which allow you to rescan, remove or open the project. The open action will
+reuse the current application, if appropriate and implemented. Control buttons above the project list allow you
+to add new projects and configure `projspec` (i.e., open the config file for editing). Note that most UIs will
+present a system file picker for scanning new projects, so you need to use the CLI for remote ones - w may change this
+in the future. Choosing "create" for a project will present a picker for you to choose the project type you
+would like to add to the project, and (if accepted) can open the created file(s), if the application
+supports this.
+
+*Details*: the full information for the selected project spec. This is a list of Content objects (green, information
+only) and Artifact objects (red). As well as displaying the scanned information, each
+widget contains an (i) information button, which gives a brief description of that type. Artifacts also have a
+Make button to perform the artifact's action. This runs as a subprocess, and where you can see feedback
+depends on the application; we prefer an in-app terminal, if available.
 
 Notebooks
 ~~~~~~~~~
@@ -88,6 +109,8 @@ VSCode
 This extension will be made available via the extension store right within `vscode`, but you will also need
 to separately make `projspec` (the CLI) available on your PATH.
 
+To launch, select "Project Library" from the command palette (super-shift-P to search).
+
 Pycharm/IDEA
 ~~~~~~~~~~~~
 
@@ -110,6 +133,9 @@ This version does not integrate with any file picker for adding a new project to
 a whole path into the text-box (but the path _can_ be remote). Also, when you run any background task such as
 "Make" on an artifact, the output will appear pasted over the UI until it finishes.
 
+This interface should be considered more experimental than the rest, due to the complexity of so many widgets
+and the difficulty of text alligment.
+
 Qt app
 ~~~~~~
 
@@ -120,7 +146,8 @@ Bundled with the `projspec` package as command `projspec-qt`, but requires Qt to
     $ pip install projspec[qt]
 
 This interface would be easy to embedd in any other Qt app, and we include it as the simplest example of
-getting a front-end up and running, principally for those wishing to build their own apps.
+getting a front-end up and running, principally for those wishing to build their own apps. As with the
+``notebook`` UI, this one uses in-pocess python calls, and should be more responsive than the others.
 
 Anaconda-Desktop
 ~~~~~~~~~~~~~~~~

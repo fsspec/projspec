@@ -33,6 +33,7 @@ Introduction to projspec presented at PyData Global 2025: `video`_ | `slides`_
 
    intro.rst
    quickstart.rst
+   ui.rst
    api.rst
    contributing.rst
    code-of-conduct.rst

@@ -23,7 +23,6 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "fsspec >=2025.5.1",
     "pyyaml",
     "toml",
     "fsspec",
