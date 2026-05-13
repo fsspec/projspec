@@ -36,9 +36,14 @@ Here is the full tree of possible commands
         scan     Scan the given path for projects, and display
         version  Show version and quit
 
+GUIs
+----
+
+.. image:: ../img/vscode-extension.png
+   :alt: The VSCode UI snapshot
 
 Notebooks
----------
+~~~~~~~~~
 
 Requires the optional ``anywidget`` and ``ipywidgets`` packages;
 install them via
@@ -60,7 +65,7 @@ Of course, because this is a real python session, you can also call any methods 
 instance as you might in normal python code.
 
 Jupyter
--------
+~~~~~~~
 
 The separate repo `jupyter-projspec`_ implements an extension for jupyterlab/jupyter-classic, which shows
 the `projspec` summary for any directory you navigate to in the file browser. It also works for
@@ -75,38 +80,50 @@ interface, above.
 
 Note that, by its nature, the kernel running any given notebook is not necessarily in the same directory
 or even the same machine as the server providing the interface, and neither of these needs to be your
-local system. For the purposes "Make" on artifacts will only work for projects local to the server process.
+local system. Running "Make" on artifacts will only work for projects local to the server process.
 
 VSCode
-------
+~~~~~~
 
-.. image:: ../img/vscode-extension.png
-   :alt: The VSCode UI snapshot
+This extension will be made available via the extension store right within `vscode`, but you will also need
+to separately make `projspec` (the CLI) available on your PATH.
 
 Pycharm/IDEA
-------------
+~~~~~~~~~~~~
+
+This extension will be made available via the extension store right within `PyCharm`, but you will also need
+to separately make `projspec` (the CLI) available on your PATH. It should also work exactly the same within any
+IDEA frontend. Note that the project context menu has the item "Open with pycharm", which expects to run the
+command `pycharm` as a subprocess. This will be updated to open a new window within the current application
+using an internal API call instead.
 
 TUI
----
+~~~
 
-Bundled with the `projspec` package as command `projspec-tui`, but required Qt to be installed, e.g. by
+Bundled with the `projspec` package as command `projspec-tui`, but requires `textual` to be installed, e.g. by
 
 .. code-block:: bash
 
     $ pip install projspec[textual]
 
-Qt app
-------
+This version does not integrate with any file picker for adding a new project to the library - you have to enter
+a whole path into the text-box (but the path _can_ be remote). Also, when you run any background task such as
+"Make" on an artifact, the output will appear pasted over the UI until it finishes.
 
-Bundled with the `projspec` package as command `projspec-qt`, but required Qt to be installed, e.g. by
+Qt app
+~~~~~~
+
+Bundled with the `projspec` package as command `projspec-qt`, but requires Qt to be installed, e.g. by
 
 .. code-block:: bash
 
     $ pip install projspec[qt]
 
+This interface would be easy to embedd in any other Qt app, and we include it as the simplest example of
+getting a front-end up and running, principally for those wishing to build their own apps.
 
 Anaconda-Desktop
-----------------
+~~~~~~~~~~~~~~~~
 
 This only exists in an internal, experimental form right now (desktop is very new!), but expect it to
 emerge eventually, and perhaps to have some functionality connected with Anaconda-specific functionality.
