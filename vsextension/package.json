@@ -7,6 +7,9 @@
   "engines": {
     "vscode": "^1.109.0"
   },
+  "publisher": "MartinDurant",
+  "icon": "logo.png",
+  "pricing": "Free",
   "categories": [
     "Other"
   ],

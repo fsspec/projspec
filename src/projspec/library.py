@@ -10,8 +10,6 @@ from projspec.proj import Project
 class ProjectLibrary:
     """Stores scanned project objects at a given path in JSON format
 
-    An instance of this library ``library`` is created on import.
-
     In the future, alternative serialisations will be implemented.
     """
 

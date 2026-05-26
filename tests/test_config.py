@@ -22,3 +22,9 @@ def test_get_conf(tmpdir, monkeypatch):
             # because has no known type
             get_conf("temp")
         assert get_conf("scan_max_size") == 1
+
+
+# TODO: add tests with keys that don't exist in defaults (should make warning)
+#  and values that don't match in type (should either coerce or raise warning if not
+#  possible). In the case of environment variables, failure to coerce is a ValueError,
+#  because it doesn't prevent import.

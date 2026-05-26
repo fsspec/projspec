@@ -299,6 +299,12 @@ def defaults():
         print(f"{k}: {v} -- {d}")
 
 
+@config.command("create")
+def create():
+    """Create the config file with default values"""
+    from projspec.config import defaults
+
+
 @config.command("unset")
 @click.argument("key")
 def unset(key):

@@ -1,7 +1,5 @@
-from enum import auto
 import logging
 import os.path
-from platform import architecture
 
 from projspec.artifact import FileArtifact
 from projspec.utils import Enum, run_subprocess

@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import json
 import os
+import warnings
 
 from typing import Any
 
@@ -10,6 +11,18 @@ default_conf_dir = os.path.join(os.path.expanduser("~"), ".config/projspec")
 
 def conf_dir():
     return os.environ.get("PROJSPEC_CONFIG_DIR", default_conf_dir)
+
+
+def coerce(template, val):
+    """ensure val has the same type as template"""
+    typ = type(template)
+    if typ is bool:
+        return val in ("true", "True", "1", True, "T")
+    if typ is list:
+        return [coerce(template[0], _) for _ in val]
+    if typ in (str, int, float):
+        return typ(val)
+    return val
 
 
 def defaults():
@@ -46,8 +59,20 @@ def load_conf(path: str | None = None):
     conf.clear()
     if os.path.exists(fn):
         with open(fn) as f:
-            conf.update(json.load(f))
-    # TODO: warn on unknown keys?
+            new = json.load(f)
+            defs = defaults()
+            extra = set(new) - set(defs)
+            if extra:
+                warnings.warn(f"Unknown keys in config, skipping: {extra}")
+            for k, v in new.items():
+                if k in defs:
+                    try:
+                        conf[k] = coerce(v, defs[k])
+                    except ValueError:
+                        warnings.warn(
+                            f"Failed to coerce {v} (key {k}) to "
+                            f"type {defs[k]}; skipping"
+                        )
 
 
 load_conf()
@@ -59,20 +84,8 @@ def get_conf(name: str):
         val = os.environ[f"PROJSPEC_{name.upper()}"]
     else:
         assert name in config_doc, f"Unknown config parameter {name}"
-        val = conf[name] if name in conf else defaults()[name]
+        val = conf.get(name, defaults()[name])
     return coerce(defaults()[name], val)
-
-
-def coerce(template, val):
-    """ensure val has the same type as template"""
-    typ = type(template)
-    if typ is bool:
-        return val in ("true", "True", "1", True, "T")
-    if typ is list:
-        return [coerce(template[0], _) for _ in val]
-    if typ in (str, int, float):
-        return typ(val)
-    return val
 
 
 def set_conf(name: str, value: Any):
@@ -82,6 +95,10 @@ def set_conf(name: str, value: Any):
         conf[name] = value
     else:
         conf.pop(name, None)
+    save_conf(conf)
+
+
+def save_conf(conf: dict):
     os.makedirs(conf_dir(), exist_ok=True)
     with open(f"{conf_dir()}/projspec.json", "wt") as f:
         json.dump(conf, f)

@@ -220,6 +220,16 @@ export class ProjspecPanel {
         }
         const doc = await vscode.workspace.openTextDocument(file);
         await vscode.window.showTextDocument(doc);
+        // Offer a direct link to documentation so users are not left with a
+        // bare JSON file and no context.
+        vscode.window.showInformationMessage(
+            'ProjSpec configuration — see the docs for all available fields.',
+            'Open docs'
+        ).then(choice => {
+            if (choice === 'Open docs') {
+                vscode.env.openExternal(vscode.Uri.parse('https://projspec.readthedocs.io/en/latest/config.html'));
+            }
+        });
     }
 
     private openWith(tool: string, url: string): void {
@@ -387,9 +397,8 @@ export class ProjspecPanel {
             <button id="btn-configure">⚙️ Configure</button>
         </div>
         <div class="search">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="search" placeholder="Filter projects..." />
-            <button id="search-clear" title="Clear">✖️</button>
+            <input type="text" id="search" placeholder="Search projects" aria-label="Search projects" />
+            <button id="search-clear" title="Clear search" aria-label="Clear search">✖️</button>
         </div>
         <div id="projects"></div>
         <div id="spinner" class="hidden">
@@ -399,7 +408,7 @@ export class ProjspecPanel {
     <div id="details">
         <div id="details-header">
             <div id="details-title">Details</div>
-            <button id="details-toggle" title="Toggle info">🔼</button>
+            <button id="details-toggle" title="Toggle info" aria-expanded="true">&#x25B4;</button>
         </div>
         <div id="details-info"></div>
         <div id="details-list"></div>
@@ -526,7 +535,8 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
           border-bottom: 1px solid var(--vscode-panel-border); }
 .search input { flex: 1; background: var(--vscode-input-background); color: var(--vscode-input-foreground);
                 border: 1px solid var(--vscode-input-border, transparent); padding: 4px 8px; font-size: 12px;
-                border-radius: 2px; }
+                border-radius: 2px; outline: none; }
+.search input:focus { border-color: var(--vscode-focusBorder); }
 .search button { background: transparent; color: var(--vscode-descriptionForeground);
                  border: none; cursor: pointer; padding: 2px 4px; }
 .search button:hover { color: var(--vscode-foreground); }
@@ -615,11 +625,37 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
     padding: 8px 10px;
     background: var(--vscode-editorWidget-background);
 }
-/* Subtle kind-based outlines: green for contents (descriptive), red for
-   artifacts (actionable outputs).  Uses --vscode-*ForegroundErrorLens-ish
-   variables when available but falls back to plain colour values. */
-.item-widget.kind-content { border-color: #4ca97a; box-shadow: 0 0 0 1px rgba(76,169,122,0.15); }
-.item-widget.kind-artifact { border-color: #c66060; box-shadow: 0 0 0 1px rgba(198,96,96,0.15); }
+/* Kind-based outlines: use semantic VS Code border tokens so they adapt to
+   all themes, including high-contrast.  A text badge is also added in JS so
+   the distinction is never color-only (accessibility). */
+.item-widget.kind-content  {
+    border-color: var(--vscode-editorInfo-border, var(--vscode-editorInfo-foreground, #3794ff));
+    box-shadow: 0 0 0 1px rgba(55,148,255,0.12);
+}
+.item-widget.kind-artifact {
+    border-color: var(--vscode-editorWarning-border, var(--vscode-editorWarning-foreground, #cca700));
+    box-shadow: 0 0 0 1px rgba(204,167,0,0.12);
+}
+.widget-kind-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+    opacity: 0.75;
+}
+.kind-content  .widget-kind-badge {
+    background: var(--vscode-editorInfo-border, var(--vscode-editorInfo-foreground, #3794ff));
+    color: var(--vscode-editor-background, #fff);
+}
+.kind-artifact .widget-kind-badge {
+    background: var(--vscode-editorWarning-border, var(--vscode-editorWarning-foreground, #cca700));
+    color: var(--vscode-editor-background, #fff);
+}
 .item-widget .widget-html { margin-top: 6px; font-size: 12px; line-height: 1.4; }
 .item-widget .widget-html img { max-width: 100%; height: auto; }
 .item-widget .widget-html a { color: var(--vscode-textLink-foreground); }
@@ -971,8 +1007,9 @@ const PANEL_JS = String.raw`
 
     detailsToggle.addEventListener('click', () => {
         detailsInfo.classList.toggle('collapsed');
-        const icon = detailsToggle.querySelector('i');
-        if (icon) icon.textContent = detailsInfo.classList.contains('collapsed') ? '🔽' : '🔼';
+        const collapsed = detailsInfo.classList.contains('collapsed');
+        detailsToggle.textContent = collapsed ? '\u25BE' : '\u25B4';
+        detailsToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     });
 
     function renderDetails() {
@@ -1082,7 +1119,10 @@ const PANEL_JS = String.raw`
         title.className = 'widget-title';
         const klass = (data && data.klass && Array.isArray(data.klass)) ? data.klass[1] : typeName;
         const iconName = kind === 'content' ? iconForContent(klass) : iconForArtifact(klass);
-        title.innerHTML = '<span class="widget-icon">' + escapeHtml(iconName) + '</span> ' + escapeHtml(klass) + (name ? ' <span class="widget-subtitle">- ' + escapeHtml(name) + '</span>' : '');
+        const badgeLabel = kind === 'content' ? 'Content' : 'Artifact';
+        title.innerHTML = '<span class="widget-icon">' + escapeHtml(iconName) + '</span> ' + escapeHtml(klass)
+            + (name ? ' <span class="widget-subtitle">- ' + escapeHtml(name) + '</span>' : '')
+            + ' <span class="widget-kind-badge">' + escapeHtml(badgeLabel) + '</span>';
         w.appendChild(title);
 
         const actions = document.createElement('div');
@@ -1104,7 +1144,7 @@ const PANEL_JS = String.raw`
 
         if (showMake) {
             const mk = document.createElement('button');
-            mk.title = 'Make';
+            mk.title = 'Make artifact';
             mk.textContent = '▶️';
             mk.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1119,7 +1159,7 @@ const PANEL_JS = String.raw`
             actions.appendChild(mk);
         }
         const ib = document.createElement('button');
-        ib.title = 'Info';
+        ib.title = 'Show documentation';
         ib.textContent = 'ℹ️';
         ib.addEventListener('click', (e) => {
             e.stopPropagation();

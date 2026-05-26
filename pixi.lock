@@ -490,15 +490,17 @@ packages:
   timestamp: 1751390309393
 - pypi: .
   name: projspec
-  version: 0.3.0.post55+g2e96a179d
-  sha256: 1ff9b95d60a447eba37c4394400f8bf4dcacdcf9797a26dfeae88f5311eaad49
+  version: 0.4.1.post0+gf91167a65.d20260521
+  sha256: a81c3a625d2195ab1b77006330120b4380c15e0b47d6a9c356124c5f3c4d68c6
   requires_dist:
   - click
   - fsspec
-  - fsspec>=2025.5.1
   - jinja2
   - pyyaml
   - toml
+  - anywidget>=0.9 ; extra == 'ipywidget'
+  - ipython ; extra == 'ipywidget'
+  - ipywidgets>=8 ; extra == 'ipywidget'
   - pyqt>5,<6 ; extra == 'qt'
   - pyqtwebengin>5,<6 ; extra == 'qt'
   - briefcase ; extra == 'test'
@@ -511,6 +513,7 @@ packages:
   - pytest-cov ; extra == 'test'
   - streamlit ; extra == 'test'
   - uv ; extra == 'test'
+  - textual>=0.80 ; extra == 'textual'
   requires_python: '>=3.10'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/linux-64/python-3.12.11-h9e4cc4f_0_cpython.conda
