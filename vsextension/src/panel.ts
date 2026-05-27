@@ -397,8 +397,10 @@ export class ProjspecPanel {
             <button id="btn-configure">⚙️ Configure</button>
         </div>
         <div class="search">
-            <input type="text" id="search" placeholder="Search projects" aria-label="Search projects" />
-            <button id="search-clear" title="Clear search" aria-label="Clear search">✖️</button>
+            <div class="search-wrap">
+                <input type="text" id="search" placeholder="Search projects" aria-label="Search projects" />
+                <button id="search-clear" title="Clear search" aria-label="Clear search">✖️</button>
+            </div>
         </div>
         <div id="projects"></div>
         <div id="spinner" class="hidden">
@@ -531,14 +533,16 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
 }
 .toolbar button:hover { background: var(--vscode-button-hoverBackground); }
 
-.search { display: flex; align-items: center; gap: 6px; padding: 6px 8px;
-          border-bottom: 1px solid var(--vscode-panel-border); }
-.search input { flex: 1; background: var(--vscode-input-background); color: var(--vscode-input-foreground);
-                border: 1px solid var(--vscode-input-border, transparent); padding: 4px 8px; font-size: 12px;
+.search { padding: 6px 8px; border-bottom: 1px solid var(--vscode-panel-border); }
+.search-wrap { position: relative; display: flex; align-items: center; }
+.search input { flex: 1; width: 100%; box-sizing: border-box;
+                background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+                border: 1px solid var(--vscode-input-border, transparent); padding: 4px 26px 4px 8px; font-size: 12px;
                 border-radius: 2px; outline: none; }
 .search input:focus { border-color: var(--vscode-focusBorder); }
-.search button { background: transparent; color: var(--vscode-descriptionForeground);
-                 border: none; cursor: pointer; padding: 2px 4px; }
+.search button { position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+                 background: transparent; color: var(--vscode-descriptionForeground);
+                 border: none; cursor: pointer; padding: 0 2px; line-height: 1; font-size: 11px; }
 .search button:hover { color: var(--vscode-foreground); }
 
 #projects { flex: 1; overflow-y: auto; padding: 6px; }
