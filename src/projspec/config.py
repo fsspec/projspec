@@ -10,6 +10,11 @@ default_conf_dir = os.path.join(os.path.expanduser("~"), ".config/projspec")
 
 
 def conf_dir():
+    """Location of the conf, and (normally) the library
+
+    This is re-evaluated on every conf change, so PROJSPEC_CONFIG_DIR can
+    be used to dynamically set a temporary location during a session.
+    """
     return os.environ.get("PROJSPEC_CONFIG_DIR", default_conf_dir)
 
 
@@ -54,6 +59,16 @@ config_doc = {
 }
 
 
+def populate_if_empty():
+    """If config file does not exist, write the defaults to it"""
+    fn = f"{conf_dir()}/projspec.json"
+    if not os.path.exists(fn):
+        os.makedirs(conf_dir(), exist_ok=True)
+        with open(fn, "w") as f:
+            json.dump(defaults(), f)
+    return fn
+
+
 def load_conf(path: str | None = None):
     fn = f"{path or conf_dir()}/projspec.json"
     conf.clear()
@@ -67,7 +82,7 @@ def load_conf(path: str | None = None):
             for k, v in new.items():
                 if k in defs:
                     try:
-                        conf[k] = coerce(v, defs[k])
+                        conf[k] = coerce(defs[k], v)
                     except ValueError:
                         warnings.warn(
                             f"Failed to coerce {v} (key {k}) to "
@@ -83,7 +98,8 @@ def get_conf(name: str):
     if f"PROJSPEC_{name.upper()}" in os.environ:
         val = os.environ[f"PROJSPEC_{name.upper()}"]
     else:
-        assert name in config_doc, f"Unknown config parameter {name}"
+        if name not in config_doc:
+            raise ValueError(f"Unknown config parameter {name}")
         val = conf.get(name, defaults()[name])
     return coerce(defaults()[name], val)
 
@@ -91,8 +107,10 @@ def get_conf(name: str):
 def set_conf(name: str, value: Any):
     """Set the value of the given conf parameter and save to the config file"""
     # TODO: require new value to be of same type as default?
+    if name not in config_doc:
+        raise ValueError
     if value:
-        conf[name] = value
+        conf[name] = coerce(defaults()[name], value)
     else:
         conf.pop(name, None)
     save_conf(conf)
