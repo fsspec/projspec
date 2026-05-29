@@ -56,7 +56,7 @@ try:
     )
 except ImportError as e:
     warnings.warn("Texutal is required for the TUI")
-    app = None
+    App = None
 
 
 # ---------------------------------------------------------------------------
@@ -1391,7 +1391,7 @@ class ProjspecApp(App):
 
 
 def main() -> None:
-    if app is None:
+    if App is None:
         print("Cannot run without textual installed")
         return
     app = ProjspecApp()
