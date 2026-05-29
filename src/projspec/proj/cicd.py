@@ -1,6 +1,7 @@
 """CI/CD project specs: GitHub Actions, GitLab CI, CircleCI, Taskfile, JustFile, Tox."""
 
 import os
+import re
 
 import yaml
 
@@ -430,3 +431,44 @@ class Tox(ProjectSpec):
                 "deps = pytest\n"
                 "commands = pytest {posargs}\n"
             )
+
+
+class Makefile(ProjectExtra):
+    """Classic job/dependency definition
+
+    Typically used for building files, e.g., binary executables
+    from source code.
+    """
+
+    spec_doc = "https://www.gnu.org/software/make/manual/make.html#Makefiles"
+
+    def match(self) -> bool:
+        return "Makefile" in self.proj.basenames
+
+    def parse(self) -> None:
+        from projspec.artifact.process import Process
+        from projspec.content.executable import Command
+
+        try:
+            with self.proj.get_file("Makefile") as f:
+                text = f.read()
+        except Exception as exc:
+            raise ParseFailed(f"Could not read Makefile: {exc}") from exc
+
+        pattern = r"^(\w+):\n\s*([^\n]*)"
+        matches = re.findall(pattern, text, re.MULTILINE)
+        if not matches:
+            raise ParseFailed("Makefile did not contain any rules")
+        cmds = AttrDict()
+        arts = AttrDict()
+        for name, cmd in matches:
+            cmds[name] = Command(proj=self.proj, cmd=cmd)
+            arts[name] = Process(proj=self.proj, cmd=["make", name])
+        self._contents["command"] = cmds
+        self._artifacts["process"] = arts
+
+    @classmethod
+    def create(cls, path) -> None:
+        """Scaffold a minimal Makefile."""
+        with open(os.path.join(path, "Makefile"), "wt") as f:
+            f.write("all:\n\tprintf 'Hello from Makefile!'\n")

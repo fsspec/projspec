@@ -39,6 +39,7 @@ User Classes
     proj.cicd.GitHubActions
     proj.cicd.GitLabCI
     proj.cicd.CircleCI
+    proj.cicd.Makefile
     proj.cicd.Taskfile
     proj.cicd.JustFile
     proj.cicd.Tox
@@ -121,6 +122,7 @@ User Classes
 .. autoclass:: projspec.proj.cicd.GitHubActions
 .. autoclass:: projspec.proj.cicd.GitLabCI
 .. autoclass:: projspec.proj.cicd.CircleCI
+.. autoclass:: projspec.proj.cicd.Makefile
 .. autoclass:: projspec.proj.cicd.Taskfile
 .. autoclass:: projspec.proj.cicd.JustFile
 .. autoclass:: projspec.proj.cicd.Tox

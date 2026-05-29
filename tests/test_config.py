@@ -20,6 +20,8 @@ def temp_conf_dir(tmpdir):
     yield str(tmpdir)
     if old:
         os.environ["PROJSPEC_CONFIG_DIR"] = old
+    else:
+        del os.environ["PROJSPEC_CONFIG_DIR"]
 
 
 def test_get_conf(tmpdir, monkeypatch):
