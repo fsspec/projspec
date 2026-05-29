@@ -44,9 +44,10 @@ object HtmlContent {
             <button id="btn-configure">&#x2699;&#xFE0F; Configure</button>
         </div>
         <div class="search">
-            <span class="search-icon">&#x1F50D;</span>
-            <input type="text" id="search" placeholder="Filter projects..." />
-            <button id="search-clear" title="Clear">&#x2716;&#xFE0F;</button>
+            <div class="search-wrap">
+                <input type="text" id="search" placeholder="Search projects" aria-label="Search projects" />
+                <button id="search-clear" title="Clear search" aria-label="Clear search">&#x2716;&#xFE0F;</button>
+            </div>
         </div>
         <div id="projects"></div>
         <div id="spinner" class="hidden">
@@ -56,7 +57,7 @@ object HtmlContent {
     <div id="details">
         <div id="details-header">
             <div id="details-title">Details</div>
-            <button id="details-toggle" title="Toggle info">&#x1F53C;</button>
+            <button id="details-toggle" title="Toggle info" aria-expanded="true">&#x25B4;</button>
         </div>
         <div id="details-info"></div>
         <div id="details-list"></div>
@@ -147,13 +148,15 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
 }
 .toolbar button:hover { background: var(--vscode-button-hoverBackground); }
 
-.search { display: flex; align-items: center; gap: 6px; padding: 6px 8px;
-          border-bottom: 1px solid var(--vscode-panel-border); }
-.search input { flex: 1; background: var(--vscode-input-background); color: var(--vscode-input-foreground);
-                border: 1px solid var(--vscode-input-border, transparent); padding: 4px 8px; font-size: 12px;
-                border-radius: 2px; }
-.search button { background: transparent; color: var(--vscode-descriptionForeground);
-                 border: none; cursor: pointer; padding: 2px 4px; }
+.search { padding: 6px 8px; border-bottom: 1px solid var(--vscode-panel-border); }
+.search-wrap { position: relative; display: flex; align-items: center; }
+.search input { flex: 1; width: 100%; box-sizing: border-box; background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+                border: 1px solid var(--vscode-input-border, transparent); padding: 4px 26px 4px 8px; font-size: 12px;
+                border-radius: 2px; outline: none; }
+.search input:focus { border-color: var(--vscode-focusBorder); }
+.search button { position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+                 background: transparent; color: var(--vscode-descriptionForeground);
+                 border: none; cursor: pointer; padding: 0 2px; line-height: 1; font-size: 11px; }
 .search button:hover { color: var(--vscode-foreground); }
 
 #projects { flex: 1; overflow-y: auto; padding: 6px; }
@@ -240,8 +243,21 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
     padding: 8px 10px;
     background: var(--vscode-editorWidget-background);
 }
-.item-widget.kind-content { border-color: #4ca97a; box-shadow: 0 0 0 1px rgba(76,169,122,0.15); }
-.item-widget.kind-artifact { border-color: #c66060; box-shadow: 0 0 0 1px rgba(198,96,96,0.15); }
+.item-widget.kind-content {
+    border-color: var(--vscode-editorInfo-border, var(--vscode-editorInfo-foreground, #3794ff));
+    box-shadow: 0 0 0 1px rgba(55,148,255,0.12);
+}
+.item-widget.kind-artifact {
+    border-color: var(--vscode-editorWarning-border, var(--vscode-editorWarning-foreground, #cca700));
+    box-shadow: 0 0 0 1px rgba(204,167,0,0.12);
+}
+.widget-kind-badge {
+    display: inline-block; font-size: 9px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 1px 5px; border-radius: 3px; margin-left: 6px; vertical-align: middle; opacity: 0.75;
+}
+.kind-content  .widget-kind-badge { background: var(--vscode-editorInfo-border, var(--vscode-editorInfo-foreground, #3794ff)); color: var(--vscode-editor-background, #2b2b2b); }
+.kind-artifact .widget-kind-badge { background: var(--vscode-editorWarning-border, var(--vscode-editorWarning-foreground, #cca700)); color: var(--vscode-editor-background, #2b2b2b); }
 .item-widget .widget-html { margin-top: 6px; font-size: 12px; line-height: 1.4; }
 .item-widget .widget-html img { max-width: 100%; height: auto; }
 .item-widget .widget-html a { color: var(--vscode-textLink-foreground); }
@@ -629,6 +645,9 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
 
     detailsToggle.addEventListener('click', () => {
         detailsInfo.classList.toggle('collapsed');
+        const collapsed = detailsInfo.classList.contains('collapsed');
+        detailsToggle.textContent = collapsed ? '\u25BE' : '\u25B4';
+        detailsToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     });
 
     function renderDetails() {
@@ -727,7 +746,10 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
         title.className = 'widget-title';
         const klass = (data && data.klass && Array.isArray(data.klass)) ? data.klass[1] : typeName;
         const iconName = kind === 'content' ? iconForContent(klass) : iconForArtifact(klass);
-        title.innerHTML = '<span class="widget-icon">' + escapeHtml(iconName) + '</span> ' + escapeHtml(klass) + (name ? ' <span class="widget-subtitle">- ' + escapeHtml(name) + '</span>' : '');
+        const badgeLabel = kind === 'content' ? 'Content' : 'Artifact';
+        title.innerHTML = '<span class="widget-icon">' + escapeHtml(iconName) + '</span> ' + escapeHtml(klass)
+            + (name ? ' <span class="widget-subtitle">- ' + escapeHtml(name) + '</span>' : '')
+            + ' <span class="widget-kind-badge">' + escapeHtml(badgeLabel) + '</span>';
         w.appendChild(title);
 
         const actions = document.createElement('div');
@@ -747,7 +769,7 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
 
         if (showMake) {
             const mk = document.createElement('button');
-            mk.title = 'Make';
+            mk.title = 'Make artifact';
             mk.textContent = '\u25B6\uFE0F';
             mk.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -762,7 +784,7 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
             actions.appendChild(mk);
         }
         const ib = document.createElement('button');
-        ib.title = 'Info';
+        ib.title = 'Show documentation';
         ib.textContent = '\u2139\uFE0F';
         ib.addEventListener('click', (e) => {
             e.stopPropagation();

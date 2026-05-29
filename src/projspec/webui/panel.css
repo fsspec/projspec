@@ -47,19 +47,23 @@ body {
 .toolbar button:hover { background: var(--vscode-button-hoverBackground, #505050); }
 
 .search {
-    display: flex; align-items: center; gap: 6px; padding: 6px 8px;
+    padding: 6px 8px;
     border-bottom: 1px solid var(--vscode-panel-border, #3c3c3c);
 }
+.search-wrap { position: relative; display: flex; align-items: center; }
 .search input {
-    flex: 1; background: var(--vscode-input-background, #3c3c3c);
+    flex: 1; width: 100%; box-sizing: border-box;
+    background: var(--vscode-input-background, #3c3c3c);
     color: var(--vscode-input-foreground, #cccccc);
     border: 1px solid var(--vscode-input-border, transparent);
-    padding: 4px 8px; font-size: 12px; border-radius: 2px;
+    padding: 4px 26px 4px 8px; font-size: 12px; border-radius: 2px; outline: none;
 }
+.search input:focus { border-color: var(--vscode-focusBorder, #007acc); }
 .search button {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
     background: transparent;
     color: var(--vscode-descriptionForeground, #858585);
-    border: none; cursor: pointer; padding: 2px 4px;
+    border: none; cursor: pointer; padding: 0 2px; line-height: 1; font-size: 11px;
 }
 .search button:hover { color: var(--vscode-foreground, #cccccc); }
 
@@ -169,8 +173,32 @@ body {
     padding: 8px 10px;
     background: var(--vscode-editorWidget-background, #252526);
 }
-.item-widget.kind-content { border-color: #4ca97a; box-shadow: 0 0 0 1px rgba(76,169,122,0.15); }
-.item-widget.kind-artifact { border-color: #c66060; box-shadow: 0 0 0 1px rgba(198,96,96,0.15); }
+/* Kind-based outlines: semantic tokens adapt to light/dark/high-contrast
+ * themes.  A text badge is also added in JS so the distinction is never
+ * color-only (accessibility). */
+.item-widget.kind-content {
+    border-color: var(--vscode-editorInfo-border, var(--vscode-editorInfo-foreground, #3794ff));
+    box-shadow: 0 0 0 1px rgba(55,148,255,0.12);
+}
+.item-widget.kind-artifact {
+    border-color: var(--vscode-editorWarning-border, var(--vscode-editorWarning-foreground, #cca700));
+    box-shadow: 0 0 0 1px rgba(204,167,0,0.12);
+}
+.widget-kind-badge {
+    display: inline-block;
+    font-size: 9px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 1px 5px; border-radius: 3px;
+    margin-left: 6px; vertical-align: middle; opacity: 0.75;
+}
+.kind-content  .widget-kind-badge {
+    background: var(--vscode-editorInfo-border, var(--vscode-editorInfo-foreground, #3794ff));
+    color: var(--vscode-editor-background, #1e1e1e);
+}
+.kind-artifact .widget-kind-badge {
+    background: var(--vscode-editorWarning-border, var(--vscode-editorWarning-foreground, #cca700));
+    color: var(--vscode-editor-background, #1e1e1e);
+}
 .item-widget .widget-html { margin-top: 6px; font-size: 12px; line-height: 1.4; }
 .item-widget .widget-html img { max-width: 100%; height: auto; }
 .item-widget .widget-html a { color: var(--vscode-textLink-foreground, #3794ff); }

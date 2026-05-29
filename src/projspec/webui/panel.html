@@ -15,9 +15,10 @@
             <button id="btn-configure"><!--ICON:configure--> Configure</button>
         </div>
         <div class="search">
-            <span class="search-icon"><!--ICON:search--></span>
-            <input type="text" id="search" placeholder="Filter projects..." />
-            <button id="search-clear" title="Clear"><!--ICON:clear--></button>
+            <div class="search-wrap">
+                <input type="text" id="search" placeholder="Search projects" aria-label="Search projects" />
+                <button id="search-clear" title="Clear search" aria-label="Clear search"><!--ICON:clear--></button>
+            </div>
         </div>
         <div id="projects"></div>
         <div id="spinner" class="hidden">
@@ -28,7 +29,7 @@
     <div id="details">
         <div id="details-header">
             <div id="details-title">Details</div>
-            <button id="details-toggle" title="Toggle info"><!--ICON:chevron_up--></button>
+            <button id="details-toggle" title="Toggle info" aria-expanded="true"><!--ICON:chevron_up--></button>
         </div>
         <div id="details-info"></div>
         <div id="details-list"></div>

@@ -690,7 +690,9 @@ class ProjectWidget(Static):
                     for label, url, kind, spec_name in row:
                         yield Chip(label, url, kind, spec_name)
         with Horizontal(id="kebab-row"):
-            yield Button(CHROME_ICONS["kebab"], id="kebab", variant="default")
+            kebab_btn = Button(CHROME_ICONS["kebab"], id="kebab", variant="default")
+            kebab_btn.tooltip = "More actions"
+            yield kebab_btn
 
     @on(Button.Pressed, "#kebab")
     def _on_kebab(self, event: Button.Pressed) -> None:
@@ -721,10 +723,11 @@ class ItemWidget(Static):
         height: auto;
         background: #252526;
     }
-    ItemWidget.kind-content { border: solid #4ca97a; }
-    ItemWidget.kind-artifact { border: solid #c66060; }
+    ItemWidget.kind-content  { border: solid #3794ff; }
+    ItemWidget.kind-artifact { border: solid #cca700; }
     ItemWidget .widget-title { text-style: bold; }
     ItemWidget .widget-subtitle { color: #858585; }
+    ItemWidget .widget-kind-badge { color: #858585; text-style: bold; }
     ItemWidget #actions { height: 3; }
     ItemWidget #actions Button { min-width: 5; width: 6; margin-right: 1; padding: 0; }
     ItemWidget .body { padding: 0 0 0 1; }
@@ -763,8 +766,10 @@ class ItemWidget(Static):
         )
         title_suffix = f"  - {self._name}" if self._name else ""
         icon = _project_icon(self._kind, klass, self._infos)
+        badge = "CONTENT" if self._kind == "content" else "ARTIFACT"
         yield Static(
-            f"{icon} [bold]{klass}[/][#858585]{title_suffix}[/]",
+            f"{icon} [bold]{klass}[/][#858585]{title_suffix}[/]"
+            f" [widget-kind-badge]{badge}[/]",
             classes="widget-title",
         )
 
@@ -782,7 +787,7 @@ class ItemWidget(Static):
             mb.tooltip = "Make artifact"
             buttons.append(mb)
         ib = Button(CHROME_ICONS["info"], id="btn-info")
-        ib.tooltip = "Info"
+        ib.tooltip = "Show documentation"
         buttons.append(ib)
         if buttons:
             with Horizontal(id="actions"):
@@ -958,10 +963,12 @@ class ProjspecApp(App):
                         id="btn-configure",
                     )
                 with Horizontal(id="search-row"):
-                    yield Input(placeholder="Filter projects...", id="search")
-                    yield Button(
+                    yield Input(placeholder="Search projects", id="search")
+                    btn_clear = Button(
                         CHROME_ICONS["clear"], id="btn-clear", variant="default"
                     )
+                    btn_clear.tooltip = "Clear search"
+                    yield btn_clear
                 yield VerticalScroll(id="projects")
             with Vertical(id="details-pane"):
                 with Vertical(id="details-header"):
