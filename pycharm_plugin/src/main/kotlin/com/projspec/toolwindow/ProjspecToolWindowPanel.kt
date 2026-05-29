@@ -392,6 +392,10 @@ class ProjspecToolWindowPanel(
             ApplicationManager.getApplication().invokeLater {
                 FileEditorManager.getInstance(project).openFile(vf, true)
             }
+            Notifier.info(
+                "ProjSpec configuration — <a href=\"https://projspec.readthedocs.io/en/latest/config.html\">see the docs</a> for all available fields.",
+                project
+            )
         } else {
             Notifier.error("Could not open ${file.path}", project)
         }

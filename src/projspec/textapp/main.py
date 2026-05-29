@@ -1036,7 +1036,10 @@ class ProjspecApp(App):
             conf_dir.mkdir(parents=True, exist_ok=True)
             conf_file.write_text(json.dumps(DEFAULT_CONFIG, indent=4))
         _open_default(str(conf_file))
-        self.status_message = f"Opened {conf_file}"
+        self.status_message = (
+            f"Opened {conf_file} — docs: "
+            "https://projspec.readthedocs.io/en/latest/config.html"
+        )
 
     @on(Button.Pressed, "#btn-clear")
     def _on_clear(self) -> None:
