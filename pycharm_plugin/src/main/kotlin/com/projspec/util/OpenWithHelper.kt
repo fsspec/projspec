@@ -1,7 +1,8 @@
 package com.projspec.util
 
+import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.project.Project
-import java.awt.Desktop
 import java.io.File
 
 /**
@@ -32,9 +33,12 @@ object OpenWithHelper {
     }
 
     /**
-     * Open the OS file browser at the given path, using the platform-native
-     * launcher.  Falls back to `java.awt.Desktop` if the shell helper is
-     * unavailable.
+     * Open the OS file browser at the given path.
+     *
+     * Uses platform-specific launchers first (open/explorer/xdg-open).
+     * Falls back to IntelliJ's BrowserUtil which is reliable across all
+     * IDE deployment modes including JetBrains Gateway / remote dev —
+     * unlike java.awt.Desktop which is unreliable on Linux/headless.
      */
     fun openWithFileBrowser(project: Project, url: String) {
         val path = urlToPath(url)
@@ -45,11 +49,10 @@ object OpenWithHelper {
             else                   -> listOf("xdg-open", path)
         }
         if (!spawn(project, cmd)) {
-            try {
-                Desktop.getDesktop().open(File(path))
-            } catch (e: Exception) {
-                Notifier.error("Could not open file browser: ${e.message}", project)
-            }
+            // BrowserUtil handles the URI-to-browser dispatch reliably across
+            // all IntelliJ Platform deployment modes, replacing the previous
+            // java.awt.Desktop.open() call which fails in remote/headless contexts.
+            BrowserUtil.browse(File(path).toURI())
         }
     }
 
@@ -70,13 +73,18 @@ object OpenWithHelper {
     }
 
     /**
-     * Spawn a detached subprocess.  Returns true on success, false if the
-     * binary could not be found.  Errors other than "not found" surface as a
-     * warning notification so the user knows what went wrong.
+     * Spawn a detached subprocess using IntelliJ's GeneralCommandLine, which
+     * handles cross-platform PATH resolution and argument quoting correctly —
+     * replacing the previous direct java.lang.ProcessBuilder usage.
+     *
+     * Returns true on success, false if the binary could not be found or the
+     * process failed to start.  Errors surface as a warning notification.
      */
     private fun spawn(project: Project, cmd: List<String>): Boolean {
         return try {
-            ProcessBuilder(cmd).redirectErrorStream(true).start()
+            GeneralCommandLine(cmd)
+                .withRedirectErrorStream(true)
+                .createProcess()
             true
         } catch (e: Exception) {
             Notifier.warning("Could not run ${cmd.joinToString(" ")}: ${e.message}", project)

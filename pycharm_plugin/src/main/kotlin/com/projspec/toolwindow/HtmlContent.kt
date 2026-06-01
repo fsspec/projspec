@@ -155,9 +155,10 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
                 border-radius: 2px; outline: none; }
 .search input:focus { border-color: var(--vscode-focusBorder); }
 .search button { position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-                 background: transparent; color: var(--vscode-descriptionForeground);
-                 border: none; cursor: pointer; padding: 0 2px; line-height: 1; font-size: 11px; }
-.search button:hover { color: var(--vscode-foreground); }
+                 background: transparent; color: var(--vscode-input-foreground);
+                 border: none; cursor: pointer; padding: 0 2px; line-height: 1; font-size: 11px;
+                 opacity: 0.6; }
+.search button:hover { color: var(--vscode-input-foreground); opacity: 1; }
 
 #projects { flex: 1; overflow-y: auto; padding: 6px; }
 #spinner { text-align: center; padding: 16px; color: var(--vscode-descriptionForeground); }
