@@ -1,7 +1,7 @@
-from projspec.proj.base import ProjectSpec
+from projspec.proj.base import ProjectFlag
 
 
-class AIEnabled(ProjectSpec):
+class AIEnabled(ProjectFlag):
     """This project has text files intended for LLM/AI to read."""
 
     icon = "🤖"

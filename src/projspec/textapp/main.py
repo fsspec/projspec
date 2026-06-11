@@ -577,6 +577,10 @@ class Chip(Static):
         background: #555;
         color: #dcdcaa;
     }
+    Chip.global-chip {
+        background: #888;
+        color: #1e1e1e;
+    }
     Chip:hover { background: #094771; }
     Chip.active { background: #094771; color: #ffffff; }
     """
@@ -663,21 +667,13 @@ class ProjectWidget(Static):
         chip_args: list[tuple[str, str, str, str | None]] = []
         contents = self.project.get("contents") or {}
         artifacts = self.project.get("artifacts") or {}
-        if contents:
+        global_count = len(contents) + len(artifacts)
+        if global_count > 0:
             chip_args.append(
                 (
-                    f"{DEFAULT_ICON['content']} Contents <{len(contents)}>",
+                    "Global",
                     self.url,
-                    "contents",
-                    None,
-                )
-            )
-        if artifacts:
-            chip_args.append(
-                (
-                    f"{DEFAULT_ICON['artifact']} Artifacts <{len(artifacts)}>",
-                    self.url,
-                    "artifacts",
+                    "global",
                     None,
                 )
             )
@@ -688,7 +684,10 @@ class ProjectWidget(Static):
             for row in _wrap_chips(chip_args, _CHIPS_ROW_WIDTH):
                 with Horizontal(classes="chips-row"):
                     for label, url, kind, spec_name in row:
-                        yield Chip(label, url, kind, spec_name)
+                        chip = Chip(label, url, kind, spec_name)
+                        if kind == "global":
+                            chip.add_class("global-chip")
+                        yield chip
         with Horizontal(id="kebab-row"):
             kebab_btn = Button(CHROME_ICONS["kebab"], id="kebab", variant="default")
             kebab_btn.tooltip = "More actions"
@@ -1150,8 +1149,8 @@ class ProjspecApp(App):
                 spec_name,
                 url,
             )
-        elif kind == "contents":
-            title_el.update(_role("Contents", "content"))
+        elif kind == "global":
+            title_el.update(_role("Global", "spec"))
             doc_el.update("")
             self._mount_item_group(
                 list_el,
@@ -1161,9 +1160,6 @@ class ProjspecApp(App):
                 None,
                 url,
             )
-        elif kind == "artifacts":
-            title_el.update(_role("Artifacts", "artifact"))
-            doc_el.update("")
             self._mount_item_group(
                 list_el,
                 pdict.get("artifacts") or {},

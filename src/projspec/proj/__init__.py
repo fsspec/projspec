@@ -1,6 +1,12 @@
 """Project and spec classes"""
 
-from projspec.proj.base import ParseFailed, Project, ProjectSpec, ProjectExtra
+from projspec.proj.base import (
+    ParseFailed,
+    Project,
+    ProjectSpec,
+    ProjectExtra,
+    ProjectFlag,
+)
 
 from projspec.proj.ai import AIEnabled
 from projspec.proj.anaconda_project import AnacondaProject

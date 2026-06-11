@@ -399,6 +399,7 @@ def class_infos():
                 "link": cls.spec_doc,
                 "icon": getattr(cls, "icon", None),
                 "create": cls._create is not projspec.ProjectSpec._create,
+                "flag": issubclass(cls, projspec.proj.ProjectFlag),
             }
             for name, cls in projspec.proj.base.registry.items()
         },

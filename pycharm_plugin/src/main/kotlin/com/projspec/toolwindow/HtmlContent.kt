@@ -537,11 +537,11 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
         chips.className = 'chips';
         const contents = project.contents || {};
         const artifacts = project.artifacts || {};
-        if (Object.keys(contents).length > 0) {
-            chips.appendChild(makeChip('Contents <' + Object.keys(contents).length + '>', url, 'contents', null, null));
-        }
-        if (Object.keys(artifacts).length > 0) {
-            chips.appendChild(makeChip('Artifacts <' + Object.keys(artifacts).length + '>', url, 'artifacts', null, null));
+        const globalCount = Object.keys(contents).length + Object.keys(artifacts).length;
+        if (globalCount > 0) {
+            const globalChip = makeChip('Global', url, 'global', null, null);
+            globalChip.style.background = '#d0d0d0';
+            chips.appendChild(globalChip);
         }
         for (const specName of Object.keys(project.specs || {})) {
             chips.appendChild(makeChip(specDisplayName(specName), url, 'spec', specName, iconForSpec(specName)));
@@ -679,11 +679,9 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
                 renderItemGroup(spec._contents || {}, 'content', false, selection.specName);
                 renderItemGroup(spec._artifacts || {}, 'artifact', true, selection.specName);
             }
-        } else if (selection.kind === 'contents') {
-            detailsTitle.textContent = 'Contents';
+        } else if (selection.kind === 'global') {
+            detailsTitle.textContent = 'Global';
             renderItemGroup(project.contents || {}, 'content', false, undefined);
-        } else if (selection.kind === 'artifacts') {
-            detailsTitle.textContent = 'Artifacts';
             renderItemGroup(project.artifacts || {}, 'artifact', true, undefined);
         }
     }
