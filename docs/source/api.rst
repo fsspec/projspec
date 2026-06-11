@@ -17,12 +17,14 @@ Base Classes
    proj.base.Project
    proj.base.ProjectSpec
    proj.base.ProjectExtra
+   proj.base.ProjectFlag
 
 .. autoclass:: projspec.proj.base.Project
    :members:
 .. autoclass:: projspec.proj.base.ProjectSpec
    :members:
 .. autoclass:: projspec.proj.base.ProjectExtra
+.. autoclass:: projspec.proj.base.ProjectFlag
 
 User Classes
 ~~~~~~~~~~~~
