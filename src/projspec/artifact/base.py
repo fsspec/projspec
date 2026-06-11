@@ -19,11 +19,11 @@ class BaseArtifact:
     """
 
     icon = "🔨"
+    proc = None
 
     def __init__(self, proj: Project, cmd: list[str] | None = None, **kwargs):
         self.proj = proj
         self.cmd = cmd
-        self.proc = None
         self.__dict__.update(kwargs)
 
     def _is_clean(self) -> bool:
@@ -98,7 +98,6 @@ class BaseArtifact:
             if not k.startswith("_") and k not in ("proj", "proc")
         }
         dic["klass"] = ["artifact", self.snake_name()]
-        dic["proc"] = None
         return dic
 
 
