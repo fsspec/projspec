@@ -120,6 +120,7 @@
         detailsInfo.classList.toggle('collapsed');
         const collapsed = detailsInfo.classList.contains('collapsed');
         detailsToggle.textContent = collapsed ? CHROME_ICONS.chevron_down : CHROME_ICONS.chevron_up;
+        detailsToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     });
 
     function render() {
@@ -175,10 +176,12 @@
         chips.className = 'chips';
         const contents = project.contents || {};
         const artifacts = project.artifacts || {};
-        if (Object.keys(contents).length > 0)
-            chips.appendChild(makeChip('Contents <' + Object.keys(contents).length + '>', url, 'contents', null, null));
-        if (Object.keys(artifacts).length > 0)
-            chips.appendChild(makeChip('Artifacts <' + Object.keys(artifacts).length + '>', url, 'artifacts', null, null));
+        const globalCount = Object.keys(contents).length + Object.keys(artifacts).length;
+        if (globalCount > 0) {
+            const globalChip = makeChip('Global', url, 'global', null, null);
+            globalChip.style.background = '#d0d0d0';
+            chips.appendChild(globalChip);
+        }
         for (const specName of Object.keys(project.specs || {})) {
             chips.appendChild(makeChip(specName, url, 'spec', specName, iconForSpec(specName)));
         }
@@ -299,11 +302,9 @@
                 renderItemGroup(spec._contents || {}, 'content', false, selection.specName);
                 renderItemGroup(spec._artifacts || {}, 'artifact', true, selection.specName);
             }
-        } else if (selection.kind === 'contents') {
-            detailsTitle.textContent = 'Contents';
+        } else if (selection.kind === 'global') {
+            detailsTitle.textContent = 'Global';
             renderItemGroup(project.contents || {}, 'content', false, undefined);
-        } else if (selection.kind === 'artifacts') {
-            detailsTitle.textContent = 'Artifacts';
             renderItemGroup(project.artifacts || {}, 'artifact', true, undefined);
         }
     }
@@ -366,8 +367,10 @@
         title.className = 'widget-title';
         const klass = (data && data.klass && Array.isArray(data.klass)) ? data.klass[1] : typeName;
         const iconName = kind === 'content' ? iconForContent(klass) : iconForArtifact(klass);
+        const badgeLabel = kind === 'content' ? 'Content' : 'Artifact';
         title.innerHTML = '<span class="widget-icon">' + escapeHtml(iconName) + '</span> ' + escapeHtml(klass)
-            + (name ? ' <span class="widget-subtitle">- ' + escapeHtml(name) + '</span>' : '');
+            + (name ? ' <span class="widget-subtitle">- ' + escapeHtml(name) + '</span>' : '')
+            + ' <span class="widget-kind-badge">' + escapeHtml(badgeLabel) + '</span>';
         w.appendChild(title);
 
         const actions = document.createElement('div');
@@ -387,7 +390,7 @@
 
         if (showMake) {
             const mk = document.createElement('button');
-            mk.title = 'Make';
+            mk.title = 'Make artifact';
             mk.textContent = CHROME_ICONS.play;
             mk.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -402,7 +405,7 @@
             actions.appendChild(mk);
         }
         const ib = document.createElement('button');
-        ib.title = 'Info';
+        ib.title = 'Show documentation';
         ib.textContent = CHROME_ICONS.info;
         ib.addEventListener('click', (e) => {
             e.stopPropagation();

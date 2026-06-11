@@ -1,7 +1,7 @@
 """Code project container config within IDEs"""
 
 from projspec.artifact import BaseArtifact
-from projspec.proj import ProjectSpec
+from projspec.proj import ProjectSpec, ProjectFlag
 
 
 class NvidiaAIWorkbench(ProjectSpec):
@@ -26,21 +26,14 @@ class NvidiaAIWorkbench(ProjectSpec):
     # https://docs.nvidia.com/ai-workbench/user-guide/latest/reference/user-interface/cli.html#create-project
 
 
-class JetbrainsIDE(ProjectSpec):
+class JetbrainsIDE(ProjectFlag):
     icon = "🛩️"
 
     def match(self) -> bool:
         return self.proj.fs.exists(f"{self.proj.url}/.idea")
 
-    def parse(self) -> None:
-        from projspec.artifact.process import Process
 
-        self.artifacts["launch"] = Process(
-            self.proj, cmd=["pycharm", ".", "nosplash", "dontReopenProjects"]
-        )
-
-
-class VSCode(ProjectSpec):
+class VSCode(ProjectFlag):
     icon = "💻"
     spec_doc = (
         "https://code.visualstudio.com/docs/configure/settings#_settings-json-file"
@@ -49,20 +42,10 @@ class VSCode(ProjectSpec):
     def match(self) -> bool:
         return self.proj.fs.exists(f"{self.proj.url}/.vscode/settings.json")
 
-    def parse(self) -> None:
-        from projspec.artifact.process import Process
 
-        self.artifacts["launch"] = Process(self.proj, cmd=["code", "."])
-
-
-class Zed(ProjectSpec):
+class Zed(ProjectFlag):
     icon = "⚡"
     spec_doc = "https://zed.dev/docs/configuring-zed#settings"
 
     def match(self) -> bool:
         return self.proj.fs.exists(f"{self.proj.url}/.zed/settings.json")
-
-    def parse(self) -> None:
-        from projspec.artifact.process import Process
-
-        self.artifacts["launch"] = Process(self.proj, cmd=["zed", "."])

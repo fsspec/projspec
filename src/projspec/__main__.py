@@ -299,6 +299,14 @@ def defaults():
         print(f"{k}: {v} -- {d}")
 
 
+@config.command("create")
+def create():
+    """Create the config file with default values, if it doesn't exist"""
+    from projspec.config import populate_if_empty
+
+    print(populate_if_empty())
+
+
 @config.command("unset")
 @click.argument("key")
 def unset(key):

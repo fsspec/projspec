@@ -56,7 +56,7 @@ try:
     )
 except ImportError as e:
     warnings.warn("Texutal is required for the TUI")
-    app = None
+    App = None
 
 
 # ---------------------------------------------------------------------------
@@ -577,6 +577,10 @@ class Chip(Static):
         background: #555;
         color: #dcdcaa;
     }
+    Chip.global-chip {
+        background: #888;
+        color: #1e1e1e;
+    }
     Chip:hover { background: #094771; }
     Chip.active { background: #094771; color: #ffffff; }
     """
@@ -663,21 +667,13 @@ class ProjectWidget(Static):
         chip_args: list[tuple[str, str, str, str | None]] = []
         contents = self.project.get("contents") or {}
         artifacts = self.project.get("artifacts") or {}
-        if contents:
+        global_count = len(contents) + len(artifacts)
+        if global_count > 0:
             chip_args.append(
                 (
-                    f"{DEFAULT_ICON['content']} Contents <{len(contents)}>",
+                    "Global",
                     self.url,
-                    "contents",
-                    None,
-                )
-            )
-        if artifacts:
-            chip_args.append(
-                (
-                    f"{DEFAULT_ICON['artifact']} Artifacts <{len(artifacts)}>",
-                    self.url,
-                    "artifacts",
+                    "global",
                     None,
                 )
             )
@@ -688,9 +684,14 @@ class ProjectWidget(Static):
             for row in _wrap_chips(chip_args, _CHIPS_ROW_WIDTH):
                 with Horizontal(classes="chips-row"):
                     for label, url, kind, spec_name in row:
-                        yield Chip(label, url, kind, spec_name)
+                        chip = Chip(label, url, kind, spec_name)
+                        if kind == "global":
+                            chip.add_class("global-chip")
+                        yield chip
         with Horizontal(id="kebab-row"):
-            yield Button(CHROME_ICONS["kebab"], id="kebab", variant="default")
+            kebab_btn = Button(CHROME_ICONS["kebab"], id="kebab", variant="default")
+            kebab_btn.tooltip = "More actions"
+            yield kebab_btn
 
     @on(Button.Pressed, "#kebab")
     def _on_kebab(self, event: Button.Pressed) -> None:
@@ -721,10 +722,11 @@ class ItemWidget(Static):
         height: auto;
         background: #252526;
     }
-    ItemWidget.kind-content { border: solid #4ca97a; }
-    ItemWidget.kind-artifact { border: solid #c66060; }
+    ItemWidget.kind-content  { border: solid #3794ff; }
+    ItemWidget.kind-artifact { border: solid #cca700; }
     ItemWidget .widget-title { text-style: bold; }
     ItemWidget .widget-subtitle { color: #858585; }
+    ItemWidget .widget-kind-badge { color: #858585; text-style: bold; }
     ItemWidget #actions { height: 3; }
     ItemWidget #actions Button { min-width: 5; width: 6; margin-right: 1; padding: 0; }
     ItemWidget .body { padding: 0 0 0 1; }
@@ -763,8 +765,10 @@ class ItemWidget(Static):
         )
         title_suffix = f"  - {self._name}" if self._name else ""
         icon = _project_icon(self._kind, klass, self._infos)
+        badge = "CONTENT" if self._kind == "content" else "ARTIFACT"
         yield Static(
-            f"{icon} [bold]{klass}[/][#858585]{title_suffix}[/]",
+            f"{icon} [bold]{klass}[/][#858585]{title_suffix}[/]"
+            f" [widget-kind-badge]{badge}[/]",
             classes="widget-title",
         )
 
@@ -782,7 +786,7 @@ class ItemWidget(Static):
             mb.tooltip = "Make artifact"
             buttons.append(mb)
         ib = Button(CHROME_ICONS["info"], id="btn-info")
-        ib.tooltip = "Info"
+        ib.tooltip = "Show documentation"
         buttons.append(ib)
         if buttons:
             with Horizontal(id="actions"):
@@ -958,10 +962,12 @@ class ProjspecApp(App):
                         id="btn-configure",
                     )
                 with Horizontal(id="search-row"):
-                    yield Input(placeholder="Filter projects...", id="search")
-                    yield Button(
+                    yield Input(placeholder="Search projects", id="search")
+                    btn_clear = Button(
                         CHROME_ICONS["clear"], id="btn-clear", variant="default"
                     )
+                    btn_clear.tooltip = "Clear search"
+                    yield btn_clear
                 yield VerticalScroll(id="projects")
             with Vertical(id="details-pane"):
                 with Vertical(id="details-header"):
@@ -1029,7 +1035,10 @@ class ProjspecApp(App):
             conf_dir.mkdir(parents=True, exist_ok=True)
             conf_file.write_text(json.dumps(DEFAULT_CONFIG, indent=4))
         _open_default(str(conf_file))
-        self.status_message = f"Opened {conf_file}"
+        self.status_message = (
+            f"Opened {conf_file} — docs: "
+            "https://projspec.readthedocs.io/en/latest/config.html"
+        )
 
     @on(Button.Pressed, "#btn-clear")
     def _on_clear(self) -> None:
@@ -1140,8 +1149,8 @@ class ProjspecApp(App):
                 spec_name,
                 url,
             )
-        elif kind == "contents":
-            title_el.update(_role("Contents", "content"))
+        elif kind == "global":
+            title_el.update(_role("Global", "spec"))
             doc_el.update("")
             self._mount_item_group(
                 list_el,
@@ -1151,9 +1160,6 @@ class ProjspecApp(App):
                 None,
                 url,
             )
-        elif kind == "artifacts":
-            title_el.update(_role("Artifacts", "artifact"))
-            doc_el.update("")
             self._mount_item_group(
                 list_el,
                 pdict.get("artifacts") or {},
@@ -1391,7 +1397,7 @@ class ProjspecApp(App):
 
 
 def main() -> None:
-    if app is None:
+    if App is None:
         print("Cannot run without textual installed")
         return
     app = ProjspecApp()

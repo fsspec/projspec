@@ -547,6 +547,13 @@ class ProjectSpec:
         return camel_to_snake(cls.__name__)
 
 
+class ProjectFlag(ProjectSpec):
+    """A special subcategory of project types with no content or artifacts."""
+
+    def parse(self) -> None:
+        pass
+
+
 class ProjectExtra(ProjectSpec):
     """A special subcategory of project types with content but no structure.
 

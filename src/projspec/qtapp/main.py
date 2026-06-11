@@ -46,7 +46,7 @@ except ImportError:
     QObject = object
     QMainWindow = object
     pyqtSignal = lambda *_: None
-    pyqtSlot = lambda *_: (lambda *_: None)
+    pyqtSlot = lambda *_: lambda *_: None
     warnings.warn("PyQt5 not installed", ImportWarning)
     qt = False
 
@@ -281,6 +281,8 @@ class ProjspecWindow(QMainWindow):
             conf_file.write_text(json.dumps(DEFAULT_CONFIG, indent=4))
         # Open in the OS default editor - there's no in-app editor here.
         _open_with_default(str(conf_file))
+        # Show docs link so users are not left with a bare JSON file.
+        webbrowser.open("https://projspec.readthedocs.io/en/latest/config.html")
 
     def _action_open_with(self, tool: str, url: str) -> None:
         local = _url_to_local(url)

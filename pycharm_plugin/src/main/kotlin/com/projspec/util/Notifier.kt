@@ -27,7 +27,10 @@ object Notifier {
         notify(message, NotificationType.INFORMATION, project)
 
     private fun notify(message: String, type: NotificationType, project: Project?) {
-        val notification = Notification(GROUP_ID, "projspec", message, type)
+        // The 4-arg constructor Notification(groupId, title, content, type) was
+        // deprecated in IntelliJ 2021.3.  Use the 3-arg form and let the
+        // notification group's display name serve as the title.
+        val notification = Notification(GROUP_ID, message, type)
         Notifications.Bus.notify(notification, project)
     }
 }

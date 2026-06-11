@@ -86,7 +86,7 @@ class Process(BaseArtifact):
         if self.proc is not None:
             self.proc.terminate()
             self.proc.wait()
-            self.proc = None
+            del self.proc
             self.queue = None
 
 

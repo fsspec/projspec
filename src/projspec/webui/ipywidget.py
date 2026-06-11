@@ -626,6 +626,10 @@ def _open_config_file(toast) -> None:
             toast(f"Could not create {conf_file}: {exc!r}")
             return
     _open_with_default(str(conf_file), toast)
+    toast(
+        "ProjSpec configuration — see the docs for all available fields: "
+        "https://projspec.readthedocs.io/en/latest/config.html"
+    )
 
 
 def _collect_enum_members() -> dict[str, dict[str, int | str]]:

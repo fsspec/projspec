@@ -1,6 +1,12 @@
 """Project and spec classes"""
 
-from projspec.proj.base import ParseFailed, Project, ProjectSpec, ProjectExtra
+from projspec.proj.base import (
+    ParseFailed,
+    Project,
+    ProjectSpec,
+    ProjectExtra,
+    ProjectFlag,
+)
 
 from projspec.proj.ai import AIEnabled
 from projspec.proj.anaconda_project import AnacondaProject
@@ -13,6 +19,7 @@ from projspec.proj.cicd import (
     JustFile,
     Taskfile,
     Tox,
+    Makefile,
 )
 from projspec.proj.conda_package import CondaRecipe, RattlerRecipe
 from projspec.proj.conda_project import CondaProject
@@ -75,6 +82,7 @@ __all__ = [
     "GitHubActions",
     "GitLabCI",
     "JustFile",
+    "Makefile",
     "Taskfile",
     "Tox",
     # Conda
@@ -82,6 +90,7 @@ __all__ = [
     "CondaRecipe",
     "CondaProject",
     "CondaWorkspace",
+    "RattlerRecipe",
     # Data
     "Data",
     "DataPackage",

@@ -1,6 +1,6 @@
 package com.projspec.settings
 
-import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.components.JBLabel
@@ -50,11 +50,13 @@ class ProjspecSettingsConfigurable : Configurable {
 class ProjspecSettingsPanel {
 
     private val cliPathField = TextFieldWithBrowseButton().apply {
+        // FileChooserDescriptorFactory static methods deprecated in 2024.2;
+        // use the FileChooserDescriptor constructor directly (canChooseFiles=true).
+        // The current non-deprecated overload is addBrowseFolderListener(Project?, FileChooserDescriptor).
         addBrowseFolderListener(
-            "Select projspec Binary",
-            "Choose the path to the projspec executable",
             null,
-            FileChooserDescriptorFactory.createSingleFileDescriptor()
+            FileChooserDescriptor(true, false, false, false, false, false)
+                .withTitle("Select projspec Binary")
         )
     }
 

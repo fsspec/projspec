@@ -3,13 +3,15 @@ package com.projspec.toolwindow
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
+import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.diagnostic.debug
 import com.intellij.openapi.fileChooser.FileChooser
-import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
-import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileChooser.FileChooserDescriptor
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefJSQuery
@@ -136,7 +138,7 @@ class ProjspecToolWindowPanel(
                 window.__projspecBridgeReady();
             }
             """.trimIndent(),
-            browser.cefBrowser.url,
+            "",
             0,
         )
         // Start the initial load exactly once, regardless of whether the
@@ -146,9 +148,9 @@ class ProjspecToolWindowPanel(
             synchronized(pending) {
                 while (pending.isNotEmpty()) {
                     val script = pending.removeFirst()
-                    ApplicationManager.getApplication().invokeLater {
-                        browser.cefBrowser.executeJavaScript(script, browser.cefBrowser.url, 0)
-                    }
+                    ApplicationManager.getApplication().invokeLater({
+                        browser.cefBrowser.executeJavaScript(script, "", 0)
+                    }, ModalityState.defaultModalityState())
                 }
             }
             pool { reload(initial = true) }
@@ -169,9 +171,9 @@ class ProjspecToolWindowPanel(
             synchronized(pending) { pending.addLast(script) }
             return
         }
-        ApplicationManager.getApplication().invokeLater {
-            browser.cefBrowser.executeJavaScript(script, browser.cefBrowser.url, 0)
-        }
+        ApplicationManager.getApplication().invokeLater({
+            browser.cefBrowser.executeJavaScript(script, "", 0)
+        }, ModalityState.defaultModalityState())
     }
 
     // ------------------------------------------------------------------------
@@ -234,7 +236,9 @@ class ProjspecToolWindowPanel(
     }
 
     private fun pool(fn: () -> Unit) {
-        ApplicationManager.getApplication().executeOnPooledThread {
+        // ApplicationManager.executeOnPooledThread was deprecated in 2024.1.
+        // AppExecutorUtil.getAppExecutorService() is the current replacement.
+        AppExecutorUtil.getAppExecutorService().submit {
             try { fn() } catch (e: Exception) {
                 Notifier.error("projspec: ${e.message}", project)
             }
@@ -249,9 +253,9 @@ class ProjspecToolWindowPanel(
         synchronized(pending) {
             while (pending.isNotEmpty()) {
                 val script = pending.removeFirst()
-                ApplicationManager.getApplication().invokeLater {
-                    browser.cefBrowser.executeJavaScript(script, browser.cefBrowser.url, 0)
-                }
+                ApplicationManager.getApplication().invokeLater({
+                    browser.cefBrowser.executeJavaScript(script, "", 0)
+                }, ModalityState.defaultModalityState())
             }
         }
         pool { reload(initial = true) }
@@ -353,8 +357,11 @@ class ProjspecToolWindowPanel(
      * VSCode: `showOpenDialog({ canSelectFolders: true })` + `projspec scan --library`.
      */
     private fun addProject() {
-        ApplicationManager.getApplication().invokeLater {
-            val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
+        // FileChooserDescriptorFactory static methods were deprecated in 2024.2;
+        // use the FileChooserDescriptor constructor directly.
+        // invokeLater with explicit ModalityState to avoid running in a write-unsafe context.
+        ApplicationManager.getApplication().invokeLater({
+            val descriptor = FileChooserDescriptor(false, true, false, false, false, false)
                 .withTitle("Add to Library")
             val chosen = FileChooser.chooseFile(descriptor, project, null) ?: return@invokeLater
             val target = chosen.path
@@ -367,7 +374,7 @@ class ProjspecToolWindowPanel(
                     reload(initial = false)
                 }
             }
-        }
+        }, ModalityState.defaultModalityState())
     }
 
     /**
@@ -387,13 +394,26 @@ class ProjspecToolWindowPanel(
             Notifier.error("Could not write ${file.path}: ${e.message}", project)
             return
         }
-        val vf = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file)
-        if (vf != null) {
-            ApplicationManager.getApplication().invokeLater {
-                FileEditorManager.getInstance(project).openFile(vf, true)
+        // VfsUtil.findFileByIoFile performs a VFS refresh but is safe to call
+        // from a background thread.  We do the lookup on the pool and then
+        // navigate back to the EDT to open the editor, avoiding a blocking
+        // refresh on the EDT (which was the previous pattern with
+        // LocalFileSystem.refreshAndFindFileByIoFile).
+        pool {
+            val vf = VfsUtil.findFileByIoFile(file, true)
+            if (vf != null) {
+                ApplicationManager.getApplication().invokeLater({
+                    // OpenFileDescriptor.navigate() is the non-deprecated replacement
+                    // for the two-arg FileEditorManager.openFile(vf, true) form.
+                    OpenFileDescriptor(project, vf).navigate(true)
+                }, ModalityState.defaultModalityState())
+                Notifier.info(
+                    "ProjSpec configuration — <a href=\"https://projspec.readthedocs.io/en/latest/config.html\">see the docs</a> for all available fields.",
+                    project
+                )
+            } else {
+                Notifier.error("Could not open ${file.path}", project)
             }
-        } else {
-            Notifier.error("Could not open ${file.path}", project)
         }
     }
 
@@ -509,14 +529,16 @@ class ProjspecToolWindowPanel(
             return
         }
         val target = matches.first()
-        val vf = LocalFileSystem.getInstance().refreshAndFindFileByPath(target)
+        // VfsUtil.findFileByIoFile is the non-blocking replacement for
+        // LocalFileSystem.refreshAndFindFileByPath.
+        val vf = VfsUtil.findFileByIoFile(File(target), true)
         if (vf == null) {
             Notifier.warning("Could not reveal $target", project)
             return
         }
-        ApplicationManager.getApplication().invokeLater {
-            FileEditorManager.getInstance(project).openFile(vf, true)
-        }
+        ApplicationManager.getApplication().invokeLater({
+            OpenFileDescriptor(project, vf).navigate(true)
+        }, ModalityState.defaultModalityState())
     }
 
     /** Expand `*` and `?` wildcards in a single path segment or whole path. */
