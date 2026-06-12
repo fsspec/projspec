@@ -1,4 +1,5 @@
 import io
+import json
 import logging
 import os
 import stat
@@ -621,9 +622,20 @@ class Project:
         """Add this project to the current session library"""
         # TODO: prevent overwrite?
         from projspec.library import ProjectLibrary
+        import json
 
+        # precheck serialisability (prevents malformed JSON diring save)
+        json.dumps(self.to_dict(compact=False))
         library = ProjectLibrary(path)
         library.add_entry(self.fs.unstrip_protocol(self.url), self)
+
+    def __bool__(self):
+        return (
+            bool(self.specs)
+            or bool(self.children)
+            or bool(self.contents)
+            or bool(self.artifacts)
+        )
 
 
 class ProjectSpec:

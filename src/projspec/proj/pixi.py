@@ -98,7 +98,7 @@ class Pixi(ProjectSpec):
                     details if isinstance(details, list) else details["features"]
                 )
                 for feat_name in feats:
-                    feat.update(meta["feature"][feat_name])
+                    feat.update(meta["feature"].get(feat_name, {}))
                 if isinstance(details, list) or not details.get("no-default-feature"):
                     feat.update(meta)
                 extract_feature(feat, procs, commands, self, env=env_name)
