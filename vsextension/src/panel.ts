@@ -568,6 +568,7 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
 .project .title { font-weight: bold; margin-right: 24px; }
 .project .url { font-size: 11px; color: var(--vscode-descriptionForeground); word-break: break-all; margin-top: 2px; }
 .project .storage-opts { font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 2px; font-style: italic; }
+.project .meta { font-size: 11px; color: var(--vscode-descriptionForeground); margin-top: 2px; }
 .project .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 
 .chip {
@@ -828,6 +829,24 @@ const PANEL_JS = String.raw`
             return idx >= 0 ? stripped.slice(idx + 1) : stripped;
         } catch { return url; }
     }
+    function fmtSize(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let n = parseFloat(bytes);
+        for (let i = 0; i < units.length; i++) {
+            if (n < 1024 || i === units.length - 1)
+                return (i === 0 ? n.toFixed(0) : n.toFixed(1)) + ' ' + units[i];
+            n /= 1024;
+        }
+    }
+    function fmtAge(ts) {
+        const days = Math.floor((Date.now() / 1000 - parseFloat(ts)) / 86400);
+        if (days === 0) return 'today';
+        if (days === 1) return 'yesterday';
+        if (days < 30) return days + ' days ago';
+        if (days < 365) return Math.floor(days / 30) + ' months ago';
+        const yrs = Math.floor(days / 365);
+        return yrs + ' year' + (yrs > 1 ? 's' : '') + ' ago';
+    }
     function specDisplayName(snake) { return snake; }
     function iconForSpec(snake) {
         const entry = info && info.specs && info.specs[snake];
@@ -893,6 +912,23 @@ const PANEL_JS = String.raw`
             so.className = 'storage-opts';
             so.textContent = 'storage_options: ' + JSON.stringify(project.storage_options);
             wrap.appendChild(so);
+        }
+
+        const metaParts = [];
+        if (project.file_count != null && project.total_size != null)
+            metaParts.push(parseInt(project.file_count).toLocaleString() + ' files, ' + fmtSize(project.total_size));
+        if (project.is_writable != null)
+            metaParts.push(project.is_writable === 'True' ? 'writable' : 'read-only');
+        if (project.last_modified != null) {
+            const age = fmtAge(project.last_modified);
+            const by = project.last_modified_by != null ? project.last_modified_by : null;
+            metaParts.push('last modified ' + age + (by ? ' by ' + by : ''));
+        }
+        if (metaParts.length > 0) {
+            const meta = document.createElement('div');
+            meta.className = 'meta';
+            meta.textContent = metaParts.join(' · ');
+            wrap.appendChild(meta);
         }
 
         const chips = document.createElement('div');

@@ -97,6 +97,10 @@ body {
     font-size: 11px; color: var(--vscode-descriptionForeground, #858585);
     margin-top: 2px; font-style: italic;
 }
+.project .meta {
+    font-size: 11px; color: var(--vscode-descriptionForeground, #858585);
+    margin-top: 2px;
+}
 .project .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 
 .chip {

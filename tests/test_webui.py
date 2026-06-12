@@ -142,8 +142,11 @@ def test_ipywidget_handlers_respond(tmp_path):
     lib_file = tmp_path / "lib.json"
     lib = ProjectLibrary(str(lib_file), auto_save=False)
     # Stock the library with one real entry so handlers have something to
-    # operate on.  Use a key with the file:// scheme to mimic add_to_library.
-    lib.entries["file:///data"] = Project("/data", walk=False)
+    # operate on.  Use the tmp_path itself so the test is not tied to any
+    # container-specific path.
+    proj_path = str(tmp_path)
+    proj_url = "file://" + proj_path
+    lib.entries[proj_url] = Project(proj_path, walk=False)
 
     widget = lib.ipywidget()
     outbox: list[dict] = []
@@ -161,7 +164,7 @@ def test_ipywidget_handlers_respond(tmp_path):
     msgs, _ = fire("ready")
     assert any(m.get("type") == "data" for m in msgs)
     data = next(m for m in msgs if m.get("type") == "data")
-    assert list(data["library"]) == ["file:///data"]
+    assert list(data["library"]) == [proj_url]
 
     # reload: must NOT wipe the library when the backing file is absent.
     # This guards the bug reported in the hand-off: ``library.load()`` sets
@@ -169,12 +172,12 @@ def test_ipywidget_handlers_respond(tmp_path):
     # every Reload click destroys the widget's state.
     assert not lib_file.exists()
     msgs, _ = fire("reload")
-    assert list(lib.entries) == ["file:///data"], list(lib.entries)
+    assert list(lib.entries) == [proj_url], list(lib.entries)
 
     # rescan: must preserve the library key (the frontend selection is
     # keyed on that URL).
-    fire("rescan", url="file:///data")
-    assert list(lib.entries) == ["file:///data"]
+    fire("rescan", url=proj_url)
+    assert list(lib.entries) == [proj_url]
 
     # add: opens the text-entry modal.
     msgs, _ = fire("add")
@@ -185,11 +188,11 @@ def test_ipywidget_handlers_respond(tmp_path):
     assert tlist and "Not a directory" in tlist[0]
 
     # createSpec: opens the create-spec modal.
-    msgs, _ = fire("createSpec", url="file:///data")
+    msgs, _ = fire("createSpec", url=proj_url)
     assert any(m.get("type") == "openCreateSpecModal" for m in msgs)
 
     # openWith with an unknown tool: handled with a toast, no spawn.
-    _, tlist = fire("openWith", tool="does-not-exist", url="file:///data")
+    _, tlist = fire("openWith", tool="does-not-exist", url=proj_url)
     assert tlist and "Unknown openWith tool" in tlist[0]
 
     # revealFile on a non-existent path: toast, no exception.
@@ -203,8 +206,8 @@ def test_ipywidget_handlers_respond(tmp_path):
     # removeFromLibrary must not call save() when auto_save is False.
     # (If it did, the assertion at the top of this test would have failed
     # for later handlers - but check explicitly.)
-    fire("removeFromLibrary", url="file:///data")
-    assert "file:///data" not in lib.entries
+    fire("removeFromLibrary", url=proj_url)
+    assert proj_url not in lib.entries
     assert not lib_file.exists(), "removeFromLibrary must respect auto_save"
 
 
@@ -229,35 +232,57 @@ def test_make_cwd_uses_project_path_not_library_key(tmp_path, monkeypatch):
     ``_add_confirmed`` they used to be the child's basename (e.g. ``qtapp``).
     Feeding that back into ``Project(key)`` or using it as a filesystem
     path made subprocesses run in ``<kernel_cwd>/qtapp`` - the notebook's
-    launch directory - instead of ``/data/qtapp``.  This test pins the
-    fixed behaviour.
+    launch directory - instead of the project's own location.  This test
+    pins the fixed behaviour using a synthetic library entry so it is not
+    tied to any specific on-disk layout.
     """
     import subprocess
+    import fsspec
 
     pytest.importorskip("anywidget")
     pytest.importorskip("ipywidgets")
-    from projspec import Project
-    from projspec.utils import is_installed
+    from projspec.artifact.process import Process
+    from projspec.proj.base import Project, ProjectSpec
+    from projspec.utils import AttrDict, is_installed
 
     is_installed.cache[(is_installed.env, "code")] = True
 
-    # Build a library where a child is keyed on its basename, mimicking the
-    # pre-fix legacy shape.  The stored Project's .path is the *real*
-    # absolute location (/data/vsextension).
+    # Build a synthetic Project rooted at tmp_path with a Process artifact
+    # named "launch" under a spec named "fake_spec".  The library is keyed
+    # on a bare basename ("myproject") to replicate the pre-fix shape where
+    # the key was not a full path and could not be resolved as a directory.
+    proj_path = str(tmp_path)
+    proj = object.__new__(Project)
+    proj.path = proj_path
+    proj.storage_options = {}
+    proj.fs, proj.url = fsspec.url_to_fs(proj_path)
+    proj.children = AttrDict()
+    proj.contents = AttrDict()
+    proj.artifacts = AttrDict()
+    proj.__dict__["_tree_stats"] = {
+        "file_count": 0,
+        "total_size": 0,
+        "is_writable": None,
+        "last_modified": None,
+        "last_modified_by": None,
+    }
+
+    proc = Process(proj, cmd=["echo", "hi"])
+    spec = object.__new__(ProjectSpec)
+    spec.proj = proj
+    spec._contents = AttrDict()
+    spec._artifacts = AttrDict(launch=proc)
+    proj.specs = AttrDict(fake_spec=spec)
+
     lib = ProjectLibrary(str(tmp_path / "lib.json"), auto_save=False)
-    root = Project("/data", walk=True)
-    for cname, cproj in (root.children or {}).items():
-        if cname == "vsextension" and cproj.specs.get("v_s_code"):
-            lib.entries[cname] = cproj
-            break
-    else:
-        pytest.skip("vsextension child not present in /data scan")
+    # Key is deliberately a bare name, not a full path.
+    lib.entries["myproject"] = proj
 
     # Kernel cwd is deliberately somewhere else.
     monkeypatch.chdir("/")
     w = lib.ipywidget()
-    w._toast = lambda m: None  # swallow
-    w.send = lambda c, buffers=None: None  # swallow
+    w._toast = lambda m: None
+    w.send = lambda c, buffers=None: None
 
     captured = {}
 
@@ -280,8 +305,8 @@ def test_make_cwd_uses_project_path_not_library_key(tmp_path, monkeypatch):
             w,
             {
                 "cmd": "make",
-                "url": "vsextension",
-                "spec": "v_s_code",
+                "url": "myproject",
+                "spec": "fake_spec",
                 "artifactType": "launch",
             },
             None,
@@ -289,4 +314,4 @@ def test_make_cwd_uses_project_path_not_library_key(tmp_path, monkeypatch):
     except SystemExit:
         pass
 
-    assert captured.get("cwd") == "/data/vsextension", captured
+    assert captured.get("cwd") == proj_path, captured

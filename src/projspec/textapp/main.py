@@ -170,6 +170,22 @@ def _basename(url: str) -> str:
     return (url.rstrip("/").rsplit("/", 1)[-1]) or url
 
 
+def _fmt_age(ts: float) -> str:
+    import datetime
+
+    days = (datetime.datetime.now() - datetime.datetime.fromtimestamp(ts)).days
+    if days == 0:
+        return "today"
+    if days == 1:
+        return "yesterday"
+    if days < 30:
+        return f"{days} days ago"
+    if days < 365:
+        return f"{days // 30} months ago"
+    yrs = days // 365
+    return f"{yrs} year{'s' if yrs > 1 else ''} ago"
+
+
 def _is_enum(v: Any) -> bool:
     """True for a serialised enum: ``{klass:['enum', name], value: ...}``."""
     return (
@@ -635,6 +651,7 @@ class ProjectWidget(Static):
     ProjectWidget .title { color: #dcb67a; text-style: bold; }
     ProjectWidget .url { color: #858585; }
     ProjectWidget .storage { color: #858585; text-style: italic; }
+    ProjectWidget .meta { color: #858585; }
     /* Each chips row is a plain horizontal run of ``Chip`` statics laid
        out left-to-right.  ``#chips-wrap`` stacks multiple such rows when
        the total chip width exceeds ``_CHIPS_ROW_WIDTH``. */
@@ -659,6 +676,25 @@ class ProjectWidget(Static):
         so = self.project.get("storage_options") or {}
         if so:
             yield Static(f"storage_options: {json.dumps(so)}", classes="storage")
+        meta_parts = []
+        file_count = self.project.get("file_count")
+        total_size = self.project.get("total_size")
+        if file_count is not None and total_size is not None:
+            from projspec.proj.base import _fmt_size
+
+            meta_parts.append(
+                f"{int(file_count):,} files, {_fmt_size(int(total_size))}"
+            )
+        is_writable = self.project.get("is_writable")
+        if is_writable is not None:
+            meta_parts.append("writable" if is_writable else "read-only")
+        last_modified = self.project.get("last_modified")
+        if last_modified is not None:
+            age = _fmt_age(float(last_modified))
+            by = self.project.get("last_modified_by")
+            meta_parts.append("last modified " + age + (f" by {by}" if by else ""))
+        if meta_parts:
+            yield Static(" · ".join(meta_parts), classes="meta")
         # Build the full list of chips first, then split into horizontal
         # rows that each fit into roughly ``_CHIPS_ROW_WIDTH`` cells.  This
         # keeps chips visible in narrow library panes (a plain Horizontal

@@ -84,6 +84,8 @@ class AttrDict(dict):
 
 def to_dict(obj, compact=True):
     """Make entity into JSON-serialisable dict representation"""
+    if obj is None:
+        return None
     if isinstance(obj, dict):
         return {
             k: (
