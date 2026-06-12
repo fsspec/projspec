@@ -118,10 +118,13 @@ export async function getLibrary(): Promise<LibraryData> {
 }
 
 /** Scan a path, optionally adding it to the library. */
-export async function scan(path: string, addToLibrary: boolean): Promise<RunResult> {
+export async function scan(path: string, addToLibrary: boolean, storageOptions?: string): Promise<RunResult> {
     const args = ['scan'];
     if (addToLibrary) {
         args.push('--library');
+    }
+    if (storageOptions) {
+        args.push('--storage_options', storageOptions);
     }
     args.push(path);
     return runProjspec(args);

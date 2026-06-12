@@ -10,7 +10,13 @@
 <div id="app">
     <div id="library">
         <div class="toolbar">
-            <button id="btn-add"><!--ICON:add--> Add</button>
+            <div class="add-group">
+                <button id="btn-add"><!--ICON:add--> Add</button><button id="btn-add-chevron" title="More add options">&#9660;</button>
+                <div id="add-dropdown" class="add-dropdown hidden">
+                    <div class="menu-item" id="add-local">&#128194; Local browser</div>
+                    <div class="menu-item" id="add-advanced">&#9881;&#65039; Advanced&#8230;</div>
+                </div>
+            </div>
             <button id="btn-reload"><!--ICON:reload--> Reload</button>
             <button id="btn-configure"><!--ICON:configure--> Configure</button>
         </div>
@@ -36,6 +42,22 @@
     </div>
 </div>
 <div id="popup" class="hidden"></div>
+<div id="add-advanced-overlay" class="hidden">
+    <div id="add-advanced-modal" role="dialog" aria-modal="true" aria-labelledby="add-advanced-title">
+        <div id="add-advanced-title">Add project &#8212; Advanced</div>
+        <div id="add-advanced-body">
+            <p class="add-advanced-hint">Enter a directory path, URL, or glob pattern (e.g. <code>~/projects/*</code> or <code>s3://bucket/prefix</code>). Use <em>Storage options</em> to supply credentials or other fsspec options for remote filesystems.</p>
+            <label for="add-advanced-path">Path / pattern:</label>
+            <input type="text" id="add-advanced-path" autocomplete="off" spellcheck="false" placeholder="e.g. /home/user/projects or s3://my-bucket/ws/*" />
+            <label for="add-advanced-so" style="margin-top:10px;">Storage options (JSON, optional):</label>
+            <input type="text" id="add-advanced-so" autocomplete="off" spellcheck="false" placeholder='{"key": "AKIA&#8230;", "secret": "&#8230;"}' />
+        </div>
+        <div id="add-advanced-actions">
+            <button id="add-advanced-cancel" class="secondary">Cancel</button>
+            <button id="add-advanced-ok" class="primary">Add</button>
+        </div>
+    </div>
+</div>
 <div id="modal-overlay" class="hidden">
     <div id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div id="modal-title">Create spec</div>

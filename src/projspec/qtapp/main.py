@@ -516,6 +516,7 @@ def main() -> None:
         print("No Qt bindings found - cannot continue")
         return
     app = QApplication(sys.argv)
+    app.setApplicationName("projspec")
     icon_path = os.path.join(os.path.dirname(__file__), "../../../..", "logo.png")
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))

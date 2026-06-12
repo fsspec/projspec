@@ -764,7 +764,7 @@
             const path = modalInput.value.trim();
             if (!path) return;
             closeModal();
-            postMessage({ cmd: 'addConfirmed', path });
+            postMessage({ cmd: 'addConfirmed', path, storageOptions: '' });
         }
     }
 
@@ -798,7 +798,61 @@
     });
 
     // --- Toolbar ----------------------------------------------------------
-    $id('btn-add').addEventListener('click', () => postMessage({ cmd: 'add' }));
+    const addDropdown = $id('add-dropdown');
+    $id('btn-add').addEventListener('click', () => {
+        addDropdown.classList.add('hidden');
+        postMessage({ cmd: 'add' });
+    });
+    $id('btn-add-chevron').addEventListener('click', (e) => {
+        e.stopPropagation();
+        addDropdown.classList.toggle('hidden');
+    });
+    $id('add-local').addEventListener('click', () => {
+        addDropdown.classList.add('hidden');
+        postMessage({ cmd: 'add' });
+    });
+    $id('add-advanced').addEventListener('click', () => {
+        addDropdown.classList.add('hidden');
+        openAddAdvancedModal();
+    });
+    document.addEventListener('click', () => addDropdown.classList.add('hidden'));
+
+    // --- Advanced-add modal -----------------------------------------------
+    const addAdvancedOverlay = $id('add-advanced-overlay');
+    const addAdvancedPath    = $id('add-advanced-path');
+    const addAdvancedSo      = $id('add-advanced-so');
+    const addAdvancedOk      = $id('add-advanced-ok');
+    const addAdvancedCancel  = $id('add-advanced-cancel');
+
+    function openAddAdvancedModal() {
+        addAdvancedPath.value = '';
+        addAdvancedSo.value = '';
+        addAdvancedOverlay.classList.remove('hidden');
+        setTimeout(() => addAdvancedPath.focus(), 0);
+    }
+    function closeAddAdvancedModal() {
+        addAdvancedOverlay.classList.add('hidden');
+    }
+    function submitAddAdvanced() {
+        const p = addAdvancedPath.value.trim();
+        if (!p) return;
+        const so = addAdvancedSo.value.trim();
+        closeAddAdvancedModal();
+        postMessage({ cmd: 'addConfirmed', path: p, storageOptions: so });
+    }
+    addAdvancedOk.addEventListener('click', submitAddAdvanced);
+    addAdvancedCancel.addEventListener('click', closeAddAdvancedModal);
+    addAdvancedOverlay.addEventListener('click', (e) => {
+        if (e.target === addAdvancedOverlay) closeAddAdvancedModal();
+    });
+    addAdvancedPath.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitAddAdvanced();
+        if (e.key === 'Escape') closeAddAdvancedModal();
+    });
+    addAdvancedSo.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitAddAdvanced();
+        if (e.key === 'Escape') closeAddAdvancedModal();
+    });
     $id('btn-reload').addEventListener('click', () => postMessage({ cmd: 'reload' }));
     $id('btn-configure').addEventListener('click', () => postMessage({ cmd: 'configure' }));
     searchEl.addEventListener('input', () => render());

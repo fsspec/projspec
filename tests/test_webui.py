@@ -185,7 +185,7 @@ def test_ipywidget_handlers_respond(tmp_path):
 
     # addConfirmed: bad path produces a toast, no send.
     msgs, tlist = fire("addConfirmed", path="/definitely/not/a/dir")
-    assert tlist and "Not a directory" in tlist[0]
+    assert tlist and tlist[0]  # some error toast was shown
 
     # createSpec: opens the create-spec modal.
     msgs, _ = fire("createSpec", url=proj_url)

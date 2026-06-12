@@ -39,7 +39,13 @@ object HtmlContent {
 <div id="app">
     <div id="library">
         <div class="toolbar">
-            <button id="btn-add">&#x2795; Add</button>
+            <div class="add-group">
+                <button id="btn-add">&#x2795; Add</button><button id="btn-add-chevron" title="More add options">&#9660;</button>
+                <div id="add-dropdown" class="add-dropdown hidden">
+                    <div class="menu-item" id="add-local">&#128194; Local browser</div>
+                    <div class="menu-item" id="add-advanced">&#9881;&#65039; Advanced&#8230;</div>
+                </div>
+            </div>
             <button id="btn-reload">&#x1F504; Reload</button>
             <button id="btn-configure">&#x2699;&#xFE0F; Configure</button>
         </div>
@@ -64,6 +70,22 @@ object HtmlContent {
     </div>
 </div>
 <div id="popup" class="hidden"></div>
+<div id="add-advanced-overlay" class="hidden">
+    <div id="add-advanced-modal" role="dialog" aria-modal="true" aria-labelledby="add-advanced-title">
+        <div id="add-advanced-title">Add project &#8212; Advanced</div>
+        <div id="add-advanced-body">
+            <p class="add-advanced-hint">Enter a directory path, URL, or glob pattern (e.g. <code>~/projects/*</code> or <code>s3://bucket/prefix</code>). Use <em>Storage options</em> to supply credentials or other fsspec options for remote filesystems.</p>
+            <label for="add-advanced-path">Path / pattern:</label>
+            <input type="text" id="add-advanced-path" autocomplete="off" spellcheck="false" placeholder="e.g. /home/user/projects or s3://my-bucket/ws/*" />
+            <label for="add-advanced-so" style="margin-top:10px;">Storage options (JSON, optional):</label>
+            <input type="text" id="add-advanced-so" autocomplete="off" spellcheck="false" placeholder='{"key": "AKIA&#8230;", "secret": "&#8230;"}' />
+        </div>
+        <div id="add-advanced-actions">
+            <button id="add-advanced-cancel" class="secondary">Cancel</button>
+            <button id="add-advanced-ok" class="primary">Add</button>
+        </div>
+    </div>
+</div>
 <div id="modal-overlay" class="hidden">
     <div id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div id="modal-title">Create spec</div>
@@ -147,6 +169,63 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
     border: none; padding: 4px 10px; cursor: pointer; font-size: 12px; border-radius: 3px;
 }
 .toolbar button:hover { background: var(--vscode-button-hoverBackground); }
+.add-group { position: relative; display: flex; }
+.add-group #btn-add { border-radius: 3px 0 0 3px; }
+.add-group #btn-add-chevron { border-radius: 0 3px 3px 0; padding: 4px 6px; border-left: 1px solid var(--vscode-panel-border); }
+.add-dropdown {
+    position: absolute; top: 100%; left: 0; z-index: 100; min-width: 160px;
+    background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+    color: var(--vscode-menu-foreground, var(--vscode-foreground));
+    border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border));
+    border-radius: 3px; padding: 4px 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.add-dropdown .menu-item { padding: 5px 12px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.add-dropdown .menu-item:hover {
+    background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+    color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+}
+#add-advanced-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2000;
+}
+#add-advanced-modal {
+    background: var(--vscode-editorWidget-background);
+    color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+    border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+    border-radius: 6px; min-width: 420px; max-width: 85%;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column;
+}
+#add-advanced-title {
+    padding: 10px 14px; font-weight: bold; font-size: 14px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+#add-advanced-body { padding: 12px 14px; }
+.add-advanced-hint {
+    font-size: 11px; color: var(--vscode-descriptionForeground);
+    margin: 0 0 10px 0; line-height: 1.5;
+}
+.add-advanced-hint code {
+    font-family: monospace; background: rgba(255,255,255,0.05);
+    padding: 0 3px; border-radius: 2px;
+}
+#add-advanced-body label {
+    display: block; font-size: 12px; margin-bottom: 4px;
+    color: var(--vscode-descriptionForeground);
+}
+#add-advanced-path, #add-advanced-so {
+    width: 100%; box-sizing: border-box;
+    background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border, transparent);
+    padding: 6px 8px; font-size: 13px; border-radius: 3px; outline: none;
+}
+#add-advanced-path:focus, #add-advanced-so:focus { border-color: var(--vscode-focusBorder); }
+#add-advanced-actions {
+    display: flex; justify-content: flex-end; gap: 6px;
+    padding: 10px 14px; border-top: 1px solid var(--vscode-panel-border);
+}
 
 .search { padding: 6px 8px; border-bottom: 1px solid var(--vscode-panel-border); }
 .search-wrap { position: relative; display: flex; align-items: center; }
@@ -1158,7 +1237,61 @@ body { margin: 0; padding: 0; font-family: var(--vscode-font-family); color: var
     });
 
     // ----- toolbar -----
-    document.getElementById('btn-add').addEventListener('click', () => vscode.postMessage({ cmd: 'add' }));
+    const addDropdown = document.getElementById('add-dropdown');
+    document.getElementById('btn-add').addEventListener('click', () => {
+        addDropdown.classList.add('hidden');
+        vscode.postMessage({ cmd: 'add' });
+    });
+    document.getElementById('btn-add-chevron').addEventListener('click', (e) => {
+        e.stopPropagation();
+        addDropdown.classList.toggle('hidden');
+    });
+    document.getElementById('add-local').addEventListener('click', () => {
+        addDropdown.classList.add('hidden');
+        vscode.postMessage({ cmd: 'add' });
+    });
+    document.getElementById('add-advanced').addEventListener('click', () => {
+        addDropdown.classList.add('hidden');
+        openAddAdvancedModal();
+    });
+    document.addEventListener('click', () => addDropdown.classList.add('hidden'));
+
+    // ----- advanced-add modal -----
+    const addAdvancedOverlay = document.getElementById('add-advanced-overlay');
+    const addAdvancedPath    = document.getElementById('add-advanced-path');
+    const addAdvancedSo      = document.getElementById('add-advanced-so');
+    const addAdvancedOk      = document.getElementById('add-advanced-ok');
+    const addAdvancedCancel  = document.getElementById('add-advanced-cancel');
+
+    function openAddAdvancedModal() {
+        addAdvancedPath.value = '';
+        addAdvancedSo.value = '';
+        addAdvancedOverlay.classList.remove('hidden');
+        setTimeout(() => addAdvancedPath.focus(), 0);
+    }
+    function closeAddAdvancedModal() {
+        addAdvancedOverlay.classList.add('hidden');
+    }
+    function submitAddAdvanced() {
+        const p = addAdvancedPath.value.trim();
+        if (!p) return;
+        const so = addAdvancedSo.value.trim();
+        closeAddAdvancedModal();
+        vscode.postMessage({ cmd: 'addConfirmed', path: p, storageOptions: so });
+    }
+    addAdvancedOk.addEventListener('click', submitAddAdvanced);
+    addAdvancedCancel.addEventListener('click', closeAddAdvancedModal);
+    addAdvancedOverlay.addEventListener('click', (e) => {
+        if (e.target === addAdvancedOverlay) closeAddAdvancedModal();
+    });
+    addAdvancedPath.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitAddAdvanced();
+        if (e.key === 'Escape') closeAddAdvancedModal();
+    });
+    addAdvancedSo.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitAddAdvanced();
+        if (e.key === 'Escape') closeAddAdvancedModal();
+    });
     document.getElementById('btn-reload').addEventListener('click', () => vscode.postMessage({ cmd: 'reload' }));
     document.getElementById('btn-configure').addEventListener('click', () => vscode.postMessage({ cmd: 'configure' }));
     searchEl.addEventListener('input', () => render());

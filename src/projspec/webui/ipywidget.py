@@ -226,7 +226,10 @@ def _build_widget(library: "ProjectLibrary"):
                 elif cmd == "add":
                     self._offer_add()
                 elif cmd == "addConfirmed":
-                    self._add_confirmed(content.get("path", ""))
+                    self._add_confirmed(
+                        content.get("path", ""),
+                        content.get("storageOptions", ""),
+                    )
                 elif cmd == "configure":
                     _open_config_file(self._toast)
                 elif cmd == "rescan":
@@ -319,36 +322,34 @@ def _build_widget(library: "ProjectLibrary"):
             project path."""
             self.send({"type": "openAddModal"})
 
-        def _add_confirmed(self, path: str) -> None:
-            import os
-
-            import projspec
+        def _add_confirmed(self, path: str, storage_options: str = "") -> None:
+            from projspec.utils import scan_glob
 
             path = (path or "").strip()
             if not path:
                 return
-            if not os.path.isdir(path):
-                self._toast(f"Not a directory: {path}")
-                return
             self._set_busy(True)
             try:
-                proj = projspec.Project(path, walk=True)
-                # Mirror projspec.Project.add_to_library key format so the
-                # library is consistent across UIs (url with fs scheme).
-                key = proj.fs.unstrip_protocol(proj.url)
-                self._library.add_entry(key, proj)
-                # Key walked children by their *own* unstripped URL too.  The
-                # raw ``proj.children`` dict is keyed by basename (or by
-                # relative sub-path for deeper walks), which would not be a
-                # usable filesystem location if anyone later tried to re-scan
-                # via that key.  Using the child's absolute URL keeps every
-                # library entry self-describing.
-                if proj.children:
+                found = False
+                for proj in scan_glob(
+                    path,
+                    storage_options=storage_options,
+                    walk=True,
+                    add_to_library=False,
+                ):
+                    found = True
+                    key = proj.fs.unstrip_protocol(proj.url)
+                    self._library.add_entry(key, proj)
                     for child in (proj.children or {}).values():
                         if child.specs:
                             child_key = child.fs.unstrip_protocol(child.url)
                             self._library.add_entry(child_key, child)
+                if not found:
+                    self._toast(f"No directories found: {path}")
+                    return
                 self._send_initial_data()
+            except Exception as exc:
+                self._toast(f"Scan failed: {exc}")
             finally:
                 self._set_busy(False)
 
