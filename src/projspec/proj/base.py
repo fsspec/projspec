@@ -95,6 +95,7 @@ class Project:
         self.__dict__.pop("filelist", None)
         self.__dict__.pop("pyproject", None)
         self.__dict__.pop("_tree_stats", None)
+        self.__dict__.pop("vcs_info", None)
         self._scanned_files = None
         # clear cached files
         self._scanned_files = None
@@ -238,6 +239,27 @@ class Project:
         returned as a string.  None when not available.
         """
         return self._tree_stats["last_modified_by"]
+
+    @cached_property
+    def vcs_info(self) -> dict | None:
+        """VCS metadata for this project, or ``None`` if no VCS was detected.
+
+        Returns the :attr:`~projspec.content.vcs.VCSInfo.summary` dict from
+        whichever VCS spec (``git_repo``, ``hg_repo``, or ``fossil_repo``) was
+        found.  Keys present depend on what information was extractable from the
+        repository files without invoking any VCS binary.
+
+        The same data is stored in the ``VCSInfo`` content object inside the
+        matching spec's ``_contents["vcs_info"]`` and is therefore serialised
+        when the project is saved to the library.
+        """
+        for spec_name in ("git_repo", "hg_repo", "fossil_repo"):
+            spec = self.specs.get(spec_name)
+            if spec is not None:
+                vi = spec.contents.get("vcs_info")
+                if vi is not None:
+                    return vi.summary
+        return None
 
     @property
     def scanned_files(self):
