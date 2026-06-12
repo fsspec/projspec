@@ -66,7 +66,9 @@ User Classes
     proj.documentation.MkDocs
     proj.documentation.RTD
     proj.documentation.Sphinx
-    proj.git.GitRepo
+    proj.vcs.GitRepo
+    proj.vcs.HgRepo
+    proj.vcs.FossilRepo
     proj.golang.Golang
     proj.helm.HelmChart
     proj.hf.HuggingFaceDataset
@@ -148,7 +150,9 @@ User Classes
 .. autoclass:: projspec.proj.documentation.MkDocs
 .. autoclass:: projspec.proj.documentation.RTD
 .. autoclass:: projspec.proj.documentation.Sphinx
-.. autoclass:: projspec.proj.git.GitRepo
+.. autoclass:: projspec.proj.vcs.GitRepo
+.. autoclass:: projspec.proj.vcs.HgRepo
+.. autoclass:: projspec.proj.vcs.FossilRepo
 .. autoclass:: projspec.proj.golang.Golang
 .. autoclass:: projspec.proj.helm.HelmChart
 .. autoclass:: projspec.proj.hf.HuggingFaceDataset
@@ -214,6 +218,7 @@ User Classes
 ~~~~~~~~~~~~
 
 .. autosummary::
+    content.vcs.VCSInfo
     content.cicd.CIWorkflow
     content.cicd.PipelineStage
     content.cicd.ServiceDependency
@@ -229,6 +234,8 @@ User Classes
     content.package.PythonPackage
     content.package.RustModule
 
+.. autoclass:: projspec.content.vcs.VCSInfo
+   :members:
 .. autoclass:: projspec.content.cicd.CIWorkflow
 .. autoclass:: projspec.content.cicd.PipelineStage
 .. autoclass:: projspec.content.cicd.ServiceDependency

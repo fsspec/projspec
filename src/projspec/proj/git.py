@@ -1,42 +1,6 @@
-from projspec.proj.base import ProjectSpec
-from projspec.utils import AttrDict, run_subprocess
+# Compatibility shim — GitRepo now lives in projspec.proj.vcs.
+# This module is kept so that existing pickled objects and any code that
+# does ``from projspec.proj.git import GitRepo`` continues to work.
+from projspec.proj.vcs import GitRepo
 
-
-class GitRepo(ProjectSpec):
-    """A version controlled repository utilising git
-
-    git is a very common version control system for code projects.
-    """
-
-    icon = "🔀"
-    spec_doc = "https://git-scm.com/docs/git-config#_configuration_file"
-
-    def match(self) -> bool:
-        return ".git" in self.proj.basenames
-
-    @staticmethod
-    def _create(path: str) -> None:
-        run_subprocess(["git", "init"], cwd=path, output=False)
-
-    def parse(self) -> None:
-        # It's faster to read the /.git/config file for branches, remotes and URLs;
-        # that file i always present.
-        cont = AttrDict()
-        try:
-            cont["remotes"] = [
-                _.rsplit("/", 1)[-1]
-                for _ in self.proj.fs.ls(
-                    f"{self.proj.url}/.git/refs/remotes", detail=False
-                )
-            ]
-        except FileNotFoundError:
-            pass
-        cont["tags"] = [
-            _.rsplit("/", 1)[-1]
-            for _ in self.proj.fs.ls(f"{self.proj.url}/.git/refs/tags", detail=False)
-        ]
-        cont["branches"] = [
-            _.rsplit("/", 1)[-1]
-            for _ in self.proj.fs.ls(f"{self.proj.url}/.git/refs/heads", detail=False)
-        ]
-        self._contents = cont
+__all__ = ["GitRepo"]

@@ -118,10 +118,13 @@ export async function getLibrary(): Promise<LibraryData> {
 }
 
 /** Scan a path, optionally adding it to the library. */
-export async function scan(path: string, addToLibrary: boolean): Promise<RunResult> {
+export async function scan(path: string, addToLibrary: boolean, storageOptions?: string): Promise<RunResult> {
     const args = ['scan'];
     if (addToLibrary) {
         args.push('--library');
+    }
+    if (storageOptions) {
+        args.push('--storage_options', storageOptions);
     }
     args.push(path);
     return runProjspec(args);
@@ -163,6 +166,11 @@ export interface ProjectData {
     artifacts: Record<string, unknown>;
     children?: Record<string, unknown>;
     klass?: [string, string];
+    file_count?: string;
+    total_size?: string;
+    is_writable?: string;
+    last_modified?: string;
+    last_modified_by?: string;
 }
 
 export interface SpecData {

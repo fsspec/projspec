@@ -84,6 +84,8 @@ class AttrDict(dict):
 
 def to_dict(obj, compact=True):
     """Make entity into JSON-serialisable dict representation"""
+    if obj is None:
+        return None
     if isinstance(obj, dict):
         return {
             k: (
@@ -451,3 +453,106 @@ def _ipynb_to_py(data: str) -> str:
     return "\n\n###\n\n".join(
         ["".join(_["source"]) for _ in everything["cells"] if _["cell_type"] == "code"]
     )
+
+
+def scan_glob(
+    pattern: str,
+    *,
+    types=None,
+    xtypes=None,
+    walk: bool = False,
+    storage_options: str | dict = "",
+    add_to_library: bool = False,
+):
+    """Scan every directory matching *pattern* and yield a ``Project`` for each.
+
+    Parameters
+    ----------
+    pattern:
+        A glob pattern passed directly to :func:`fsspec.AbstractFileSystem.glob`.
+        Works for any fsspec-supported filesystem (local, S3, GCS, …).
+        ``~`` is expanded for local paths via :func:`os.path.expanduser`.
+        Non-wildcard paths are accepted too and behave identically to a
+        single-directory scan.
+    types:
+        Spec type names to include (list of str, or ``None`` for all).
+    xtypes:
+        Spec type names to exclude (list of str, or ``None`` for none).
+    walk:
+        If ``True``, each matched directory is also walked for child
+        projects (passed through to :class:`projspec.Project`).
+    storage_options:
+        Storage options for remote filesystems.  May be a JSON string or
+        a plain ``dict``; an empty string means no options.
+    add_to_library:
+        If ``True``, each successfully scanned project is added to the
+        default project library via :meth:`projspec.Project.add_to_library`.
+
+    Yields
+    ------
+    projspec.Project
+        One project per matched directory, in the order returned by the
+        glob expansion.  Directories that fail to scan are skipped with a
+        logged warning.
+
+    Examples
+    --------
+    >>> for proj in scan_glob("~/projects/*"):
+    ...     print(proj.text_summary(bare=True))
+
+    >>> projects = list(scan_glob("s3://my-bucket/workspaces/*",
+    ...                           storage_options={"anon": False}))
+    """
+    import fsspec
+
+    from projspec.proj import Project
+
+    # Normalise storage_options to a dict
+    if isinstance(storage_options, str):
+        import json
+
+        so: dict = json.loads(storage_options) if storage_options.strip() else {}
+    else:
+        so = dict(storage_options)
+
+    # Obtain the appropriate filesystem for the given pattern.
+    # For local paths, expand ~ before handing off to fsspec.
+    fs, path = fsspec.url_to_fs(pattern, **so)
+    if isinstance(fs, fsspec.implementations.local.LocalFileSystem):
+        path = os.path.expanduser(path)
+
+    candidates = sorted(fs.glob(path))
+
+    # If the pattern contained no wildcards and matched nothing, still try
+    # the literal path so the caller gets a meaningful error rather than silence.
+    if not candidates:
+        candidates = [path]
+
+    for candidate in candidates:
+        try:
+            if fs.info(candidate)["type"] != "directory":
+                continue
+        except FileNotFoundError:
+            logger.warning("Path not found: %s", candidate)
+            continue
+        try:
+            proj = Project(
+                candidate,
+                fs=fs,
+                types=types,
+                xtypes=xtypes,
+                walk=walk,
+            )
+        except Exception:
+            logger.warning("Failed to scan %s", candidate, exc_info=True)
+            continue
+        if not proj:
+            continue
+        if add_to_library:
+            try:
+                proj.add_to_library()
+            except TypeError:
+                import warnings
+
+                warnings.warn(f"{repr(proj)} failed to serialise")
+        yield proj

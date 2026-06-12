@@ -39,6 +39,18 @@ def defaults():
         "remote_artifact_status": False,
         "capture_artifact_output": True,
         "preferred_install_methods": ["conda", "pip"],
+        "excludes": [
+            "bld",
+            "build",
+            "dist",
+            "env",
+            "envs",
+            "htmlcov",
+            "node_modules",
+            "site",
+            "target",
+            "venv",
+        ],
     }
 
 
@@ -55,6 +67,11 @@ config_doc = {
     "preferred_install_methods": (
         "ordered list of preferred installer names for install_tool(), "
         "e.g. ['uv', 'conda', 'pip']. Empty list uses the platform default."
+    ),
+    "excludes": (
+        "directory names to skip when walking a project tree for child projects "
+        "and file statistics. Directories whose names start with '.' or '_' are "
+        "always skipped regardless of this setting."
     ),
 }
 
@@ -124,12 +141,28 @@ def save_conf(conf: dict):
 
 @contextmanager
 def temp_conf(**kwargs):
-    """Temporarily set the config"""
-    old = conf.copy()
-    # TODO: only allow keys that exist in defaults()?
+    """Temporarily set the config in memory and on disk; both are restored on exit."""
+    conf_file = f"{conf_dir()}/projspec.json"
+    old_mem = conf.copy()
+    # Snapshot the on-disk file so we can restore it even if set_conf() writes it.
+    try:
+        with open(conf_file) as _f:
+            old_disk: str | None = _f.read()
+    except FileNotFoundError:
+        old_disk = None
     conf.update(kwargs)
     try:
         yield
     finally:
         conf.clear()
-        conf.update(old)
+        conf.update(old_mem)
+        # Restore (or remove) the config file to its pre-context state.
+        if old_disk is None:
+            try:
+                os.unlink(conf_file)
+            except FileNotFoundError:
+                pass
+        else:
+            os.makedirs(conf_dir(), exist_ok=True)
+            with open(conf_file, "w") as _f:
+                _f.write(old_disk)

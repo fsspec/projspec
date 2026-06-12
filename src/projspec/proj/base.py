@@ -1,5 +1,8 @@
 import io
+import json
 import logging
+import os
+import stat
 from collections.abc import Iterable
 from itertools import chain
 from functools import cached_property
@@ -22,19 +25,13 @@ from projspec.utils import (
 logger = logging.getLogger("projspec")
 registry = {}
 
-# we don't consider these as possible child projects when walk=True
-default_excludes = {
-    # TODO: make this a conf
-    # TODO: add more here
-    # we always ignore directories starting with "." or "_"
-    "bld",
-    "build",
-    "dist",
-    "env",
-    "envs",  # conda-project
-    "htmlcov",
-    "node_modules",
-}
+
+def _fmt_size(n: int) -> str:
+    """Human-readable byte size, e.g. '3.2 MB'."""
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024 or unit == "TB":
+            return f"{n:.1f} {unit}" if unit != "B" else f"{n} B"
+        n /= 1024
 
 
 class ParseFailed(ValueError):
@@ -69,7 +66,7 @@ class Project:
             the case that the root did not many any project type.
         :param types: only allow specs whose names are included.
         :param xtypes: disallow specs whose names are in this set
-        :param excludes: directory names to ignore. If None, uses default_excludes.
+        :param excludes: directory names to ignore. If None, uses `excludes` config value
         """
         if fs is None:
             fs, path = fsspec.url_to_fs(path, **(storage_options or {}))
@@ -87,7 +84,7 @@ class Project:
         self.contents = AttrDict()
         self.artifacts = AttrDict()
         # read and respect .gitignore? for exclude directories?
-        self.excludes = excludes or default_excludes
+        self.excludes = excludes if excludes is not None else set(get_conf("excludes"))
         self._reset()
         self.resolve(walk=walk, types=types, xtypes=xtypes)
 
@@ -97,6 +94,8 @@ class Project:
         self.__dict__.pop("basenames", None)
         self.__dict__.pop("filelist", None)
         self.__dict__.pop("pyproject", None)
+        self.__dict__.pop("_tree_stats", None)
+        self.__dict__.pop("vcs_info", None)
         self._scanned_files = None
         # clear cached files
         self._scanned_files = None
@@ -105,6 +104,162 @@ class Project:
         """Did we read this from the local filesystem?"""
         # see also fsspec.utils.can_be_local for more flexibility with caching.
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
+
+    @cached_property
+    def _tree_stats(self) -> dict:
+        """Walk the directory tree and collect aggregate statistics.
+
+        Returns a dict with keys:
+          file_count      int   – number of files found (directories excluded)
+          total_size      int   – total byte size of all files
+          is_writable     bool | None  – True/False/None (None = could not determine)
+          last_modified   float | None – mtime of the most-recently-changed file, as a
+                                         Unix timestamp; None if unavailable
+          last_modified_by str | None  – username (or uid string) of the owner of that
+                                         file; None if unavailable
+        """
+        file_count = 0
+        total_size = 0
+        best_mtime: float | None = None
+        best_info: dict | None = None
+
+        try:
+            for dirpath, subdirs, files in self.fs.walk(
+                self.url, topdown=True, detail=True
+            ):
+                # Prune excluded directories in-place (topdown=True makes this work)
+                # subdirs is a dict when detail=True
+                if isinstance(subdirs, dict):
+                    to_remove = [
+                        name
+                        for name in list(subdirs)
+                        if name in self.excludes or name.startswith((".", "_"))
+                    ]
+                    for name in to_remove:
+                        del subdirs[name]
+                    file_infos = files.values() if isinstance(files, dict) else []
+                else:
+                    # Some backends yield lists even with detail=True; skip pruning
+                    file_infos = []
+
+                for finfo in file_infos:
+                    if not isinstance(finfo, dict):
+                        continue
+                    size = finfo.get("size") or 0
+                    file_count += 1
+                    total_size += size
+                    mtime = finfo.get("mtime") or finfo.get("LastModified")
+                    if mtime is not None:
+                        # mtime may be a datetime; normalise to float
+                        ts = (
+                            mtime.timestamp()
+                            if hasattr(mtime, "timestamp")
+                            else float(mtime)
+                        )
+                        if best_mtime is None or ts > best_mtime:
+                            best_mtime = ts
+                            best_info = finfo
+        except Exception:
+            logger.debug("_tree_stats walk failed for %s", self.url, exc_info=True)
+
+        # ── is_writable ──────────────────────────────────────────────────────
+        is_writable: bool | None = None
+        if self.is_local():
+            try:
+                is_writable = os.access(self.url, os.W_OK)
+            except Exception:
+                pass
+        else:
+            # For remote backends: inspect mode bits if present, otherwise None.
+            try:
+                root_info = self.fs.info(self.url)
+                mode = root_info.get("mode")
+                if mode is not None:
+                    is_writable = bool(mode & stat.S_IWUSR)
+                # Some backends expose an explicit writable flag (e.g. SMB)
+                elif "writable" in root_info:
+                    is_writable = bool(root_info["writable"])
+            except Exception:
+                pass
+
+        # ── last_modified_by ─────────────────────────────────────────────────
+        last_modified_by: str | None = None
+        if best_info is not None:
+            uid = best_info.get("uid")
+            owner = best_info.get("owner") or best_info.get("Owner")
+            if uid is not None and self.is_local():
+                try:
+                    import pwd
+
+                    last_modified_by = pwd.getpwuid(int(uid)).pw_name
+                except Exception:
+                    last_modified_by = str(uid)
+            elif owner is not None:
+                last_modified_by = str(owner)
+
+        return {
+            "file_count": file_count,
+            "total_size": total_size,
+            "is_writable": is_writable,
+            "last_modified": best_mtime,
+            "last_modified_by": last_modified_by,
+        }
+
+    @property
+    def file_count(self) -> int:
+        """Total number of files in the directory tree (excluding ignored directories)."""
+        return self._tree_stats["file_count"]
+
+    @property
+    def total_size(self) -> int:
+        """Total byte size of all files in the directory tree."""
+        return self._tree_stats["total_size"]
+
+    @property
+    def is_writable(self) -> bool | None:
+        """Whether the project root appears to be writable.
+
+        Returns True/False for local filesystems and backends that expose mode
+        bits or an explicit writable flag.  Returns None when the information is
+        not available (e.g. read-only remote backends without metadata).
+        """
+        return self._tree_stats["is_writable"]
+
+    @property
+    def last_modified(self) -> float | None:
+        """Unix timestamp of the most recently modified file in the tree, or None."""
+        return self._tree_stats["last_modified"]
+
+    @property
+    def last_modified_by(self) -> str | None:
+        """Username (or uid string) of the owner of the most recently modified file.
+
+        Resolved via the ``pwd`` module on local filesystems.  For remote backends
+        that expose an ``owner`` field in their file-info dict the raw value is
+        returned as a string.  None when not available.
+        """
+        return self._tree_stats["last_modified_by"]
+
+    @cached_property
+    def vcs_info(self) -> dict | None:
+        """VCS metadata for this project, or ``None`` if no VCS was detected.
+
+        Returns the :attr:`~projspec.content.vcs.VCSInfo.summary` dict from
+        whichever VCS spec (``git_repo``, ``hg_repo``, or ``fossil_repo``) was
+        found.  Keys present depend on what information was extractable from the
+        repository files without invoking any VCS binary.
+
+        The same data is stored in the ``VCSInfo`` content object inside the
+        matching spec's ``_contents["vcs_info"]`` and is therefore serialised
+        when the project is saved to the library.
+        """
+        for spec_name in ("git_repo", "hg_repo", "fossil_repo"):
+            spec = self.specs.get(spec_name)
+            if spec is not None:
+                vi = spec.contents.get("vcs_info")
+                if vi is not None:
+                    return vi.summary
+        return None
 
     @property
     def scanned_files(self):
@@ -228,6 +383,8 @@ class Project:
             if bare
             else f"<Project '{self.fs.unstrip_protocol(self.url)}'>\n"
         )
+        if not bare:
+            txt += self._stats_line() + "\n"
         bits = [
             f" {'/'}: {' '.join(type(_).__name__ for _ in chain(self.specs.values(), self.contents.values(), self.artifacts.values()))}"
         ] + [
@@ -236,12 +393,52 @@ class Project:
         ]
         return txt + "\n".join(bits)
 
+    def _stats_line(self) -> str:
+        """One-line summary of filesystem statistics for this project."""
+        parts = []
+
+        # file count + size
+        count = self.file_count
+        size = self.total_size
+        if count or size:
+            parts.append(f"{count:,} files, {_fmt_size(size)}")
+
+        # writable
+        if self.is_writable is not None:
+            parts.append("writable" if self.is_writable else "read-only")
+
+        # last modified
+        lm = self.last_modified
+        if lm is not None:
+            import datetime
+
+            age = datetime.datetime.now() - datetime.datetime.fromtimestamp(lm)
+            days = age.days
+            if days == 0:
+                age_str = "today"
+            elif days == 1:
+                age_str = "yesterday"
+            elif days < 30:
+                age_str = f"{days} days ago"
+            elif days < 365:
+                age_str = f"{days // 30} months ago"
+            else:
+                age_str = f"{days // 365} year{'s' if days >= 730 else ''} ago"
+            by = self.last_modified_by
+            if by:
+                parts.append(f"last modified {age_str} by {by}")
+            else:
+                parts.append(f"last modified {age_str}")
+
+        return " " + " · ".join(parts) if parts else ""
+
     def __repr__(self):
         return f"<Project '{self.fs.unstrip_protocol(self.url)}'>"
 
     def __str__(self):
-        txt = "<Project '{}'>\n\n{}".format(
+        txt = "<Project '{}'>\n{}\n\n{}".format(
             self.fs.unstrip_protocol(self.url),
+            self._stats_line(),
             "\n\n".join(str(_) for _ in self.specs.values()),
         )
         if self.contents or self.artifacts:
@@ -355,6 +552,11 @@ class Project:
             storage_options=self.storage_options,
             artifacts=self.artifacts,
             contents=self.contents,
+            file_count=self.file_count,
+            total_size=self.total_size,
+            is_writable=self.is_writable,
+            last_modified=self.last_modified,
+            last_modified_by=self.last_modified_by,
         )
         if not compact:
             dic["klass"] = "project"
@@ -381,6 +583,15 @@ class Project:
         proj.path = dic["url"]
         proj.storage_options = dic["storage_options"]
         proj.fs, proj.url = fsspec.url_to_fs(proj.path, **proj.storage_options)
+        # Restore cached tree stats so a round-tripped Project never re-walks.
+        # Keys default to None if absent (e.g. older serialised data).
+        proj.__dict__["_tree_stats"] = {
+            "file_count": dic.get("file_count", 0),
+            "total_size": dic.get("total_size", 0),
+            "is_writable": dic.get("is_writable"),
+            "last_modified": dic.get("last_modified"),
+            "last_modified_by": dic.get("last_modified_by"),
+        }
         return proj
 
     def create(self, name: str) -> list[str]:
@@ -433,9 +644,20 @@ class Project:
         """Add this project to the current session library"""
         # TODO: prevent overwrite?
         from projspec.library import ProjectLibrary
+        import json
 
+        # precheck serialisability (prevents malformed JSON diring save)
+        json.dumps(self.to_dict(compact=False))
         library = ProjectLibrary(path)
         library.add_entry(self.fs.unstrip_protocol(self.url), self)
+
+    def __bool__(self):
+        return (
+            bool(self.specs)
+            or bool(self.children)
+            or bool(self.contents)
+            or bool(self.artifacts)
+        )
 
 
 class ProjectSpec:

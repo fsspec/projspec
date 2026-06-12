@@ -39,7 +39,7 @@ from projspec.proj.dataworkflows import (
     Snakemake,
 )
 from projspec.proj.documentation import RTD, MDBook, MkDocs, Sphinx, Docusaurus
-from projspec.proj.git import GitRepo
+from projspec.proj.vcs import FossilRepo, GitRepo, HgRepo
 from projspec.proj.golang import Golang
 from projspec.proj.helm import HelmChart
 from projspec.proj.hf import HuggingFaceRepo
@@ -112,9 +112,10 @@ __all__ = [
     "MDBook",
     "RTD",
     "Sphinx",
-    # Git
+    # VCS
+    "FossilRepo",
     "GitRepo",
-    # Go
+    "HgRepo",  # Go
     "Golang",
     # Helm/K8s
     "HelmChart",

@@ -73,7 +73,7 @@ def version():
 
 
 @main.command("scan")
-@click.argument("path", default=".")
+@click.argument("patterns", nargs=-1)
 @click.option(
     "--storage_options",
     default="",
@@ -101,11 +101,13 @@ def version():
     default=False,
     help="HTML output, for projects only",
 )
-@click.option("--walk", is_flag=True, help="To descend into all child directories")
+@click.option(
+    "--walk", is_flag=True, help="Descend into child directories of each match"
+)
 @click.option("--summary", is_flag=True, help="Show abbreviated output")
-@click.option("--library", is_flag=True, help="Add to library")
+@click.option("--library", is_flag=True, help="Add each result to the library")
 def scan(
-    path,
+    patterns,
     storage_options,
     types,
     xtypes,
@@ -115,32 +117,39 @@ def scan(
     summary,
     library,
 ):
-    """Scan the given path for projects, and display
+    """Scan directories and display results.
 
-    path: str, path to the project directory, defaults to "."
+    PATTERNS is one or more directory paths or glob expressions.  When the
+    shell expands a glob before invoking projspec, each expanded path is
+    passed as a separate argument.  Glob expressions containing wildcards
+    (e.g. '~/projects/*') are expanded by projspec itself via fsspec.
+    If no PATTERNS are given, the current directory is scanned.
     """
+    from projspec.utils import scan_glob
+
     if types in {"ALL", ""}:
         types = None
     else:
         types = types.split(",")
-    proj = projspec.Project(
-        path,
-        storage_options=storage_options,
-        types=types,
-        xtypes=xtypes,
-        walk=walk,
-    )
-    if summary:
-        print(proj.text_summary())
-    else:
-        if json_out:
-            print(json.dumps(proj.to_dict(compact=False)))
-        elif html_out:
-            print(proj._repr_html_())
-        else:
-            print(proj)
-    if library:
-        proj.add_to_library()
+
+    for pattern in patterns or (".",):
+        for proj in scan_glob(
+            pattern,
+            types=types,
+            xtypes=xtypes,
+            walk=walk,
+            storage_options=storage_options,
+            add_to_library=library,
+        ):
+            if summary:
+                print(proj.text_summary())
+            else:
+                if json_out:
+                    print(json.dumps(proj.to_dict(compact=False)))
+                elif html_out:
+                    print(proj._repr_html_())
+                else:
+                    print(proj)
 
 
 @main.command("info")

@@ -170,6 +170,22 @@ def _basename(url: str) -> str:
     return (url.rstrip("/").rsplit("/", 1)[-1]) or url
 
 
+def _fmt_age(ts: float) -> str:
+    import datetime
+
+    days = (datetime.datetime.now() - datetime.datetime.fromtimestamp(ts)).days
+    if days == 0:
+        return "today"
+    if days == 1:
+        return "yesterday"
+    if days < 30:
+        return f"{days} days ago"
+    if days < 365:
+        return f"{days // 30} months ago"
+    yrs = days // 365
+    return f"{yrs} year{'s' if yrs > 1 else ''} ago"
+
+
 def _is_enum(v: Any) -> bool:
     """True for a serialised enum: ``{klass:['enum', name], value: ...}``."""
     return (
@@ -447,20 +463,22 @@ class CreateSpecModal(ModalScreen[str | None]):
             self.dismiss(value)
 
 
-class AddPathModal(ModalScreen[str | None]):
-    """Ask the user for a directory to add to the library.
+class AddPathModal(ModalScreen[tuple[str, str] | None]):
+    """Ask the user for a directory (or URL / glob pattern) to add to the library.
 
-    A simple text input that defaults to the user's home.  Terminal apps
-    don't have a native folder picker, so a free-form path is the cleanest
-    equivalent of the VSCode ``showOpenDialog``.
+    Returns a ``(path, storage_options)`` tuple, or ``None`` if cancelled.
+    Terminal apps don't have a native folder picker, so a free-form path
+    is the cleanest equivalent of the VSCode ``showOpenDialog``.
     """
 
     DEFAULT_CSS = """
     AddPathModal { align: center middle; }
     #box {
         background: #252526; border: solid #454545;
-        padding: 1 2; width: 70; height: auto;
+        padding: 1 2; width: 80; height: auto;
     }
+    #hint { color: #858585; margin-bottom: 1; }
+    #so-hint { color: #858585; margin-top: 1; }
     #btn-row { margin-top: 1; height: 3; }
     #btn-row Button { margin-right: 1; }
     """
@@ -469,8 +487,18 @@ class AddPathModal(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="box"):
-            yield Label("Add a directory (or URL) to the library:")
+            yield Label(
+                "Path / pattern — a local directory, URL, or glob "
+                "(e.g. ~/projects/* or s3://bucket/prefix):",
+                id="hint",
+            )
             yield Input(value=str(Path.home()), id="path-input")
+            yield Label(
+                "Storage options (JSON, optional) — fsspec credentials "
+                'for remote filesystems, e.g. {"key": "AKIA…", "secret": "…"}:',
+                id="so-hint",
+            )
+            yield Input(placeholder='{"key": "…", "secret": "…"}', id="so-input")
             with Horizontal(id="btn-row"):
                 yield Button("Add", variant="primary", id="btn-ok")
                 yield Button("Cancel", id="btn-cancel")
@@ -479,7 +507,11 @@ class AddPathModal(ModalScreen[str | None]):
         self.query_one("#path-input", Input).focus()
 
     @on(Input.Submitted, "#path-input")
-    def _on_submit(self, event: Input.Submitted) -> None:
+    def _on_path_submit(self, event: Input.Submitted) -> None:
+        self.query_one("#so-input", Input).focus()
+
+    @on(Input.Submitted, "#so-input")
+    def _on_so_submit(self, event: Input.Submitted) -> None:
         self._accept()
 
     @on(Button.Pressed, "#btn-ok")
@@ -491,8 +523,12 @@ class AddPathModal(ModalScreen[str | None]):
         self.dismiss(None)
 
     def _accept(self) -> None:
-        value = self.query_one("#path-input", Input).value.strip()
-        self.dismiss(value or None)
+        path = self.query_one("#path-input", Input).value.strip()
+        so = self.query_one("#so-input", Input).value.strip()
+        if path:
+            self.dismiss((path, so))
+        else:
+            self.dismiss(None)
 
 
 class RevealPickModal(ModalScreen[str | None]):
@@ -635,6 +671,7 @@ class ProjectWidget(Static):
     ProjectWidget .title { color: #dcb67a; text-style: bold; }
     ProjectWidget .url { color: #858585; }
     ProjectWidget .storage { color: #858585; text-style: italic; }
+    ProjectWidget .meta { color: #858585; }
     /* Each chips row is a plain horizontal run of ``Chip`` statics laid
        out left-to-right.  ``#chips-wrap`` stacks multiple such rows when
        the total chip width exceeds ``_CHIPS_ROW_WIDTH``. */
@@ -659,6 +696,25 @@ class ProjectWidget(Static):
         so = self.project.get("storage_options") or {}
         if so:
             yield Static(f"storage_options: {json.dumps(so)}", classes="storage")
+        meta_parts = []
+        file_count = self.project.get("file_count")
+        total_size = self.project.get("total_size")
+        if file_count is not None and total_size is not None:
+            from projspec.proj.base import _fmt_size
+
+            meta_parts.append(
+                f"{int(file_count):,} files, {_fmt_size(int(total_size))}"
+            )
+        is_writable = self.project.get("is_writable")
+        if is_writable is not None:
+            meta_parts.append("writable" if is_writable else "read-only")
+        last_modified = self.project.get("last_modified")
+        if last_modified is not None:
+            age = _fmt_age(float(last_modified))
+            by = self.project.get("last_modified_by")
+            meta_parts.append("last modified " + age + (f" by {by}" if by else ""))
+        if meta_parts:
+            yield Static(" · ".join(meta_parts), classes="meta")
         # Build the full list of chips first, then split into horizontal
         # rows that each fit into roughly ``_CHIPS_ROW_WIDTH`` cells.  This
         # keeps chips visible in narrow library panes (a plain Horizontal
@@ -1004,9 +1060,10 @@ class ProjspecApp(App):
         self._reload()
 
     def action_add(self) -> None:
-        def _cb(result: str | None) -> None:
+        def _cb(result: tuple[str, str] | None) -> None:
             if result:
-                self._scan_and_reload(result, walk=True)
+                path, so = result
+                self._scan_and_reload(path, walk=True, storage_options=so)
 
         self.push_screen(AddPathModal(), _cb)
 
@@ -1333,11 +1390,14 @@ class ProjspecApp(App):
 
         self.push_screen(CreateSpecModal(creatable), _cb)
 
-    def _scan_and_reload(self, url: str, walk: bool) -> None:
+    def _scan_and_reload(self, url: str, walk: bool, storage_options: str = "") -> None:
         self._set_busy(True)
         try:
+            import json as _json
+
+            so = _json.loads(storage_options) if storage_options.strip() else {}
             path = _url_to_local(url)
-            proj = projspec.Project(path, walk=walk)
+            proj = projspec.Project(path, walk=walk, storage_options=so)
             if walk:
                 for child_url, child in (proj.children or {}).items():
                     if child.specs:
