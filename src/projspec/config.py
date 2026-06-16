@@ -5,7 +5,7 @@ import warnings
 
 from typing import Any
 
-conf: dict[str, dict[str, Any]] = {}
+conf: dict[str, Any] = {}
 default_conf_dir = os.path.join(os.path.expanduser("~"), ".config/projspec")
 
 
@@ -39,6 +39,12 @@ def defaults():
         "remote_artifact_status": False,
         "capture_artifact_output": True,
         "preferred_install_methods": ["conda", "pip"],
+        "data_min_fraction": 0.5,
+        "data_min_file_size": 1024 * 1024,
+        "data_min_total_size": 10 * 1024 * 1024,
+        "data_min_play_size": 64 * 1024,
+        "data_consolidate_min_group": 3,
+        "data_inspect_max_datasets": 50,
         "excludes": [
             "bld",
             "build",
@@ -67,6 +73,34 @@ config_doc = {
     "preferred_install_methods": (
         "ordered list of preferred installer names for install_tool(), "
         "e.g. ['uv', 'conda', 'pip']. Empty list uses the platform default."
+    ),
+    "data_min_fraction": (
+        "fraction (0-1) of a project's total bytes that must be data files "
+        "before a code/other project is also reported as a DataProject. Data "
+        "below this fraction is only scanned if the project matches no other "
+        "type, or individual files exceed data_min_file_size."
+    ),
+    "data_min_file_size": (
+        "a single data file at or above this size (bytes) is considered "
+        "significant enough to scan even in an otherwise code project."
+    ),
+    "data_min_total_size": (
+        "minimum total size (bytes) of candidate data before a directory that "
+        "also matches another project type is additionally reported as a "
+        "DataProject (used together with data_min_fraction)."
+    ),
+    "data_min_play_size": (
+        "floor (bytes) below which even a directory that matches no other "
+        "project type is dismissed as toy/play data and not reported as a "
+        "DataProject."
+    ),
+    "data_consolidate_min_group": (
+        "minimum number of numbered/related files (e.g. 001.csv, 002.csv) that "
+        "are consolidated into a single dataset."
+    ),
+    "data_inspect_max_datasets": (
+        "do not run intake inspection if more than this many distinct datasets "
+        "are found in a directory (avoids huge scans)."
     ),
     "excludes": (
         "directory names to skip when walking a project tree for child projects "

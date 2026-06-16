@@ -9,12 +9,12 @@ from functools import cached_property
 
 import fsspec
 import fsspec.implementations.local
-import projspec.utils
 import toml
 
 from projspec.config import get_conf
 from projspec.utils import (
     AttrDict,
+    DEFAULT,
     IndentDumper,
     PickleableTomlDecoder,
     camel_to_snake,
@@ -562,12 +562,17 @@ class Project:
             dic["klass"] = "project"
         return dic.to_dict(compact=compact)
 
-    def _repr_html_(self):
-        from projspec.html import dict_to_html
+    def _ipython_display_(self):
+        """Auto-display as the interactive widget when possible.
 
-        # TODO: add tooltips to docs or spec links
-        # TODO: remove redundant information?
-        return dict_to_html(self.to_dict(), title=self.url)
+        Falls back to a plain ``repr`` when ``anywidget`` /
+        ``ipywidgets`` is not available - Jupyter will then use the
+        normal text representation.
+        """
+        from projspec.library import ProjectLibrary
+
+        lib = ProjectLibrary(entries={"memory": self}, library_path=None)
+        lib._ipython_display_()
 
     @staticmethod
     def from_dict(dic):
@@ -640,7 +645,7 @@ class Project:
         art.make(**kwargs)
         return art
 
-    def add_to_library(self, path=None):
+    def add_to_library(self, path=DEFAULT):
         """Add this project to the current session library"""
         # TODO: prevent overwrite?
         from projspec.library import ProjectLibrary

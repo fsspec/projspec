@@ -367,6 +367,7 @@ class TestWidgetHandlers:
         widget, lib, url = widget_and_lib
         new_proj = tmp_path / "newproj"
         new_proj.mkdir()
+        (new_proj / "requirements.txt").write_text("numpy")
         # Start with just the original entry
         original_keys = set(lib.entries)
         sends, toasts = _fire(

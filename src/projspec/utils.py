@@ -15,6 +15,10 @@ enum_registry = {}
 logger = logging.getLogger("projspec")
 
 
+class DEFAULT:
+    ...
+
+
 class Enum(enum.Enum):
     """Named enum values, so that str(x) looks like the label."""
 
@@ -113,7 +117,10 @@ def from_dict(dic, proj=None):
             if dic["klass"] == "project":
                 return Project.from_dict(dic)
             category, name = dic.pop("klass")
-            cls = get_cls(name, category)
+            try:
+                cls = get_cls(name, category)
+            except KeyError:
+                return None
             if category == "enum":
                 return cls(dic["value"])
             obj = object.__new__(cls)

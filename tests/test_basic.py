@@ -14,7 +14,7 @@ def test_basic(proj):
     assert "src/projspec" in proj.children
     assert repr(proj).count("\n") == 0
     assert str(proj).count("\n") > 0
-    proj._repr_html_()
+    proj._ipython_display_()
 
 
 def test_errors():

@@ -1,326 +1,399 @@
-import json
+"""Tests for the DataProject spec and the file-consolidation helper.
+
+The consolidation helper is filesystem-agnostic and tested directly on
+``(basename, size)`` lists.  The DataProject spec is tested end-to-end by
+writing files into a tmpdir and constructing a real ``projspec.Project``.
+
+Intake may or may not be installed (and which readers are available varies),
+so the DataProject assertions only check things that do not depend on a
+specific reader being present: that the project is/ isn't detected, how files
+are consolidated, file counts and sizes.  Where intake is available we also
+spot-check ``datatype``/``structure``.
+"""
+
 import os
 
 import pytest
 
 import projspec
-from projspec.content.data import DataResource
-from projspec.utils import from_dict
+from projspec.config import temp_conf
+from projspec.proj._consolidate import consolidate, FileGroup
+from projspec.proj.data_project import DataProject
+from projspec.content.data import Dataset, TabularData, IntakeSource
+
+try:
+    import intake.readers.inspect  # noqa: F401
+
+    HAS_INTAKE = True
+except Exception:  # pragma: no cover
+    HAS_INTAKE = False
+
+try:
+    import pandas as _pd  # noqa: F401
+
+    HAS_PANDAS = True
+except Exception:  # pragma: no cover
+    HAS_PANDAS = False
+
+try:
+    # importing here puts PIL in sys.modules so intake's check_imports (which
+    # uses importlib.metadata.distribution and falls back to sys.modules) finds
+    # it - Pillow's distribution name ("pillow") differs from the import name.
+    import PIL  # noqa: F401
+    import numpy as _np  # noqa: F401
+
+    HAS_PIL = True
+except Exception:  # pragma: no cover
+    HAS_PIL = False
 
 
-def _data_project(tmp_path):
-    """Return a projspec.Project rooted at *tmp_path* (no walk needed)."""
-    return projspec.Project(str(tmp_path))
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
-class TestDataDetection:
-    def test_csv_detected(self, tmp_path):
-        (tmp_path / "data.csv").write_text("x,y\n1,2\n3,4\n")
-        proj = _data_project(tmp_path)
-        assert "data" in proj.specs
+def write_data(tmpdir, files: dict[str, int | bytes]) -> str:
+    """Write files into *tmpdir*.
 
-    def test_parquet_detected(self, tmp_path):
-        pytest.importorskip("pyarrow")
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-
-        pq.write_table(pa.table({"a": [1, 2]}), str(tmp_path / "t.parquet"))
-        proj = _data_project(tmp_path)
-        assert "data" in proj.specs
-
-    def test_no_data_files_not_detected(self, tmp_path):
-        (tmp_path / "README.md").write_text("hello")
-        (tmp_path / "config.json").write_text("{}")
-        proj = _data_project(tmp_path)
-        assert "data" not in proj.specs
+    Values are either an int (number of zero bytes to write) or raw bytes.
+    """
+    path = str(tmpdir)
+    for rel, content in files.items():
+        full = os.path.join(path, rel)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        data = content if isinstance(content, bytes) else b"\0" * content
+        with open(full, "wb") as f:
+            f.write(data)
+    return path
 
 
-class TestDataParse:
-    def test_single_csv_resource(self, tmp_path):
-        (tmp_path / "sales.csv").write_text("col1,col2\n1,a\n2,b\n")
-        proj = _data_project(tmp_path)
-        dr = proj.specs["data"].contents["data_resource"]
-        assert isinstance(dr, DataResource)
-        assert dr.path == "sales.csv"
-        assert dr.format == "csv"
-        assert dr.modality == "tabular"
-        assert dr.file_count == 1
-
-    def test_series_collated_to_glob_path(self, tmp_path):
-        """part0.csv + part1.csv → path == 'part*.csv'"""
-        for i in range(3):
-            (tmp_path / f"part{i}.csv").write_text("x\n1\n")
-        proj = _data_project(tmp_path)
-        dr = proj.specs["data"].contents["data_resource"]
-        assert isinstance(dr, DataResource)
-        assert dr.path == "part*.csv"
-        assert dr.file_count == 3
-
-    def test_distinct_csv_files_separate_resources(self, tmp_path):
-        """users.csv and orders.csv differ alphabetically → two resources."""
-        (tmp_path / "users.csv").write_text("id\n1\n")
-        (tmp_path / "orders.csv").write_text("id\n1\n")
-        proj = _data_project(tmp_path)
-        dr_map = proj.specs["data"].contents["data_resource"]
-        # Two separate DataResource objects, keyed in an AttrDict
-        assert len(dr_map) == 2
-        paths = {dr_map[k].path for k in dr_map}
-        assert "users.csv" in paths
-        assert "orders.csv" in paths
-
-    def test_sample_path_is_full_path(self, tmp_path):
-        csv = tmp_path / "data.csv"
-        csv.write_text("x\n1\n")
-        proj = _data_project(tmp_path)
-        dr = proj.specs["data"].contents["data_resource"]
-        assert dr.sample_path == str(csv)
-
-    def test_total_size_nonzero(self, tmp_path):
-        content = "x,y\n" + "\n".join(f"{i},{i}" for i in range(20))
-        (tmp_path / "nums.csv").write_text(content)
-        proj = _data_project(tmp_path)
-        dr = proj.specs["data"].contents["data_resource"]
-        assert dr.total_size > 0
+def datasets(proj) -> list[Dataset]:
+    dp = proj.specs.get("data_project")
+    return list(dp.contents.get("dataset", [])) if dp else []
 
 
-class TestDataResourceToDict:
-    def _make_dr(self, tmp_path):
-        (tmp_path / "items.csv").write_text("id,val\n1,a\n2,b\n")
-        proj = _data_project(tmp_path)
-        return proj.specs["data"].contents["data_resource"]
-
-    def test_compact_omits_klass(self, tmp_path):
-        dr = self._make_dr(tmp_path)
-        d = dr.to_dict(compact=True)
-        assert "klass" not in d
-
-    def test_compact_omits_html(self, tmp_path):
-        """compact=True is for human/console output — _html must be absent."""
-        dr = self._make_dr(tmp_path)
-        d = dr.to_dict(compact=True)
-        assert "_html" not in d
+# ---------------------------------------------------------------------------
+# consolidate()
+# ---------------------------------------------------------------------------
 
 
-class TestDataResourceRoundTrip:
-    def _roundtrip(self, dr):
-        """Serialise to JSON and rehydrate, returning the new DataResource."""
-        d = dr.to_dict(compact=False)
-        js = json.dumps(d)
-        d2 = json.loads(js)
-        return from_dict(d2, proj=dr.proj)
+class TestConsolidate:
+    def test_numbered_csv_series(self):
+        files = [(f"{i:03d}.csv", 100) for i in range(1, 6)]
+        groups = consolidate(files)
+        assert len(groups) == 1
+        g = groups[0]
+        assert g.consolidated
+        assert g.pattern == "*.csv"
+        assert len(g.members) == 5
+        assert g.total_size == 500
 
-    def _make_dr(self, tmp_path):
-        (tmp_path / "orders.csv").write_text("order_id,amount\n1,99\n2,42\n")
-        proj = _data_project(tmp_path)
-        return proj.specs["data"].contents["data_resource"]
+    def test_spark_parts(self):
+        files = [(f"part-{i:05d}.parquet", 10) for i in range(4)]
+        groups = consolidate(files)
+        assert len(groups) == 1
+        assert groups[0].pattern == "part-*.parquet"
+        assert groups[0].consolidated
 
-    def test_roundtrip_returns_dataresource(self, tmp_path):
-        dr2 = self._roundtrip(self._make_dr(tmp_path))
-        assert isinstance(dr2, DataResource)
+    def test_year_series(self):
+        files = [(f"data_{y}.json", 5) for y in range(2015, 2021)]
+        groups = consolidate(files)
+        assert len(groups) == 1
+        assert groups[0].pattern == "data_*.json"
 
-    def test_roundtrip_preserves_path(self, tmp_path):
-        dr2 = self._roundtrip(self._make_dr(tmp_path))
-        assert dr2.path == "orders.csv"
+    def test_token_series_colours(self):
+        files = [("red.gif", 1), ("green.gif", 1), ("blue.gif", 1)]
+        groups = consolidate(files, min_token_group=2)
+        assert len(groups) == 1
+        assert groups[0].pattern == "*.gif"
+        assert groups[0].consolidated
+        assert sorted(groups[0].members) == ["blue.gif", "green.gif", "red.gif"]
 
-    def test_roundtrip_preserves_format(self, tmp_path):
-        dr2 = self._roundtrip(self._make_dr(tmp_path))
-        assert dr2.format == "csv"
+    def test_below_min_group_stays_standalone(self):
+        # only two numbered files, default min_group=3 -> not consolidated
+        files = [("001.csv", 10), ("002.csv", 10)]
+        groups = consolidate(files, min_group=3, min_token_group=99)
+        assert all(not g.consolidated for g in groups)
+        assert len(groups) == 2
 
-    def test_roundtrip_preserves_modality(self, tmp_path):
-        dr2 = self._roundtrip(self._make_dr(tmp_path))
-        assert dr2.modality == "tabular"
+    def test_mixed_extensions_separate_groups(self):
+        files = [(f"{i:03d}.csv", 10) for i in range(5)]
+        files += [(f"{i:03d}.json", 10) for i in range(5)]
+        groups = consolidate(files)
+        patterns = sorted(g.pattern for g in groups)
+        assert patterns == ["*.csv", "*.json"]
 
-    def test_roundtrip_preserves_file_count(self, tmp_path):
-        dr2 = self._roundtrip(self._make_dr(tmp_path))
-        assert dr2.file_count == 1
+    def test_unrelated_files_standalone(self):
+        files = [("readme_data.bin", 10), ("schema.avro", 10)]
+        groups = consolidate(files, min_token_group=99)
+        assert all(not g.consolidated for g in groups)
+        assert {g.name for g in groups} == {"readme_data.bin", "schema.avro"}
 
-    def test_roundtrip_preserves_total_size(self, tmp_path):
-        dr = self._make_dr(tmp_path)
-        dr2 = self._roundtrip(dr)
-        assert dr2.total_size == dr.total_size
+    def test_double_extension_grouping(self):
+        files = [(f"part{i}.csv.gz", 10) for i in range(5)]
+        groups = consolidate(files)
+        assert len(groups) == 1
+        assert groups[0].ext == ".csv.gz"
+        assert groups[0].consolidated
 
-    def test_roundtrip_preserves_schema(self, tmp_path):
-        pytest.importorskip("pyarrow")
-        import pyarrow as pa, pyarrow.parquet as pq
-
-        pq.write_table(
-            pa.table({"col_a": [1, 2, 3], "col_b": ["x", "y", "z"]}),
-            str(tmp_path / "data.parquet"),
+    def test_url_glob_vs_list(self, tmp_path):
+        g = FileGroup(
+            members=["001.csv", "002.csv", "003.csv"],
+            ext=".csv",
+            pattern="*.csv",
+            consolidated=True,
         )
-        proj = _data_project(tmp_path)
-        dr = proj.specs["data"].contents["data_resource"]
-        dr2 = self._roundtrip(dr)
-        assert dr2.schema == dr.schema
+        assert g.url("/data/foo") == "/data/foo/*.csv"
+        single = FileGroup(members=["only.csv"], ext=".csv", pattern="only.csv")
+        assert single.url("/data/foo") == "/data/foo/only.csv"
 
-    def test_roundtrip_html_matches_original(self, tmp_path):
-        """_repr_html_() on the rehydrated object must equal the original render."""
-        dr = self._make_dr(tmp_path)
-        html_original = dr._repr_html_()
-        dr2 = self._roundtrip(dr)
-        assert dr2._repr_html_() == html_original
-
-    def test_roundtrip_html_cached_without_rerender(self, tmp_path):
-        """After from_dict the HTML is already in _html — no re-render occurs."""
-        dr = self._make_dr(tmp_path)
-        html_original = dr._repr_html_()
-        d = dr.to_dict(compact=False)
-        d2 = json.loads(json.dumps(d))
-        dr2 = from_dict(d2, proj=dr.proj)
-
-        # Confirm _html is set directly on the instance (not via lazy render)
-        assert (
-            "_html" in dr2.__dict__
-        ), "_html should be in instance __dict__ after from_dict"
-        assert dr2.__dict__["_html"] == html_original
-
-    def test_roundtrip_html_survives_missing_sample_path(self, tmp_path):
-        """After rehydration, _repr_html_() must work even if sample_path
-        no longer resolves (e.g. moved to a different machine)."""
-        dr = self._make_dr(tmp_path)
-        # Trigger render with a real file, then remove the file
-        html_original = dr._repr_html_()
-        os.remove(dr.sample_path)
-
-        dr2 = self._roundtrip(dr)
-        # sample_path is gone — but HTML was cached in the dict
-        assert dr2._repr_html_() == html_original
+    def test_size_unknown_propagates_none(self):
+        files = [("001.csv", None), ("002.csv", 10), ("003.csv", 10)]
+        groups = consolidate(files)
+        assert groups[0].total_size is None
 
 
-class TestDataConditionalParse:
-    """Tests for the 'other project types present' guard in Data.parse()."""
+# ---------------------------------------------------------------------------
+# Content classes
+# ---------------------------------------------------------------------------
 
-    def _big_csv(self, path, rows=500):
-        """Write a CSV large enough to dominate byte counts."""
-        content = "id,value\n" + "\n".join(f"{i},{i * 2}" for i in range(rows))
-        path.write_text(content)
 
-    def test_pure_data_dir_no_sentinel(self, tmp_path):
-        """No sentinel → Data always parsed regardless of byte ratios."""
-        (tmp_path / "data.csv").write_text("x\n1\n")
-        proj = _data_project(tmp_path)
-        assert "data" in proj.specs
-
-    def test_datapackage_companion_not_a_sentinel(self, tmp_path):
-        """datapackage.json is a compatible companion — not a sentinel."""
-        self._big_csv(tmp_path / "data.csv")
-        (tmp_path / "datapackage.json").write_text('{"resources": []}')
-        proj = _data_project(tmp_path)
-        assert "data" in proj.specs
-
-    def test_dvc_companion_not_a_sentinel(self, tmp_path):
-        """catalog.yaml (IntakeCatalog / DVCRepo companion) is not a sentinel."""
-        self._big_csv(tmp_path / "data.csv")
-        (tmp_path / "catalog.yaml").write_text("sources: {}")
-        proj = _data_project(tmp_path)
-        assert "data" in proj.specs
-
-    def test_sentinel_present_data_majority(self, tmp_path):
-        """Sentinel is present, but data files are the majority of bytes → Data parsed."""
-        self._big_csv(tmp_path / "data.csv")  # large data file
-        (tmp_path / "pyproject.toml").write_text(
-            "[project]\nname='x'\n"
-        )  # tiny sentinel
-        proj = _data_project(tmp_path)
-        assert "data" in proj.specs
-
-    def test_sentinel_present_data_majority_parquet(self, tmp_path):
-        pytest.importorskip("pyarrow")
-        import pyarrow as pa, pyarrow.parquet as pq
-
-        pq.write_table(
-            pa.table({"x": list(range(1000)), "y": list(range(1000))}),
-            str(tmp_path / "data.parquet"),
+class TestContentClasses:
+    def test_dataset_roundtrip(self, tmp_path):
+        proj = projspec.Project(str(tmp_path))
+        ds = Dataset(
+            proj=proj,
+            name="*.csv",
+            url=f"{proj.url}/*.csv",
+            datatype="CSV",
+            structure=["table"],
+            schema={"columns": ["a", "b"]},
+            n_files=3,
+            total_size=999,
+            metadata={"readers": ["DaskCSV"]},
         )
-        (tmp_path / "Cargo.toml").write_text('[package]\nname="x"\n')
-        proj = _data_project(tmp_path)
-        assert "data" in proj.specs
+        d = ds.to_dict(compact=False)
+        assert d["klass"] == ["content", "dataset"]
+        from projspec.utils import from_dict
 
-    # -- mixed dirs where non-data dominates --
+        ds2 = from_dict(d, proj=proj)
+        assert isinstance(ds2, Dataset)
+        assert ds2.name == "*.csv"
+        assert ds2.datatype == "CSV"
+        assert ds2.n_files == 3
 
-    def test_sentinel_present_code_majority(self, tmp_path):
-        """Sentinel present and code files dominate → Data spec suppressed."""
-        # Large Python source file
-        (tmp_path / "main.py").write_text("x = 1\n" * 5000)
-        # Tiny CSV
-        (tmp_path / "tiny.csv").write_text("a,b\n1,2\n")
-        (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
-        proj = _data_project(tmp_path)
-        assert "data" not in proj.specs
+    def test_tabular_and_intake_source_registered(self):
+        from projspec.content.base import registry
 
-    def test_sentinel_present_equal_split_not_majority(self, tmp_path):
-        """Exactly 50/50 bytes is not a majority — Data suppressed."""
-        payload = "x" * 1000
-        (tmp_path / "code.py").write_text(payload)
-        (tmp_path / "data.csv").write_text(payload)
-        (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
-        proj = _data_project(tmp_path)
-        assert "data" not in proj.specs
+        assert registry["tabular_data"] is TabularData
+        assert registry["intake_source"] is IntakeSource
+        assert registry["dataset"] is Dataset
 
-    # -- helpers / unit tests for the private methods --
 
-    def test_has_non_data_sentinels_true(self, tmp_path):
-        from projspec.proj.data_dir import Data
+# ---------------------------------------------------------------------------
+# DataProject detection / significance
+# ---------------------------------------------------------------------------
 
-        (tmp_path / "data.csv").write_text("x\n1\n")
-        (tmp_path / "pyproject.toml").write_text("")
-        proj = object.__new__(projspec.Project)
-        import fsspec
 
-        proj.fs = fsspec.filesystem("file")
-        proj.url = str(tmp_path)
-        proj.__dict__["basenames"] = {
-            e["name"].rsplit("/", 1)[-1]: e["name"]
-            for e in proj.fs.ls(str(tmp_path), detail=True)
-        }
-        proj.__dict__["filelist"] = proj.fs.ls(str(tmp_path), detail=True)
-        inst = Data.__new__(Data)
-        inst.proj = proj
-        assert inst._has_non_data_sentinels() is True
+class TestDataProjectSignificance:
+    def test_pure_data_dir_detected(self, tmp_path):
+        # three numbered csvs, well above the play-data floor
+        write_data(tmp_path, {f"{i:03d}.csv": 100_000 for i in range(1, 4)})
+        proj = projspec.Project(str(tmp_path))
+        assert "data_project" in proj.specs
+        ds = datasets(proj)
+        assert len(ds) == 1
+        assert ds[0].n_files == 3
+        assert ds[0].name == "*.csv"
 
-    def test_has_non_data_sentinels_false(self, tmp_path):
-        from projspec.proj.data_dir import Data
+    def test_tiny_play_data_rejected(self, tmp_path):
+        write_data(tmp_path, {f"{i:03d}.csv": 20 for i in range(1, 4)})
+        proj = projspec.Project(str(tmp_path))
+        assert "data_project" not in proj.specs
 
-        (tmp_path / "data.csv").write_text("x\n1\n")
-        proj = object.__new__(projspec.Project)
-        import fsspec
+    def test_big_single_file_in_code_project(self, tmp_path):
+        # python package + one big csv -> both python_code and data_project
+        write_data(
+            tmp_path,
+            {
+                "__init__.py": b"x = 1\n",
+                "big.csv": 2 * 1024 * 1024,  # > data_min_file_size (1MB)
+            },
+        )
+        proj = projspec.Project(str(tmp_path))
+        assert "python_code" in proj.specs
+        assert "data_project" in proj.specs
+        ds = datasets(proj)
+        assert any(d.name == "big.csv" for d in ds)
 
-        proj.fs = fsspec.filesystem("file")
-        proj.url = str(tmp_path)
-        proj.__dict__["basenames"] = {
-            e["name"].rsplit("/", 1)[-1]: e["name"]
-            for e in proj.fs.ls(str(tmp_path), detail=True)
-        }
-        proj.__dict__["filelist"] = proj.fs.ls(str(tmp_path), detail=True)
-        inst = Data.__new__(Data)
-        inst.proj = proj
-        assert inst._has_non_data_sentinels() is False
+    def test_small_data_in_code_project_ignored(self, tmp_path):
+        write_data(
+            tmp_path,
+            {
+                "__init__.py": b"x = 1\n",
+                "main.py": b"print(1)\n" * 100,
+                "sample.csv": 200,  # tiny
+            },
+        )
+        proj = projspec.Project(str(tmp_path))
+        assert "python_code" in proj.specs
+        assert "data_project" not in proj.specs
 
-    def test_data_bytes_majority_true(self, tmp_path):
-        from projspec.proj.data_dir import Data
+    def test_fraction_rule_large_data_in_code_project(self, tmp_path):
+        # small code, large data -> data dominates by fraction and total size
+        write_data(
+            tmp_path,
+            {
+                "__init__.py": b"x = 1\n",
+                "data.bin": 20 * 1024 * 1024,  # 20MB, > data_min_total_size
+            },
+        )
+        proj = projspec.Project(str(tmp_path))
+        assert "python_code" in proj.specs
+        assert "data_project" in proj.specs
 
-        self._big_csv(tmp_path / "data.csv")
-        (tmp_path / "small.py").write_text("x = 1\n")
-        proj = object.__new__(projspec.Project)
-        import fsspec
+    def test_threshold_overridable_via_config(self, tmp_path):
+        write_data(tmp_path, {f"{i:03d}.csv": 20 for i in range(1, 4)})
+        # default: rejected; with a tiny play-size floor it should be detected
+        with temp_conf(data_min_play_size=1):
+            proj = projspec.Project(str(tmp_path))
+            assert "data_project" in proj.specs
 
-        proj.fs = fsspec.filesystem("file")
-        proj.url = str(tmp_path)
-        proj.__dict__["filelist"] = proj.fs.ls(str(tmp_path), detail=True)
-        inst = Data.__new__(Data)
-        inst.proj = proj
-        assert inst._data_bytes_majority() is True
 
-    def test_data_bytes_majority_false(self, tmp_path):
-        from projspec.proj.data_dir import Data
+# ---------------------------------------------------------------------------
+# DataProject consolidation + intake integration
+# ---------------------------------------------------------------------------
 
-        (tmp_path / "main.py").write_text("x = 1\n" * 5000)
-        (tmp_path / "tiny.csv").write_text("a\n1\n")
-        proj = object.__new__(projspec.Project)
-        import fsspec
 
-        proj.fs = fsspec.filesystem("file")
-        proj.url = str(tmp_path)
-        proj.__dict__["filelist"] = proj.fs.ls(str(tmp_path), detail=True)
-        inst = Data.__new__(Data)
-        inst.proj = proj
-        assert inst._data_bytes_majority() is False
+class TestDataProjectDatasets:
+    def test_image_series_consolidated(self, tmp_path):
+        write_data(
+            tmp_path,
+            {f"{c}.gif": b"GIF89a" + b"\0" * 50_000 for c in ("red", "green", "blue")},
+        )
+        proj = projspec.Project(str(tmp_path))
+        ds = datasets(proj)
+        assert len(ds) == 1
+        assert ds[0].name == "*.gif"
+        assert ds[0].n_files == 3
+
+    def test_directory_dataset_marker(self, tmp_path):
+        # a _metadata marker means intake treats the whole dir as one dataset
+        write_data(
+            tmp_path,
+            {
+                "_metadata": 100,
+                "part-0.parquet": b"PAR1" + b"\0" * 200_000,
+                "part-1.parquet": b"PAR1" + b"\0" * 200_000,
+            },
+        )
+        proj = projspec.Project(str(tmp_path))
+        assert "data_project" in proj.specs
+        ds = datasets(proj)
+        # whole directory described as a single dataset
+        assert len(ds) == 1
+
+    @pytest.mark.skipif(not HAS_INTAKE, reason="intake not installed")
+    def test_intake_identifies_csv(self, tmp_path):
+        rows = b"a,b,c\n" + b"".join(b"1,2,3\n" for _ in range(50_000))
+        write_data(tmp_path, {f"{i:03d}.csv": rows for i in range(1, 4)})
+        proj = projspec.Project(str(tmp_path))
+        ds = datasets(proj)
+        assert len(ds) == 1
+        assert ds[0].datatype == "CSV"
+        assert "table" in ds[0].structure
+
+    def test_no_data_files_no_match(self, tmp_path):
+        write_data(tmp_path, {"README.md": b"# hi\n", "setup.py": b"x=1\n"})
+        proj = projspec.Project(str(tmp_path))
+        assert "data_project" not in proj.specs
+
+
+# ---------------------------------------------------------------------------
+# match() / _is_data_ext unit checks
+# ---------------------------------------------------------------------------
+
+
+class TestDataExt:
+    @pytest.mark.parametrize(
+        "name,expected",
+        [
+            ("data.csv", True),
+            ("table.parquet", True),
+            ("image.png", True),
+            ("archive.csv.gz", True),
+            ("module.py", False),
+            ("README.md", False),
+            ("pyproject.toml", False),
+            (".gitignore", False),
+            ("Makefile", False),  # no extension
+            ("config.ini", False),
+        ],
+    )
+    def test_is_data_ext(self, name, expected):
+        assert DataProject._is_data_ext(name) is expected
+
+
+# ---------------------------------------------------------------------------
+# HTML repr / thumbnail captured into Dataset.metadata
+# ---------------------------------------------------------------------------
+
+
+def _make_csv_bytes(rows: int = 200_000) -> bytes:
+    """A CSV big enough to clear the single-big-file significance threshold."""
+    body = "a,b,c\n" + "\n".join(f"{i},{i * 2},val{i}" for i in range(rows))
+    return body.encode()
+
+
+class TestDatasetHTMLOutput:
+    """The DataProject pipeline should carry intake's ``html_repr`` and
+    ``thumbnail`` through into ``Dataset.metadata`` when a reader discovers the
+    underlying object."""
+
+    @pytest.mark.skipif(not (HAS_INTAKE and HAS_PANDAS), reason="needs intake + pandas")
+    def test_html_repr_for_tabular(self, tmp_path):
+        # single file > data_min_file_size so it is described on its own and a
+        # single-file pandas reader can discover it
+        write_data(tmp_path, {"big.csv": _make_csv_bytes()})
+        proj = projspec.Project(str(tmp_path))
+        ds = datasets(proj)
+        assert len(ds) == 1
+        meta = ds[0].metadata
+        assert "PandasCSV" in meta.get("readers")
+        assert meta.get("html_repr"), "expected html_repr in Dataset.metadata"
+        assert "<table" in meta["html_repr"]
+        # no image thumbnail for tabular data
+        assert "thumbnail" not in meta
+
+    @pytest.mark.skipif(not (HAS_INTAKE and HAS_PIL), reason="needs intake + Pillow")
+    def test_thumbnail_for_image(self, tmp_path):
+        import numpy as np
+        from PIL import Image
+
+        # a single big PNG so it is significant on its own
+        arr = (np.random.rand(400, 400, 3) * 255).astype("uint8")
+        Image.fromarray(arr).save(os.path.join(str(tmp_path), "pic.png"))
+
+        proj = projspec.Project(str(tmp_path))
+        ds = datasets(proj)
+        assert len(ds) == 1
+        meta = ds[0].metadata
+        assert ds[0].datatype == "PNG", ds[0].datatype
+        assert meta.get("reader_used") == "PILImageReader", meta.get("reader_used")
+        assert meta.get("thumbnail", "").startswith("data:image/png;base64,")
+
+    def test_metadata_omits_missing_html_fields(self, tmp_path):
+        # a glob of tiny-but-significant files where no reader discovers the
+        # object -> html_repr/thumbnail simply absent, never None-valued keys
+        with temp_conf(data_min_play_size=1):
+            write_data(tmp_path, {f"{i:03d}.bin": 100 for i in range(5)})
+            proj = projspec.Project(str(tmp_path))
+        ds = datasets(proj)
+        assert ds, "expected a dataset"
+        for d in ds:
+            assert "html_repr" not in d.metadata or isinstance(
+                d.metadata["html_repr"], str
+            )
+            assert "thumbnail" not in d.metadata or isinstance(
+                d.metadata["thumbnail"], str
+            )
