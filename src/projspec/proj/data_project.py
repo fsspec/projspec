@@ -270,8 +270,12 @@ class DataProject(ProjectSpec):
         else:
             datasets = [self._describe(g, dir_dataset=dir_dataset) for g in groups]
 
+        # Only keep datasets that intake could assign a datatype to; datasets
+        # whose type could not be identified are not useful as data content.
+        datasets = [d for d in datasets if d.datatype is not None]
+
         if not datasets:
-            raise ParseFailed("No datasets found")
+            raise ParseFailed("No datasets with an identified datatype found")
         self._contents = AttrDict(dataset=datasets)
 
     # ── dataset description ─────────────────────────────────────────────────

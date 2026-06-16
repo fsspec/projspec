@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import stat
+import time
 from collections.abc import Iterable
 from itertools import chain
 from functools import cached_property
@@ -315,6 +316,8 @@ class Project:
         types = set(camel_to_snake(_) for _ in types or ())
         if types and types - set(registry):
             raise ValueError(f"Unknown types: {set(types) - set(registry)}")
+        # record when this (re)scan happened
+        self.scanned_at = time.time()
         # sorting to ensure consistency
         for name in sorted(registry):
             cls = registry[name]
@@ -557,6 +560,7 @@ class Project:
             is_writable=self.is_writable,
             last_modified=self.last_modified,
             last_modified_by=self.last_modified_by,
+            scanned_at=self.scanned_at,
         )
         if not compact:
             dic["klass"] = "project"
@@ -588,6 +592,11 @@ class Project:
         proj.path = dic["url"]
         proj.storage_options = dic["storage_options"]
         proj.fs, proj.url = fsspec.url_to_fs(proj.path, **proj.storage_options)
+        scanned_at = dic.get("scanned_at")
+        try:
+            proj.scanned_at = float(scanned_at)
+        except (TypeError, ValueError):
+            proj.scanned_at = time.time()
         # Restore cached tree stats so a round-tripped Project never re-walks.
         # Keys default to None if absent (e.g. older serialised data).
         proj.__dict__["_tree_stats"] = {

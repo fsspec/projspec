@@ -33,6 +33,7 @@ def coerce(template, val):
 def defaults():
     return {
         "library_path": f"{conf_dir()}/library.json",
+        "auto_rescan": 7 * 24 * 60 * 60,  # one week, in seconds
         "scan_types": [".py", ".yaml", ".yml", ".toml", ".json", ".md"],
         "scan_max_files": 100,
         "scan_max_size": 5 * 2**10,
@@ -40,9 +41,9 @@ def defaults():
         "capture_artifact_output": True,
         "preferred_install_methods": ["conda", "pip"],
         "data_min_fraction": 0.5,
-        "data_min_file_size": 1024 * 1024,
-        "data_min_total_size": 10 * 1024 * 1024,
-        "data_min_play_size": 64 * 1024,
+        "data_min_file_size": 1,  # 024 * 1024,
+        "data_min_total_size": 1,  # 0 * 1024 * 1024,
+        "data_min_play_size": 1,  # 64 * 1024,
         "data_consolidate_min_group": 3,
         "data_inspect_max_datasets": 50,
         "excludes": [
@@ -62,6 +63,11 @@ def defaults():
 
 config_doc = {
     "library_path": "location of persisted project objects",
+    "auto_rescan": (
+        "maximum age (seconds) of a project loaded from the library before it "
+        "is automatically rescanned and re-saved. Set to 0 to disable "
+        "automatic rescanning. Default is one week."
+    ),
     "scan_types": "files extensions automatically read for scanning",
     "scan_max_files": "don't scan files if more than this number in the project",
     "scan_max_size": "don't scan files bigger than this (in bytes)",

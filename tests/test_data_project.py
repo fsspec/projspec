@@ -51,6 +51,16 @@ except Exception:  # pragma: no cover
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Production-equivalent significance thresholds. Tests that depend on these
+# values set them explicitly via temp_conf so they do not rely on (and are not
+# broken by changes to) the config defaults.
+PROD_THRESHOLDS = dict(
+    data_min_fraction=0.5,
+    data_min_file_size=1024 * 1024,
+    data_min_total_size=10 * 1024 * 1024,
+    data_min_play_size=64 * 1024,
+)
+
 
 def write_data(tmpdir, files: dict[str, int | bytes]) -> str:
     """Write files into *tmpdir*.
@@ -198,8 +208,9 @@ class TestContentClasses:
 class TestDataProjectSignificance:
     def test_pure_data_dir_detected(self, tmp_path):
         # three numbered csvs, well above the play-data floor
-        write_data(tmp_path, {f"{i:03d}.csv": 100_000 for i in range(1, 4)})
-        proj = projspec.Project(str(tmp_path))
+        with temp_conf(**PROD_THRESHOLDS):
+            write_data(tmp_path, {f"{i:03d}.csv": 100_000 for i in range(1, 4)})
+            proj = projspec.Project(str(tmp_path))
         assert "data_project" in proj.specs
         ds = datasets(proj)
         assert len(ds) == 1
@@ -207,54 +218,64 @@ class TestDataProjectSignificance:
         assert ds[0].name == "*.csv"
 
     def test_tiny_play_data_rejected(self, tmp_path):
-        write_data(tmp_path, {f"{i:03d}.csv": 20 for i in range(1, 4)})
-        proj = projspec.Project(str(tmp_path))
+        with temp_conf(**PROD_THRESHOLDS):
+            write_data(tmp_path, {f"{i:03d}.csv": 20 for i in range(1, 4)})
+            proj = projspec.Project(str(tmp_path))
         assert "data_project" not in proj.specs
 
     def test_big_single_file_in_code_project(self, tmp_path):
         # python package + one big csv -> both python_code and data_project
-        write_data(
-            tmp_path,
-            {
-                "__init__.py": b"x = 1\n",
-                "big.csv": 2 * 1024 * 1024,  # > data_min_file_size (1MB)
-            },
-        )
-        proj = projspec.Project(str(tmp_path))
+        with temp_conf(**PROD_THRESHOLDS):
+            write_data(
+                tmp_path,
+                {
+                    "__init__.py": b"x = 1\n",
+                    "big.csv": 2 * 1024 * 1024,  # > data_min_file_size (1MB)
+                },
+            )
+            proj = projspec.Project(str(tmp_path))
         assert "python_code" in proj.specs
         assert "data_project" in proj.specs
         ds = datasets(proj)
         assert any(d.name == "big.csv" for d in ds)
 
     def test_small_data_in_code_project_ignored(self, tmp_path):
-        write_data(
-            tmp_path,
-            {
-                "__init__.py": b"x = 1\n",
-                "main.py": b"print(1)\n" * 100,
-                "sample.csv": 200,  # tiny
-            },
-        )
-        proj = projspec.Project(str(tmp_path))
+        with temp_conf(**PROD_THRESHOLDS):
+            write_data(
+                tmp_path,
+                {
+                    "__init__.py": b"x = 1\n",
+                    "main.py": b"print(1)\n" * 100,
+                    "sample.csv": 200,  # tiny
+                },
+            )
+            proj = projspec.Project(str(tmp_path))
         assert "python_code" in proj.specs
         assert "data_project" not in proj.specs
 
     def test_fraction_rule_large_data_in_code_project(self, tmp_path):
-        # small code, large data -> data dominates by fraction and total size
-        write_data(
-            tmp_path,
-            {
-                "__init__.py": b"x = 1\n",
-                "data.bin": 20 * 1024 * 1024,  # 20MB, > data_min_total_size
-            },
-        )
-        proj = projspec.Project(str(tmp_path))
+        # small code, large data -> data dominates by fraction and total size.
+        # Use a .csv so intake can identify a datatype (datasets with no
+        # identified datatype are dropped from the result).
+        with temp_conf(**PROD_THRESHOLDS):
+            write_data(
+                tmp_path,
+                {
+                    "__init__.py": b"x = 1\n",
+                    "data.csv": b"a,b,c\n" + b"1,2,3\n" * (4 * 1024 * 1024),  # >20MB
+                },
+            )
+            proj = projspec.Project(str(tmp_path))
         assert "python_code" in proj.specs
         assert "data_project" in proj.specs
 
     def test_threshold_overridable_via_config(self, tmp_path):
         write_data(tmp_path, {f"{i:03d}.csv": 20 for i in range(1, 4)})
-        # default: rejected; with a tiny play-size floor it should be detected
+        # with the production play-size floor: rejected
+        with temp_conf(**PROD_THRESHOLDS):
+            proj = projspec.Project(str(tmp_path))
+            assert "data_project" not in proj.specs
+        # with a tiny play-size floor it should be detected
         with temp_conf(data_min_play_size=1):
             proj = projspec.Project(str(tmp_path))
             assert "data_project" in proj.specs
@@ -267,11 +288,15 @@ class TestDataProjectSignificance:
 
 class TestDataProjectDatasets:
     def test_image_series_consolidated(self, tmp_path):
-        write_data(
-            tmp_path,
-            {f"{c}.gif": b"GIF89a" + b"\0" * 50_000 for c in ("red", "green", "blue")},
-        )
-        proj = projspec.Project(str(tmp_path))
+        with temp_conf(**PROD_THRESHOLDS):
+            write_data(
+                tmp_path,
+                {
+                    f"{c}.gif": b"GIF89a" + b"\0" * 50_000
+                    for c in ("red", "green", "blue")
+                },
+            )
+            proj = projspec.Project(str(tmp_path))
         ds = datasets(proj)
         assert len(ds) == 1
         assert ds[0].name == "*.gif"
@@ -279,15 +304,16 @@ class TestDataProjectDatasets:
 
     def test_directory_dataset_marker(self, tmp_path):
         # a _metadata marker means intake treats the whole dir as one dataset
-        write_data(
-            tmp_path,
-            {
-                "_metadata": 100,
-                "part-0.parquet": b"PAR1" + b"\0" * 200_000,
-                "part-1.parquet": b"PAR1" + b"\0" * 200_000,
-            },
-        )
-        proj = projspec.Project(str(tmp_path))
+        with temp_conf(**PROD_THRESHOLDS):
+            write_data(
+                tmp_path,
+                {
+                    "_metadata": 100,
+                    "part-0.parquet": b"PAR1" + b"\0" * 200_000,
+                    "part-1.parquet": b"PAR1" + b"\0" * 200_000,
+                },
+            )
+            proj = projspec.Project(str(tmp_path))
         assert "data_project" in proj.specs
         ds = datasets(proj)
         # whole directory described as a single dataset
@@ -295,9 +321,10 @@ class TestDataProjectDatasets:
 
     @pytest.mark.skipif(not HAS_INTAKE, reason="intake not installed")
     def test_intake_identifies_csv(self, tmp_path):
-        rows = b"a,b,c\n" + b"".join(b"1,2,3\n" for _ in range(50_000))
-        write_data(tmp_path, {f"{i:03d}.csv": rows for i in range(1, 4)})
-        proj = projspec.Project(str(tmp_path))
+        with temp_conf(**PROD_THRESHOLDS):
+            rows = b"a,b,c\n" + b"".join(b"1,2,3\n" for _ in range(50_000))
+            write_data(tmp_path, {f"{i:03d}.csv": rows for i in range(1, 4)})
+            proj = projspec.Project(str(tmp_path))
         ds = datasets(proj)
         assert len(ds) == 1
         assert ds[0].datatype == "CSV"
@@ -354,8 +381,9 @@ class TestDatasetHTMLOutput:
     def test_html_repr_for_tabular(self, tmp_path):
         # single file > data_min_file_size so it is described on its own and a
         # single-file pandas reader can discover it
-        write_data(tmp_path, {"big.csv": _make_csv_bytes()})
-        proj = projspec.Project(str(tmp_path))
+        with temp_conf(**PROD_THRESHOLDS):
+            write_data(tmp_path, {"big.csv": _make_csv_bytes()})
+            proj = projspec.Project(str(tmp_path))
         ds = datasets(proj)
         assert len(ds) == 1
         meta = ds[0].metadata
@@ -371,10 +399,11 @@ class TestDatasetHTMLOutput:
         from PIL import Image
 
         # a single big PNG so it is significant on its own
-        arr = (np.random.rand(400, 400, 3) * 255).astype("uint8")
-        Image.fromarray(arr).save(os.path.join(str(tmp_path), "pic.png"))
+        with temp_conf(**PROD_THRESHOLDS):
+            arr = (np.random.rand(400, 400, 3) * 255).astype("uint8")
+            Image.fromarray(arr).save(os.path.join(str(tmp_path), "pic.png"))
 
-        proj = projspec.Project(str(tmp_path))
+            proj = projspec.Project(str(tmp_path))
         ds = datasets(proj)
         assert len(ds) == 1
         meta = ds[0].metadata
@@ -382,15 +411,19 @@ class TestDatasetHTMLOutput:
         assert meta.get("reader_used") == "PILImageReader", meta.get("reader_used")
         assert meta.get("thumbnail", "").startswith("data:image/png;base64,")
 
+    @pytest.mark.skipif(not HAS_INTAKE, reason="intake not installed")
     def test_metadata_omits_missing_html_fields(self, tmp_path):
-        # a glob of tiny-but-significant files where no reader discovers the
-        # object -> html_repr/thumbnail simply absent, never None-valued keys
+        # a glob of tiny-but-significant files that intake can type but for
+        # which no reader produces a rich repr -> html_repr/thumbnail simply
+        # absent, never None-valued keys
         with temp_conf(data_min_play_size=1):
-            write_data(tmp_path, {f"{i:03d}.bin": 100 for i in range(5)})
+            rows = b"a,b,c\n" + b"1,2,3\n" * 10
+            write_data(tmp_path, {f"{i:03d}.csv": rows for i in range(5)})
             proj = projspec.Project(str(tmp_path))
         ds = datasets(proj)
         assert ds, "expected a dataset"
         for d in ds:
+            assert d.datatype is not None
             assert "html_repr" not in d.metadata or isinstance(
                 d.metadata["html_repr"], str
             )
