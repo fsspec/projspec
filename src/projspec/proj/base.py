@@ -3,18 +3,19 @@ import json
 import logging
 import os
 import stat
+import time
 from collections.abc import Iterable
 from itertools import chain
 from functools import cached_property
 
 import fsspec
 import fsspec.implementations.local
-import projspec.utils
 import toml
 
 from projspec.config import get_conf
 from projspec.utils import (
     AttrDict,
+    DEFAULT,
     IndentDumper,
     PickleableTomlDecoder,
     camel_to_snake,
@@ -32,6 +33,37 @@ def _fmt_size(n: int) -> str:
         if n < 1024 or unit == "TB":
             return f"{n:.1f} {unit}" if unit != "B" else f"{n} B"
         n /= 1024
+
+
+def _humanize_age(ts: float) -> str:
+    """Render a Unix timestamp as a relative "X ago" string.
+
+    e.g. "just now", "5 minutes ago", "3 hours ago", "today", "yesterday",
+    "4 days ago", "2 months ago", "1 year ago".
+    """
+    import datetime
+
+    age = datetime.datetime.now() - datetime.datetime.fromtimestamp(ts)
+    days = age.days
+    if days < 0:
+        # clock skew / future timestamp - treat as just now
+        return "just now"
+    if days == 0:
+        secs = int(age.total_seconds())
+        if secs < 60:
+            return "just now"
+        if secs < 3600:
+            mins = secs // 60
+            return f"{mins} minute{'s' if mins != 1 else ''} ago"
+        hours = secs // 3600
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    if days == 1:
+        return "yesterday"
+    if days < 30:
+        return f"{days} days ago"
+    if days < 365:
+        return f"{days // 30} months ago"
+    return f"{days // 365} year{'s' if days >= 730 else ''} ago"
 
 
 class ParseFailed(ValueError):
@@ -315,6 +347,8 @@ class Project:
         types = set(camel_to_snake(_) for _ in types or ())
         if types and types - set(registry):
             raise ValueError(f"Unknown types: {set(types) - set(registry)}")
+        # record when this (re)scan happened
+        self.scanned_at = time.time()
         # sorting to ensure consistency
         for name in sorted(registry):
             cls = registry[name]
@@ -410,25 +444,17 @@ class Project:
         # last modified
         lm = self.last_modified
         if lm is not None:
-            import datetime
-
-            age = datetime.datetime.now() - datetime.datetime.fromtimestamp(lm)
-            days = age.days
-            if days == 0:
-                age_str = "today"
-            elif days == 1:
-                age_str = "yesterday"
-            elif days < 30:
-                age_str = f"{days} days ago"
-            elif days < 365:
-                age_str = f"{days // 30} months ago"
-            else:
-                age_str = f"{days // 365} year{'s' if days >= 730 else ''} ago"
+            age_str = _humanize_age(lm)
             by = self.last_modified_by
             if by:
                 parts.append(f"last modified {age_str} by {by}")
             else:
                 parts.append(f"last modified {age_str}")
+
+        # when this project was last scanned
+        scanned_at = getattr(self, "scanned_at", None)
+        if scanned_at is not None:
+            parts.append(f"scanned {_humanize_age(scanned_at)}")
 
         return " " + " · ".join(parts) if parts else ""
 
@@ -557,17 +583,23 @@ class Project:
             is_writable=self.is_writable,
             last_modified=self.last_modified,
             last_modified_by=self.last_modified_by,
+            scanned_at=self.scanned_at,
         )
         if not compact:
             dic["klass"] = "project"
         return dic.to_dict(compact=compact)
 
-    def _repr_html_(self):
-        from projspec.html import dict_to_html
+    def _ipython_display_(self):
+        """Auto-display as the interactive widget when possible.
 
-        # TODO: add tooltips to docs or spec links
-        # TODO: remove redundant information?
-        return dict_to_html(self.to_dict(), title=self.url)
+        Falls back to a plain ``repr`` when ``anywidget`` /
+        ``ipywidgets`` is not available - Jupyter will then use the
+        normal text representation.
+        """
+        from projspec.library import ProjectLibrary
+
+        lib = ProjectLibrary(entries={"memory": self}, library_path=None)
+        lib._ipython_display_()
 
     @staticmethod
     def from_dict(dic):
@@ -583,6 +615,11 @@ class Project:
         proj.path = dic["url"]
         proj.storage_options = dic["storage_options"]
         proj.fs, proj.url = fsspec.url_to_fs(proj.path, **proj.storage_options)
+        scanned_at = dic.get("scanned_at")
+        try:
+            proj.scanned_at = float(scanned_at)
+        except (TypeError, ValueError):
+            proj.scanned_at = time.time()
         # Restore cached tree stats so a round-tripped Project never re-walks.
         # Keys default to None if absent (e.g. older serialised data).
         proj.__dict__["_tree_stats"] = {
@@ -640,7 +677,7 @@ class Project:
         art.make(**kwargs)
         return art
 
-    def add_to_library(self, path=None):
+    def add_to_library(self, path=DEFAULT):
         """Add this project to the current session library"""
         # TODO: prevent overwrite?
         from projspec.library import ProjectLibrary

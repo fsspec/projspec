@@ -126,8 +126,15 @@ class TestFmtAge:
     def _ts(self, days_ago: float) -> float:
         return time.time() - days_ago * 86400
 
-    def test_today(self):
-        assert _fmt_age(self._ts(0.1)) == "today"
+    def test_just_now(self):
+        assert _fmt_age(time.time() - 5) == "just now"
+
+    def test_minutes(self):
+        assert _fmt_age(time.time() - 5 * 60) == "5 minutes ago"
+
+    def test_hours(self):
+        # 0.1 days ~= 2.4 hours -> reported in hours, not "today"
+        assert _fmt_age(self._ts(0.1)) == "2 hours ago"
 
     def test_yesterday(self):
         assert _fmt_age(self._ts(1.5)) == "yesterday"
@@ -332,6 +339,23 @@ class TestYamlLines:
         lines_2 = _yaml_lines(data, {}, 2)
         # Outer indent: lines_2 should have more leading spaces
         assert lines_2[0].startswith(" " * 2)
+
+    def test_html_repr_shown_as_placeholder(self):
+        # the giant raw HTML must not be dumped; show a short note instead
+        big = "<table>" + "x" * 5000 + "</table>"
+        lines = _yaml_lines({"metadata": {"html_repr": big}}, {}, 0)
+        combined = " ".join(lines)
+        assert big not in combined
+        assert "html_repr" in combined
+        assert "HTML preview" in combined
+
+    def test_thumbnail_shown_as_placeholder(self):
+        url = "data:image/png;base64," + "A" * 5000
+        lines = _yaml_lines({"metadata": {"thumbnail": url}}, {}, 0)
+        combined = " ".join(lines)
+        assert url not in combined
+        assert "thumbnail" in combined
+        assert "image thumbnail" in combined
 
 
 # ---------------------------------------------------------------------------

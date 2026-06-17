@@ -933,8 +933,18 @@ const PANEL_JS = String.raw`
         }
     }
     function fmtAge(ts) {
-        const days = Math.floor((Date.now() / 1000 - parseFloat(ts)) / 86400);
-        if (days === 0) return 'today';
+        const secs = Math.floor(Date.now() / 1000 - parseFloat(ts));
+        if (secs < 0) return 'just now';
+        const days = Math.floor(secs / 86400);
+        if (days === 0) {
+            if (secs < 60) return 'just now';
+            if (secs < 3600) {
+                const m = Math.floor(secs / 60);
+                return m + ' minute' + (m !== 1 ? 's' : '') + ' ago';
+            }
+            const h = Math.floor(secs / 3600);
+            return h + ' hour' + (h !== 1 ? 's' : '') + ' ago';
+        }
         if (days === 1) return 'yesterday';
         if (days < 30) return days + ' days ago';
         if (days < 365) return Math.floor(days / 30) + ' months ago';
@@ -1018,6 +1028,8 @@ const PANEL_JS = String.raw`
             const by = project.last_modified_by != null ? project.last_modified_by : null;
             metaParts.push('last modified ' + age + (by ? ' by ' + by : ''));
         }
+        if (project.scanned_at != null)
+            metaParts.push('scanned ' + fmtAge(project.scanned_at));
         if (metaParts.length > 0) {
             const meta = document.createElement('div');
             meta.className = 'meta';
@@ -1309,13 +1321,68 @@ const PANEL_JS = String.raw`
             body.innerHTML = sanitizeHtml(html);
             w.appendChild(body);
         } else {
+            // Datasets (and other content) may carry rich previews in
+            // metadata.html_repr (an HTML fragment) and metadata.thumbnail
+            // (a data: image URL). Embed those rather than dumping their
+            // (often huge) raw strings into the YAML tree.
+            const meta = (kind === 'content' && data && typeof data === 'object'
+                && data.metadata && typeof data.metadata === 'object') ? data.metadata : null;
+            const htmlRepr = meta && typeof meta.html_repr === 'string' ? meta.html_repr : null;
+            const thumb = meta && typeof meta.thumbnail === 'string' ? meta.thumbnail : null;
+
             const tree = document.createElement('div');
             tree.className = 'tree yaml';
-            tree.appendChild(renderYaml(stripKlass(data)));
+            tree.appendChild(renderYaml(stripPreview(stripKlass(data))));
             w.appendChild(tree);
+
+            if (thumb) w.appendChild(thumbnailImg(thumb));
+            if (htmlRepr) {
+                const body = document.createElement('div');
+                body.className = 'widget-html';
+                body.innerHTML = sanitizeHtml(htmlRepr);
+                w.appendChild(body);
+            }
         }
 
         return w;
+    }
+
+    /**
+     * Return a shallow copy of a content dict with the embedded-preview keys
+     * (metadata.html_repr / metadata.thumbnail) removed, so the YAML tree
+     * doesn't show their large raw strings - they are rendered as live
+     * HTML / an image instead.
+     */
+    function stripPreview(obj) {
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+        if (!obj.metadata || typeof obj.metadata !== 'object' || Array.isArray(obj.metadata)) return obj;
+        const meta = {};
+        let changed = false;
+        for (const k of Object.keys(obj.metadata)) {
+            if (k === 'html_repr' || k === 'thumbnail') { changed = true; continue; }
+            meta[k] = obj.metadata[k];
+        }
+        if (!changed) return obj;
+        const out = {};
+        for (const k of Object.keys(obj)) out[k] = obj[k];
+        out.metadata = meta;
+        return out;
+    }
+
+    /**
+     * Build an <img> for a data:image/... thumbnail URL. Only accepts
+     * data: image URLs (never remote/javascript URLs).
+     */
+    function thumbnailImg(src) {
+        const wrap = document.createElement('div');
+        wrap.className = 'widget-html';
+        if (/^data:image\//i.test(src)) {
+            const img = document.createElement('img');
+            img.src = src;
+            img.alt = 'thumbnail';
+            wrap.appendChild(img);
+        }
+        return wrap;
     }
 
     /**

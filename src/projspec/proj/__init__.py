@@ -24,7 +24,7 @@ from projspec.proj.cicd import (
 from projspec.proj.conda_package import CondaRecipe, RattlerRecipe
 from projspec.proj.conda_project import CondaProject
 from projspec.proj.conda_workspace import CondaWorkspace
-from projspec.proj.data_dir import Data
+from projspec.proj.data_project import DataProject
 from projspec.proj.datapackage import DataPackage, DVCRepo
 from projspec.proj.dataworkflows import (
     Airflow,
@@ -43,6 +43,7 @@ from projspec.proj.vcs import FossilRepo, GitRepo, HgRepo
 from projspec.proj.golang import Golang
 from projspec.proj.helm import HelmChart
 from projspec.proj.hf import HuggingFaceRepo
+from projspec.proj.knowledge_catalog import KnowledgeCatalog
 from projspec.proj.ide import JetbrainsIDE, NvidiaAIWorkbench, VSCode
 from projspec.proj.infra import (
     Ansible,
@@ -92,9 +93,9 @@ __all__ = [
     "CondaWorkspace",
     "RattlerRecipe",
     # Data
-    "Data",
     "DataPackage",
     "DVCRepo",
+    "DataProject",
     # Data/ML workflows
     "Airflow",
     "Dagster",
@@ -121,6 +122,8 @@ __all__ = [
     "HelmChart",
     # HuggingFace
     "HuggingFaceRepo",
+    # Knowledge
+    "KnowledgeCatalog",
     # IDE
     "AIEnabled",
     "BackstageCatalog",

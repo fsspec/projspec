@@ -1,4 +1,9 @@
-"""Contents specifying datasets"""
+"""Content classes describing datasets found within a project.
+
+These describe data assets in a formal way, without loading the data. Most
+of them mirror the things that ``intake`` (v2, ``intake.readers``) can tell us
+about a URL/glob/list of files via :func:`intake.readers.inspect.inspect_dataset`.
+"""
 
 from dataclasses import dataclass, field
 
@@ -7,107 +12,83 @@ from projspec.content import BaseContent
 
 @dataclass
 class TabularData(BaseContent):
-    """A tabular dataset, columns and rows
+    """A tabular (columnar) dataset, e.g. CSV/parquet/SQL.
 
-    This lists loadable tabular files with defined schema, typically from formats such as
-    JSON, CSV, and parquet.
+    ``schema`` is a free-form mapping describing the columns; its exact form
+    depends on where it was sourced (FrictionlessData resource schema, a
+    HuggingFace ``features`` block, or intake's ``datashape``).
     """
 
     icon = "📊"
 
     name: str
+    schema: dict = field(default_factory=dict)
     metadata: dict = field(default_factory=dict)
-    # allowed schema formats:
-    #  - dtype-like {fieldname: string-type}
-    #  - dtype-complex {fieldname: {...}}
-    #  - list like [{name:, ...}]
-    # We may choose to normalise to just one of these eventually
-    schema: dict | list = field(default_factory=dict)
+
+
+@dataclass
+class FrictionlessData(BaseContent):
+    """A data resource described by the FrictionlessData standard.
+
+    See https://datapackage.org/standard/data-resource/ .
+    """
+
+    icon = "🪪"
+
+    name: str
+    schema: dict = field(default_factory=dict)
 
 
 @dataclass
 class IntakeSource(BaseContent):
-    """A catalog of data assets, including basic properties (location) and how to load/process them.
-
-    See https://intake.readthedocs.io/en/latest/
-    """
+    """A named entry in an intake catalog."""
 
     icon = "📖"
 
-    # TODO: add better fields: args, driver/reader, metadata, description
     name: str
 
 
 @dataclass
-class DataResource(BaseContent):
-    """A data resource found inside a data-only directory.
+class Dataset(BaseContent):
+    """A generic dataset discovered on disk and described by intake.
 
-    Describes one logical dataset — which may be a flat collection of files, a
-    Hive-partitioned tree, an Iceberg/Delta table, a Zarr store, or any other
-    recognised on-disk layout.
+    This is produced by :class:`projspec.proj.data_project.DataProject` after
+    scanning files/globs with :func:`intake.readers.inspect.inspect_dataset`.
 
-    The `path` field is a human-readable basename that identifies the resource:
+    The dataset's short identifying name is *not* stored on the object: a
+    :class:`DataProject` exposes its datasets as an ``AttrDict`` keyed by that
+    name (e.g. ``proj.contents.dataset["*.csv"]``), so duplicating it here
+    would be redundant.
 
-    - Single file: `"data.csv"`
-    - Multi-file series: `"part*.parquet"` (glob-style, common prefix + `*` + ext)
-    - Directory-as-dataset (Hive partition, Zarr store, …): `"year=2024/"`
-
-    The `modality` field classifies the broad nature of the data using the
-    vocabulary established by intake's `structure` tags and napari's layer
-    type system:
-
-    - `"tabular"`    — row/column data (CSV, Parquet, ORC, Excel, …)
-    - `"array"`      — N-dimensional arrays (NumPy, HDF5, NetCDF, Zarr, …)
-    - `"image"`      — 2-D/3-D images (PNG, JPEG, TIFF, DICOM, NIfTI, …)
-    - `"timeseries"` — time-indexed signals (WAV, GRIB, …)
-    - `"geospatial"` — vector/raster geodata (Shapefile, GeoJSON, GeoTIFF, …)
-    - `"model"`      — ML model weights (GGUF, SafeTensors, PyTorch, …)
-    - `"nested"`     — hierarchical / JSON-like (Avro, YAML, XML, …)
-    - `"document"`   — human-readable documents (PDF, DOCX, …)
-    - `"video"`      — video streams (MP4, AVI, …)
-    - `"archive"`    — compressed bundles (ZIP, tar.gz, …)
-    - `""`           — unknown / mixed
-
-    The `schema` field is format-specific:
-
-    - Tabular (Parquet, Arrow, CSV, …): `{column_name: dtype_str, …}`
-    - Image / array: `{"width": int, "height": int, "channels": int, "mode": str}`
-    - Audio: `{"sample_rate": int, "channels": int, "frames": int}`
-    - HDF5 / Zarr / NetCDF: `{"variables": [...], "dims": {...}, "attrs": {...}}`
-    - Unknown / library not available: `{}`
+    Attributes
+    ----------
+    url:
+        The URL, glob or list of URLs that make up this dataset, relative to
+        (or rooted at) the project directory.
+    datatype:
+        The intake ``BaseData`` subclass name detected (e.g. ``"CSV"``,
+        ``"Parquet"``), or ``None`` if intake could not identify the type.
+    structure:
+        Structural tags reported by intake (e.g. ``{"table"}``,
+        ``{"array", "image"}``).
+    schema:
+        The ``datashape`` mapping returned by intake (columns/dtypes, dims,
+        etc.); empty if no reader could describe the data.
+    n_files:
+        Number of files that make up the dataset (after glob expansion).
+    total_size:
+        Total bytes across all files in the dataset, if known.
+    metadata:
+        Any other useful summary information from intake (shape, npartitions,
+        recommended readers, description, …).
     """
 
-    icon = "📥"
+    icon = "🗃️"
 
-    path: str  # basename (or glob pattern / dir/ ) identifying this resource
-    format: str  # canonical format string, e.g. "parquet", "csv", "png", "hdf5"
-    modality: str = ""  # broad data nature; see docstring for vocabulary
-    layout: str = ""  # "flat"|"hive"|"iceberg"|"delta"|"zarr_store"|"tiledarray"|""
-    file_count: int = 0
-    total_size: int = 0  # bytes; 0 when unknown (e.g. remote FS without size info)
-    schema: dict | list = field(default_factory=dict)
-    # full path to one representative file, for use by preview loaders
-    sample_path: str = ""
-    metadata: dict = field(default_factory=dict)  # catch-all extras
-    _html = None
-
-    def __repr__(self) -> str:
-        from projspec.content.data_html import repr_text
-
-        return repr_text(self)
-
-    def _repr_html_(self) -> str:
-        """Jupyter rich display — returns cached HTML, rendering on first call."""
-        # TODO: this is probably not what we want jupyter to dysplay, but it's
-        #  convenient for now.
-        if self._html is None:
-            from projspec.content.data_html import repr_html
-
-            self._html = repr_html(self)
-        return self._html
-
-    def to_dict(self, compact=False):
-        d = super().to_dict(compact=compact)
-        if not compact:
-            d["_html"] = self._repr_html_()
-        return d
+    url: str | list[str] = ""
+    datatype: str | None = None
+    structure: list[str] = field(default_factory=list)
+    schema: dict = field(default_factory=dict)
+    n_files: int = 1
+    total_size: int | None = None
+    metadata: dict = field(default_factory=dict)

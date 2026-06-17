@@ -2016,3 +2016,147 @@ class TestMetaflow:
         # Re-scan so scanned_files picks up the new flow.py
         proj2 = projspec.Project(path)
         assert "metaflow" in proj2
+
+
+# ---------------------------------------------------------------------------
+# KnowledgeCatalog (Open Knowledge Format bundle)
+# ---------------------------------------------------------------------------
+
+
+class TestKnowledgeCatalog:
+    FILES = {
+        "index.md": '---\nokf_version: "0.1"\n---\n\n# My Bundle\n\n'
+        "* [Sales](datasets/sales.md) - sales data\n",
+        "log.md": "# Update Log\n\n## 2026-01-01\n* **Creation**: started.\n",
+        "datasets/sales.md": """\
+            ---
+            type: BigQuery Dataset
+            title: Sales
+            description: All sales-related tables.
+            tags: [sales, revenue]
+            timestamp: 2026-05-28T00:00:00Z
+            ---
+
+            The sales dataset.
+            """,
+        "tables/orders.md": """\
+            ---
+            type: BigQuery Table
+            title: Orders
+            resource: https://example.com/orders
+            ---
+
+            # Schema
+            """,
+        # not a concept: no frontmatter
+        "notes/random.md": "just some prose, no frontmatter\n",
+    }
+
+    def test_match_positive(self, tmpdir):
+        proj = make_proj(tmpdir, self.FILES)
+        from projspec.proj.knowledge_catalog import KnowledgeCatalog
+
+        assert raw_spec(KnowledgeCatalog, proj).match()
+
+    def test_match_root_concept(self, tmpdir):
+        # index.md plus a concept at the root (no subdirs)
+        proj = make_proj(
+            tmpdir,
+            {
+                "index.md": "# Bundle\n",
+                "overview.md": "---\ntype: Reference\n---\nbody\n",
+            },
+        )
+        from projspec.proj.knowledge_catalog import KnowledgeCatalog
+
+        assert raw_spec(KnowledgeCatalog, proj).match()
+
+    def test_match_negative_no_index(self, tmpdir):
+        proj = make_proj(tmpdir, {"tables/orders.md": "---\ntype: T\n---\n"})
+        from projspec.proj.knowledge_catalog import KnowledgeCatalog
+
+        assert not raw_spec(KnowledgeCatalog, proj).match()
+
+    def test_match_negative_empty(self, tmpdir):
+        proj = make_proj(tmpdir, {})
+        from projspec.proj.knowledge_catalog import KnowledgeCatalog
+
+        assert not raw_spec(KnowledgeCatalog, proj).match()
+
+    def test_parse_contents(self, tmpdir):
+        proj = make_proj(tmpdir, self.FILES)
+        from projspec.proj.knowledge_catalog import KnowledgeCatalog
+
+        spec = raw_spec(KnowledgeCatalog, proj)
+        spec.parse()
+        assert "concept" in spec._contents
+        concepts = spec._contents["concept"]
+        # keyed by concept ID (bundle-relative path, no .md)
+        assert set(concepts) == {"datasets/sales", "tables/orders"}
+
+    def test_parse_detail(self, tmpdir):
+        proj = make_proj(tmpdir, self.FILES)
+        from projspec.proj.knowledge_catalog import KnowledgeCatalog
+
+        spec = raw_spec(KnowledgeCatalog, proj)
+        spec.parse()
+        sales = spec._contents["concept"]["datasets/sales"].meta
+        assert sales["type"] == "BigQuery Dataset"
+        assert sales["title"] == "Sales"
+        assert sales["tags"] == "sales, revenue"
+        orders = spec._contents["concept"]["tables/orders"].meta
+        assert orders["type"] == "BigQuery Table"
+        assert orders["resource"] == "https://example.com/orders"
+
+    def test_parse_bundle_version(self, tmpdir):
+        proj = make_proj(tmpdir, self.FILES)
+        from projspec.proj.knowledge_catalog import KnowledgeCatalog
+
+        spec = raw_spec(KnowledgeCatalog, proj)
+        spec.parse()
+        # root index.md okf_version surfaces as bundle-level metadata
+        assert spec._contents["descriptive_metadata"].meta["okf_version"] == "0.1"
+
+    def test_parse_skips_non_typed_docs(self, tmpdir):
+        proj = make_proj(tmpdir, self.FILES)
+        from projspec.proj.knowledge_catalog import KnowledgeCatalog
+
+        spec = raw_spec(KnowledgeCatalog, proj)
+        spec.parse()
+        # notes/random.md has no frontmatter -> not a concept
+        assert "notes/random" not in spec._contents["concept"]
+
+    def test_parse_no_typed_concepts_raises(self, tmpdir):
+        from projspec.proj.knowledge_catalog import KnowledgeCatalog
+        from projspec.proj import ParseFailed
+
+        proj = make_proj(
+            tmpdir,
+            {"index.md": "# index\n", "notes.md": "plain prose, no frontmatter\n"},
+        )
+        spec = raw_spec(KnowledgeCatalog, proj)
+        with pytest.raises(ParseFailed):
+            spec.parse()
+
+    def test_parse_requires_type_field(self, tmpdir):
+        # a markdown doc with frontmatter but no 'type' is not a concept
+        from projspec.proj.knowledge_catalog import KnowledgeCatalog
+        from projspec.proj import ParseFailed
+
+        proj = make_proj(
+            tmpdir,
+            {
+                "index.md": "# index\n",
+                "doc.md": "---\ntitle: No Type Here\n---\nbody\n",
+            },
+        )
+        spec = raw_spec(KnowledgeCatalog, proj)
+        with pytest.raises(ParseFailed):
+            spec.parse()
+
+    def test_roundtrip_create_and_detect(self, tmpdir):
+        path = str(tmpdir)
+        proj = projspec.Project(path)
+        proj.create("KnowledgeCatalog")
+        proj2 = projspec.Project(path)
+        assert "knowledge_catalog" in proj2

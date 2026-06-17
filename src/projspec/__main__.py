@@ -96,12 +96,6 @@ def version():
     help="JSON output, for projects only",
 )
 @click.option(
-    "--html-out",
-    is_flag=True,
-    default=False,
-    help="HTML output, for projects only",
-)
-@click.option(
     "--walk", is_flag=True, help="Descend into child directories of each match"
 )
 @click.option("--summary", is_flag=True, help="Show abbreviated output")
@@ -112,7 +106,6 @@ def scan(
     types,
     xtypes,
     json_out,
-    html_out,
     walk,
     summary,
     library,
@@ -146,8 +139,6 @@ def scan(
             else:
                 if json_out:
                     print(json.dumps(proj.to_dict(compact=False)))
-                elif html_out:
-                    print(proj._repr_html_())
                 else:
                     print(proj)
 

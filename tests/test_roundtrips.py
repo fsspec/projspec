@@ -37,6 +37,7 @@ from projspec.utils import get_cls
         "MDBook",
         "RTD",
         "BackstageCatalog",
+        "KnowledgeCatalog",
         # CI/CD — file-only _create()
         "GitHubActions",
         "GitLabCI",

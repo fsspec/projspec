@@ -224,6 +224,23 @@ def test_panel_js_is_root_scoped():
     assert "window.projspecRoot" in js
 
 
+def test_panel_js_embeds_dataset_preview():
+    """The shared panel.js must embed a content's ``metadata.html_repr`` as
+    live HTML (via sanitizeHtml + innerHTML) and ``metadata.thumbnail`` as an
+    <img>, rather than dumping their raw strings into the YAML tree."""
+    js = get_panel_js()
+    # preview keys are pulled out of metadata
+    assert "meta.html_repr" in js
+    assert "meta.thumbnail" in js
+    # and removed from the YAML tree via stripPreview
+    assert "stripPreview" in js
+    assert "renderYaml(stripPreview(stripKlass(data)))" in js
+    # html_repr is embedded as sanitised HTML; thumbnail as a data: image
+    assert "sanitizeHtml(htmlRepr)" in js
+    assert "thumbnailImg" in js
+    assert "data:image/" in js
+
+
 def test_make_cwd_uses_project_path_not_library_key(tmp_path, monkeypatch):
     """Regression: Make must use the stored ``Project.path`` as the
     subprocess cwd, never the library key.

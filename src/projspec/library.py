@@ -1,10 +1,12 @@
 import json
 import os
+import time
 
 import fsspec
 
 from projspec.config import get_conf
 from projspec.proj import Project
+from projspec.utils import DEFAULT
 
 
 class ProjectLibrary:
@@ -15,14 +17,28 @@ class ProjectLibrary:
 
     # TODO: support for remote libraries
 
-    def __init__(self, library_path: str | None = None, auto_save: bool = True):
-        self.path = library_path or get_conf("library_path")
-        self.entries: dict[str, Project] = {}
+    def __init__(
+        self,
+        library_path: str | None | type = DEFAULT,
+        auto_save: bool = True,
+        entries: dict | None = None,
+    ):
+        self.path = (
+            get_conf("library_path") if library_path is DEFAULT else library_path
+        )
+        self.entries: dict[str, Project] = {} if entries is None else entries
         self.auto_save = auto_save
         self.load()
 
     def load(self):
-        """Loads scanned project objects from JSON file"""
+        """Loads scanned project objects from JSON file.
+
+        Any entry whose last scan is older than the ``auto_rescan`` config
+        value (in seconds) is automatically rescanned and the refreshed
+        library is saved back. Set ``auto_rescan`` to 0 to disable this.
+        """
+        if self.path is None:
+            return
         try:
             with fsspec.open(self.path, "r") as f:
                 self.entries = {
@@ -30,6 +46,35 @@ class ProjectLibrary:
                 }
         except FileNotFoundError:
             self.entries = {}
+            return
+        self._auto_rescan()
+
+    def _auto_rescan(self):
+        """Rescan entries older than the ``auto_rescan`` config threshold."""
+        max_age = get_conf("auto_rescan")
+        if not max_age or max_age <= 0:
+            return
+        now = time.time()
+        rescanned = False
+        for key, proj in list(self.entries.items()):
+            scanned_at = getattr(proj, "scanned_at", None)
+            if scanned_at is None or (now - scanned_at) < max_age:
+                continue
+            try:
+                # Rescan from the project's own path, preserving the library
+                # key so the entry's identity does not drift.
+                fresh = Project(
+                    proj.path,
+                    storage_options=proj.storage_options,
+                    walk=False,
+                )
+            except Exception:
+                # never let an unreachable/changed project break library load
+                continue
+            self.entries[key] = fresh
+            rescanned = True
+        if rescanned and self.auto_save and self.path is not None:
+            self.save()
 
     def clear(self):
         """Clears scanned project objects from JSON file and memory"""
@@ -46,6 +91,8 @@ class ProjectLibrary:
     def save(self):
         """Serialise the state of the scanned project objects to file"""
         # don't catch
+        if self.path is None:
+            raise ValueError("Cannot save without .path set")
         data = {k: v.to_dict(compact=False) for k, v in self.entries.items()}
         with fsspec.open(self.path, "w") as f:
             json.dump(data, f)
