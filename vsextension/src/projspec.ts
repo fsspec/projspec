@@ -171,6 +171,7 @@ export interface ProjectData {
     is_writable?: string;
     last_modified?: string;
     last_modified_by?: string;
+    scanned_at?: string;
 }
 
 export interface SpecData {

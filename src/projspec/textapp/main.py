@@ -171,19 +171,9 @@ def _basename(url: str) -> str:
 
 
 def _fmt_age(ts: float) -> str:
-    import datetime
+    from projspec.proj.base import _humanize_age
 
-    days = (datetime.datetime.now() - datetime.datetime.fromtimestamp(ts)).days
-    if days == 0:
-        return "today"
-    if days == 1:
-        return "yesterday"
-    if days < 30:
-        return f"{days} days ago"
-    if days < 365:
-        return f"{days // 30} months ago"
-    yrs = days // 365
-    return f"{yrs} year{'s' if yrs > 1 else ''} ago"
+    return _humanize_age(ts)
 
 
 def _is_enum(v: Any) -> bool:
@@ -253,7 +243,15 @@ def _yaml_lines(
             return [f"{pad}{_role('{}', 'muted')}"]
         out = []
         for k, v in data.items():
-            if _is_enum(v):
+            # The web UIs embed these as live HTML / an image; a TUI can't, so
+            # show a short placeholder rather than dumping the huge raw string.
+            if k in ("html_repr", "thumbnail") and isinstance(v, str):
+                note = "HTML preview" if k == "html_repr" else "image thumbnail"
+                out.append(
+                    f"{pad}{_role(str(k), 'field')}: "
+                    f"{_role(f'<{note} available in graphical UI>', 'muted')}"
+                )
+            elif _is_enum(v):
                 out.append(
                     f"{pad}{_role(str(k), 'field')}: "
                     f"{_role(_enum_label(v, enums), 'enum')}"
@@ -713,6 +711,9 @@ class ProjectWidget(Static):
             age = _fmt_age(float(last_modified))
             by = self.project.get("last_modified_by")
             meta_parts.append("last modified " + age + (f" by {by}" if by else ""))
+        scanned_at = self.project.get("scanned_at")
+        if scanned_at is not None:
+            meta_parts.append("scanned " + _fmt_age(float(scanned_at)))
         if meta_parts:
             yield Static(" · ".join(meta_parts), classes="meta")
         # Build the full list of chips first, then split into horizontal

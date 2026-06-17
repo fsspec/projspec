@@ -77,9 +77,15 @@ def write_data(tmpdir, files: dict[str, int | bytes]) -> str:
     return path
 
 
-def datasets(proj) -> list[Dataset]:
+def datasets(proj) -> dict[str, Dataset]:
+    """The ``name -> Dataset`` mapping for a project's data datasets."""
     dp = proj.specs.get("data_project")
-    return list(dp.contents.get("dataset", [])) if dp else []
+    return dict(dp.contents.get("dataset", {})) if dp else {}
+
+
+def dataset_names(proj) -> set[str]:
+    """The set of dataset names (mapping keys) for a project."""
+    return set(datasets(proj))
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +179,6 @@ class TestContentClasses:
         proj = projspec.Project(str(tmp_path))
         ds = Dataset(
             proj=proj,
-            name="*.csv",
             url=f"{proj.url}/*.csv",
             datatype="CSV",
             structure=["table"],
@@ -184,11 +189,12 @@ class TestContentClasses:
         )
         d = ds.to_dict(compact=False)
         assert d["klass"] == ["content", "dataset"]
+        # the dataset name lives in the containing dict's key, not the object
+        assert "name" not in d
         from projspec.utils import from_dict
 
         ds2 = from_dict(d, proj=proj)
         assert isinstance(ds2, Dataset)
-        assert ds2.name == "*.csv"
         assert ds2.datatype == "CSV"
         assert ds2.n_files == 3
 
@@ -214,8 +220,8 @@ class TestDataProjectSignificance:
         assert "data_project" in proj.specs
         ds = datasets(proj)
         assert len(ds) == 1
-        assert ds[0].n_files == 3
-        assert ds[0].name == "*.csv"
+        assert "*.csv" in ds
+        assert ds["*.csv"].n_files == 3
 
     def test_tiny_play_data_rejected(self, tmp_path):
         with temp_conf(**PROD_THRESHOLDS):
@@ -237,7 +243,7 @@ class TestDataProjectSignificance:
         assert "python_code" in proj.specs
         assert "data_project" in proj.specs
         ds = datasets(proj)
-        assert any(d.name == "big.csv" for d in ds)
+        assert "big.csv" in ds
 
     def test_small_data_in_code_project_ignored(self, tmp_path):
         with temp_conf(**PROD_THRESHOLDS):
@@ -299,8 +305,8 @@ class TestDataProjectDatasets:
             proj = projspec.Project(str(tmp_path))
         ds = datasets(proj)
         assert len(ds) == 1
-        assert ds[0].name == "*.gif"
-        assert ds[0].n_files == 3
+        assert "*.gif" in ds
+        assert ds["*.gif"].n_files == 3
 
     def test_directory_dataset_marker(self, tmp_path):
         # a _metadata marker means intake treats the whole dir as one dataset
@@ -327,13 +333,49 @@ class TestDataProjectDatasets:
             proj = projspec.Project(str(tmp_path))
         ds = datasets(proj)
         assert len(ds) == 1
-        assert ds[0].datatype == "CSV"
-        assert "table" in ds[0].structure
+        assert ds["*.csv"].datatype == "CSV"
+        assert "table" in ds["*.csv"].structure
 
     def test_no_data_files_no_match(self, tmp_path):
         write_data(tmp_path, {"README.md": b"# hi\n", "setup.py": b"x=1\n"})
         proj = projspec.Project(str(tmp_path))
         assert "data_project" not in proj.specs
+
+    @pytest.mark.skipif(not HAS_INTAKE, reason="intake not installed")
+    def test_remote_url_keeps_protocol_for_intake(self):
+        """Regression: scanning a remote (protocol-prefixed) directory must
+        hand intake a protocol-qualified URL.
+
+        ``proj.url`` has the protocol stripped by ``fsspec.url_to_fs``; if that
+        bare path reaches intake it can't pick the filesystem and resolves no
+        files. The dataset URL handed to / stored by intake must keep the
+        protocol (e.g. ``memory://``).
+        """
+        import fsspec
+
+        fs = fsspec.filesystem("memory")
+        root = "/data_project_remote"
+        rows = b"a,b,c\n" + b"".join(b"1,2,3\n" for _ in range(50_000))
+        try:
+            for i in range(1, 4):
+                with fs.open(f"{root}/{i:03d}.csv", "wb") as f:
+                    f.write(rows)
+
+            with temp_conf(data_min_play_size=1, data_min_fraction=0.5):
+                proj = projspec.Project(f"memory://{root}")
+            # the bare filesystem path has no protocol...
+            assert "://" not in proj.url
+            ds = datasets(proj)
+            assert "*.csv" in ds
+            # ...but intake was able to resolve and type the files, and the
+            # stored dataset URL is protocol-qualified.
+            assert ds["*.csv"].datatype == "CSV"
+            assert str(ds["*.csv"].url).startswith("memory://")
+        finally:
+            try:
+                fs.rm(root, recursive=True)
+            except FileNotFoundError:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -386,7 +428,7 @@ class TestDatasetHTMLOutput:
             proj = projspec.Project(str(tmp_path))
         ds = datasets(proj)
         assert len(ds) == 1
-        meta = ds[0].metadata
+        meta = ds["big.csv"].metadata
         assert "PandasCSV" in meta.get("readers")
         assert meta.get("html_repr"), "expected html_repr in Dataset.metadata"
         assert "<table" in meta["html_repr"]
@@ -406,8 +448,8 @@ class TestDatasetHTMLOutput:
             proj = projspec.Project(str(tmp_path))
         ds = datasets(proj)
         assert len(ds) == 1
-        meta = ds[0].metadata
-        assert ds[0].datatype == "PNG", ds[0].datatype
+        meta = ds["pic.png"].metadata
+        assert ds["pic.png"].datatype == "PNG", ds["pic.png"].datatype
         assert meta.get("reader_used") == "PILImageReader", meta.get("reader_used")
         assert meta.get("thumbnail", "").startswith("data:image/png;base64,")
 
@@ -422,7 +464,7 @@ class TestDatasetHTMLOutput:
             proj = projspec.Project(str(tmp_path))
         ds = datasets(proj)
         assert ds, "expected a dataset"
-        for d in ds:
+        for d in ds.values():
             assert d.datatype is not None
             assert "html_repr" not in d.metadata or isinstance(
                 d.metadata["html_repr"], str
@@ -430,3 +472,123 @@ class TestDatasetHTMLOutput:
             assert "thumbnail" not in d.metadata or isinstance(
                 d.metadata["thumbnail"], str
             )
+
+
+# ---------------------------------------------------------------------------
+# Per-dataset fraction filtering (_filter_small_datasets)
+# ---------------------------------------------------------------------------
+
+
+def _bare_data_project(tmp_path) -> DataProject:
+    """A DataProject instance not bound to any real data (for unit testing
+    the pure-Python helper without triggering match()/parse())."""
+    proj = projspec.Project(str(tmp_path))
+    dp = DataProject.__new__(DataProject)
+    dp.proj = proj
+    return dp
+
+
+def _ds(proj, name, size):
+    """Return a ``(name, Dataset)`` pair as consumed by
+    ``DataProject._filter_small_datasets``."""
+    return name, Dataset(
+        proj=proj,
+        url=f"{proj.url}/{name}",
+        datatype="CSV",
+        structure=["table"],
+        schema={},
+        n_files=1,
+        total_size=size,
+        metadata={},
+    )
+
+
+def _kept_names(pairs):
+    return [name for name, _ in pairs]
+
+
+class TestFilterSmallDatasets:
+    def test_drops_dataset_below_fraction_of_largest(self, tmp_path):
+        dp = _bare_data_project(tmp_path)
+        big = _ds(dp.proj, "big.csv", 1000)
+        small = _ds(dp.proj, "small.csv", 10)  # 1% of largest
+        with temp_conf(data_min_fraction=0.5):
+            kept = dp._filter_small_datasets([big, small])
+        assert _kept_names(kept) == ["big.csv"]
+
+    def test_keeps_datasets_above_fraction(self, tmp_path):
+        dp = _bare_data_project(tmp_path)
+        a = _ds(dp.proj, "a.csv", 1000)
+        b = _ds(dp.proj, "b.csv", 800)  # 80% of largest
+        with temp_conf(data_min_fraction=0.5):
+            kept = dp._filter_small_datasets([a, b])
+        assert set(_kept_names(kept)) == {"a.csv", "b.csv"}
+
+    def test_single_dataset_never_filtered(self, tmp_path):
+        dp = _bare_data_project(tmp_path)
+        only = _ds(dp.proj, "only.csv", 1)
+        with temp_conf(data_min_fraction=0.5):
+            kept = dp._filter_small_datasets([only])
+        assert _kept_names(kept) == ["only.csv"]
+
+    def test_unknown_sizes_disable_filtering(self, tmp_path):
+        dp = _bare_data_project(tmp_path)
+        big = _ds(dp.proj, "big.csv", 1000)
+        unknown = _ds(dp.proj, "u.csv", None)
+        with temp_conf(data_min_fraction=0.5):
+            kept = dp._filter_small_datasets([big, unknown])
+        assert set(_kept_names(kept)) == {"big.csv", "u.csv"}
+
+    def test_never_drops_everything(self, tmp_path):
+        # an impossible threshold (>1) would exclude all -> fall back to all
+        dp = _bare_data_project(tmp_path)
+        a = _ds(dp.proj, "a.csv", 1000)
+        b = _ds(dp.proj, "b.csv", 1000)
+        with temp_conf(data_min_fraction=2.0):
+            kept = dp._filter_small_datasets([a, b])
+        assert set(_kept_names(kept)) == {"a.csv", "b.csv"}
+
+    def test_zero_fraction_keeps_all(self, tmp_path):
+        dp = _bare_data_project(tmp_path)
+        big = _ds(dp.proj, "big.csv", 1000)
+        tiny = _ds(dp.proj, "tiny.csv", 1)
+        with temp_conf(data_min_fraction=0.0):
+            kept = dp._filter_small_datasets([big, tiny])
+        assert set(_kept_names(kept)) == {"big.csv", "tiny.csv"}
+
+    @pytest.mark.skipif(not HAS_INTAKE, reason="intake not installed")
+    def test_end_to_end_drops_tiny_dataset(self, tmp_path):
+        # one large csv-series dataset and one tiny json file; the tiny one
+        # should be dropped as a small fraction of the largest.
+        big_rows = b"a,b,c\n" + b"1,2,3\n" * 20000  # large
+        with temp_conf(data_min_play_size=1, data_min_fraction=0.5):
+            write_data(
+                tmp_path,
+                {
+                    **{f"{i:03d}.csv": big_rows for i in range(3)},
+                    "tiny.json": b'{"x": 1}\n',
+                },
+            )
+            proj = projspec.Project(str(tmp_path))
+        names = dataset_names(proj)
+        assert "*.csv" in names
+        assert "tiny.json" not in names
+
+    @pytest.mark.skipif(not HAS_INTAKE, reason="intake not installed")
+    def test_end_to_end_keeps_similar_sized_datasets(self, tmp_path):
+        # two datasets of comparable size are both kept (neither is a small
+        # fraction of the other).
+        csv_rows = b"a,b,c\n" + b"1,2,3\n" * 20000
+        json_rows = b'{"x": 1}\n' * 20000
+        with temp_conf(data_min_play_size=1, data_min_fraction=0.5):
+            write_data(
+                tmp_path,
+                {
+                    **{f"{i:03d}.csv": csv_rows for i in range(3)},
+                    **{f"{i:03d}.json": json_rows for i in range(3)},
+                },
+            )
+            proj = projspec.Project(str(tmp_path))
+        names = dataset_names(proj)
+        assert "*.csv" in names
+        assert "*.json" in names

@@ -35,6 +35,37 @@ def _fmt_size(n: int) -> str:
         n /= 1024
 
 
+def _humanize_age(ts: float) -> str:
+    """Render a Unix timestamp as a relative "X ago" string.
+
+    e.g. "just now", "5 minutes ago", "3 hours ago", "today", "yesterday",
+    "4 days ago", "2 months ago", "1 year ago".
+    """
+    import datetime
+
+    age = datetime.datetime.now() - datetime.datetime.fromtimestamp(ts)
+    days = age.days
+    if days < 0:
+        # clock skew / future timestamp - treat as just now
+        return "just now"
+    if days == 0:
+        secs = int(age.total_seconds())
+        if secs < 60:
+            return "just now"
+        if secs < 3600:
+            mins = secs // 60
+            return f"{mins} minute{'s' if mins != 1 else ''} ago"
+        hours = secs // 3600
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    if days == 1:
+        return "yesterday"
+    if days < 30:
+        return f"{days} days ago"
+    if days < 365:
+        return f"{days // 30} months ago"
+    return f"{days // 365} year{'s' if days >= 730 else ''} ago"
+
+
 class ParseFailed(ValueError):
     """Exception raised when parsing fails: a directory does not meet the given spec."""
 
@@ -413,25 +444,17 @@ class Project:
         # last modified
         lm = self.last_modified
         if lm is not None:
-            import datetime
-
-            age = datetime.datetime.now() - datetime.datetime.fromtimestamp(lm)
-            days = age.days
-            if days == 0:
-                age_str = "today"
-            elif days == 1:
-                age_str = "yesterday"
-            elif days < 30:
-                age_str = f"{days} days ago"
-            elif days < 365:
-                age_str = f"{days // 30} months ago"
-            else:
-                age_str = f"{days // 365} year{'s' if days >= 730 else ''} ago"
+            age_str = _humanize_age(lm)
             by = self.last_modified_by
             if by:
                 parts.append(f"last modified {age_str} by {by}")
             else:
                 parts.append(f"last modified {age_str}")
+
+        # when this project was last scanned
+        scanned_at = getattr(self, "scanned_at", None)
+        if scanned_at is not None:
+            parts.append(f"scanned {_humanize_age(scanned_at)}")
 
         return " " + " · ".join(parts) if parts else ""
 

@@ -43,6 +43,7 @@ from projspec.proj.vcs import FossilRepo, GitRepo, HgRepo
 from projspec.proj.golang import Golang
 from projspec.proj.helm import HelmChart
 from projspec.proj.hf import HuggingFaceRepo
+from projspec.proj.knowledge_catalog import KnowledgeCatalog
 from projspec.proj.ide import JetbrainsIDE, NvidiaAIWorkbench, VSCode
 from projspec.proj.infra import (
     Ansible,
@@ -121,6 +122,8 @@ __all__ = [
     "HelmChart",
     # HuggingFace
     "HuggingFaceRepo",
+    # Knowledge
+    "KnowledgeCatalog",
     # IDE
     "AIEnabled",
     "BackstageCatalog",

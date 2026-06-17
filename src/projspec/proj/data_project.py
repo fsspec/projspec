@@ -32,6 +32,15 @@ single dataset (see :mod:`projspec.proj._consolidate`):
 
 Intake's own directory-dataset recognition (hive parquet, zarr, delta, …) is
 preserved: such directories are inspected as a whole rather than file-by-file.
+
+Per-dataset significance
+------------------------
+Just as the whole directory must clear the significance bar above, the
+individual datasets within a data project are filtered too: a dataset whose
+size is less than ``data_min_fraction`` of the largest dataset is treated as
+incidental and dropped (see :meth:`DataProject._filter_small_datasets`).  This
+mirrors the project-level fraction test so that a project dominated by one big
+dataset doesn't also report a handful of tiny, unrelated ones.
 """
 
 from __future__ import annotations
@@ -231,6 +240,40 @@ class DataProject(ProjectSpec):
 
         return False
 
+    def _filter_small_datasets(self, datasets: list) -> list:
+        """Drop datasets that are a small fraction of the largest one.
+
+        Operates on a list of ``(name, Dataset)`` pairs (the form used while
+        assembling :meth:`parse`'s output).
+
+        Just as :meth:`_is_significant` decides whether the directory as a
+        whole is data-y enough to report, this applies the same spirit to the
+        individual datasets within a data project: a dataset whose size is
+        less than ``data_min_fraction`` of the biggest dataset is treated as
+        incidental and discarded.
+
+        The comparison is by byte size relative to the largest dataset.  If
+        fewer than two datasets are present, or any dataset's size is unknown
+        (``None``), no filtering is applied (we can't reason about fractions).
+        """
+        if len(datasets) < 2:
+            return datasets
+        sizes = [getattr(ds, "total_size", None) for _, ds in datasets]
+        if any(s is None for s in sizes):
+            return datasets
+        largest = max(s for s in sizes if s is not None)
+        if largest <= 0:
+            return datasets
+        min_frac = get_conf("data_min_fraction")
+        kept = [
+            pair
+            for pair, s in zip(datasets, sizes)
+            if s is not None and s / largest >= min_frac
+        ]
+        # never drop everything: if the threshold somehow excludes all (e.g.
+        # min_frac > 1), fall back to keeping the original set.
+        return kept or datasets
+
     # ── parse ──────────────────────────────────────────────────────────────
     def parse(self) -> None:
         candidates = self._candidate_files()
@@ -266,32 +309,62 @@ class DataProject(ProjectSpec):
                 len(groups),
                 self.proj.url,
             )
-            datasets = [self._describe_without_intake(g) for g in groups]
+            described = [self._describe_without_intake(g) for g in groups]
         else:
-            datasets = [self._describe(g, dir_dataset=dir_dataset) for g in groups]
+            described = [self._describe(g, dir_dataset=dir_dataset) for g in groups]
 
-        # Only keep datasets that intake could assign a datatype to; datasets
-        # whose type could not be identified are not useful as data content.
-        datasets = [d for d in datasets if d.datatype is not None]
+        # Each entry is a (name, Dataset) pair. Only keep datasets that intake
+        # could assign a datatype to; datasets whose type could not be
+        # identified are not useful as data content.
+        described = [(name, ds) for name, ds in described if ds.datatype is not None]
 
-        if not datasets:
+        # Drop datasets that are only a small fraction of the largest one,
+        # analogous to the project-level significance test.
+        described = self._filter_small_datasets(described)
+
+        if not described:
             raise ParseFailed("No datasets with an identified datatype found")
+
+        # Datasets are keyed by their (unique) name; the name is therefore not
+        # duplicated as a field on the Dataset objects themselves.
+        datasets = AttrDict()
+        for name, ds in described:
+            key = name
+            # guard against the (rare) case of duplicate names
+            n = 2
+            while key in datasets:
+                key = f"{name}#{n}"
+                n += 1
+            datasets[key] = ds
         self._contents = AttrDict(dataset=datasets)
 
     # ── dataset description ─────────────────────────────────────────────────
+    def _root_url(self) -> str:
+        """Protocol-qualified root URL for handing to intake / building dataset
+        URLs.
+
+        ``self.proj.url`` is the filesystem-specific path with the protocol
+        stripped (e.g. ``bucket/key`` for ``s3://bucket/key``).  Intake needs
+        the protocol to pick the right filesystem, so we restore it here.
+        """
+        return self.proj.fs.unstrip_protocol(self.proj.url)
+
     def _dataset_url(self, group: FileGroup, dir_dataset: bool):
         if dir_dataset:
-            return self.proj.url
-        return group.url(self.proj.url)
+            return self._root_url()
+        return group.url(self._root_url())
 
     def _describe_without_intake(self, group: FileGroup):
-        """Build a Dataset content object using only filename info (no I/O)."""
+        """Build a Dataset content object using only filename info (no I/O).
+
+        Returns a ``(name, Dataset)`` pair; the name becomes the key in the
+        project's ``contents.dataset`` mapping.
+        """
         from projspec.content.data import Dataset
 
-        return Dataset(
+        return group.name, Dataset(
             proj=self.proj,
-            name=group.name,
-            url=group.url(self.proj.url),
+            url=group.url(self._root_url()),
             datatype=None,
             structure=[],
             schema={},
@@ -346,9 +419,9 @@ class DataProject(ProjectSpec):
             meta["readers"] = sorted(readers)
 
         structure = info.get("structure") or set()
-        return Dataset(
+        name = group.pattern if dir_dataset else group.name
+        return name, Dataset(
             proj=self.proj,
-            name=group.name if not dir_dataset else group.pattern,
             url=url,
             datatype=info.get("detected_type"),
             structure=sorted(structure)

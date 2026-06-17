@@ -55,10 +55,13 @@ class Dataset(BaseContent):
     This is produced by :class:`projspec.proj.data_project.DataProject` after
     scanning files/globs with :func:`intake.readers.inspect.inspect_dataset`.
 
+    The dataset's short identifying name is *not* stored on the object: a
+    :class:`DataProject` exposes its datasets as an ``AttrDict`` keyed by that
+    name (e.g. ``proj.contents.dataset["*.csv"]``), so duplicating it here
+    would be redundant.
+
     Attributes
     ----------
-    name:
-        Short identifying name (usually the consolidated file/glob basename).
     url:
         The URL, glob or list of URLs that make up this dataset, relative to
         (or rooted at) the project directory.
@@ -82,7 +85,6 @@ class Dataset(BaseContent):
 
     icon = "🗃️"
 
-    name: str
     url: str | list[str] = ""
     datatype: str | None = None
     structure: list[str] = field(default_factory=list)
