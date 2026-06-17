@@ -433,11 +433,28 @@ class ProjspecToolWindowPanel(
     private fun rescan(url: String) {
         withBusy {
             val path = OpenWithHelper.urlToPath(url)
-            val res = ProjspecRunner.runScan(path)
+            val res = ProjspecRunner.runScan(path, entryStorageOptions(url))
             if (res is CliResult.Failure) {
                 Notifier.warning("projspec scan: ${res.message}", project)
             }
             reload(initial = false)
+        }
+    }
+
+    /**
+     * The storage_options of the library entry for [url], serialised back to a
+     * JSON string (or null if absent/empty).  Remote projects need these
+     * re-supplied when the Project is reconstructed on rescan, otherwise the
+     * filesystem access fails.
+     */
+    private fun entryStorageOptions(url: String): String? {
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            val proj = libraryMap[url] as? Map<String, Any?> ?: return null
+            val so = proj["storage_options"] as? Map<String, Any?> ?: return null
+            if (so.isEmpty()) null else gson.toJson(so)
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -472,7 +489,7 @@ class ProjspecToolWindowPanel(
             if (createRes is CliResult.Failure) {
                 Notifier.warning("projspec create: ${createRes.message}", project)
             }
-            ProjspecRunner.runScan(path)
+            ProjspecRunner.runScan(path, entryStorageOptions(url))
             reload(initial = false)
         }
     }

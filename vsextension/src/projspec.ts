@@ -166,12 +166,12 @@ export interface ProjectData {
     artifacts: Record<string, unknown>;
     children?: Record<string, unknown>;
     klass?: [string, string];
-    file_count?: string;
-    total_size?: string;
-    is_writable?: string;
-    last_modified?: string;
+    file_count?: number | string;
+    total_size?: number | string;
+    is_writable?: boolean | string;
+    last_modified?: number | string;
     last_modified_by?: string;
-    scanned_at?: string;
+    scanned_at?: number | string;
 }
 
 export interface SpecData {

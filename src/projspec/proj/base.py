@@ -137,6 +137,21 @@ class Project:
         # see also fsspec.utils.can_be_local for more flexibility with caching.
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
+    @property
+    def display_url(self) -> str:
+        """Protocol-qualified URL for display.
+
+        Works even when ``fs`` is ``None`` - e.g. a project deserialised in an
+        environment lacking the relevant fsspec backend - by falling back to
+        the stored (already protocol-qualified) path.
+        """
+        if self.fs is not None:
+            try:
+                return self.fs.unstrip_protocol(self.url)
+            except Exception:
+                pass
+        return self.url or self.path
+
     @cached_property
     def _tree_stats(self) -> dict:
         """Walk the directory tree and collect aggregate statistics.
@@ -155,31 +170,49 @@ class Project:
         best_mtime: float | None = None
         best_info: dict | None = None
 
+        def _excluded(name: str) -> bool:
+            return name in self.excludes or name.startswith((".", "_"))
+
         try:
             for dirpath, subdirs, files in self.fs.walk(
                 self.url, topdown=True, detail=True
             ):
-                # Prune excluded directories in-place (topdown=True makes this work)
-                # subdirs is a dict when detail=True
+                # Prune excluded directories in-place so walk() does not recurse
+                # into them (topdown=True makes in-place mutation effective).
+                # ``subdirs`` is a dict when the backend honours detail=True, but
+                # some backends ignore the flag and yield a plain list of names;
+                # handle both.
                 if isinstance(subdirs, dict):
-                    to_remove = [
-                        name
-                        for name in list(subdirs)
-                        if name in self.excludes or name.startswith((".", "_"))
-                    ]
-                    for name in to_remove:
+                    for name in [n for n in list(subdirs) if _excluded(n)]:
                         del subdirs[name]
-                    file_infos = files.values() if isinstance(files, dict) else []
-                else:
-                    # Some backends yield lists even with detail=True; skip pruning
-                    file_infos = []
+                elif isinstance(subdirs, list):
+                    subdirs[:] = [n for n in subdirs if not _excluded(n)]
 
-                for finfo in file_infos:
+                # ``files`` is a {name: info} dict when detail is honoured, or a
+                # list of names otherwise. Normalise to an iterable of
+                # (name, info-or-None) so file counting works for both - the
+                # previous code silently counted zero files for list-yielding
+                # backends (a common cause of "remote project shows 0 files").
+                if isinstance(files, dict):
+                    file_items = list(files.items())
+                elif isinstance(files, list):
+                    file_items = [(name, None) for name in files]
+                else:
+                    file_items = []
+
+                for name, finfo in file_items:
+                    # Resolve a detail dict: provided directly, or fetched
+                    # lazily via info() when the backend only gave us a name.
                     if not isinstance(finfo, dict):
+                        full = f"{dirpath.rstrip('/')}/{name}" if name else dirpath
+                        try:
+                            finfo = self.fs.info(full)
+                        except Exception:
+                            finfo = {}
+                    if finfo.get("type") == "directory":
                         continue
-                    size = finfo.get("size") or 0
                     file_count += 1
-                    total_size += size
+                    total_size += finfo.get("size") or 0
                     mtime = finfo.get("mtime") or finfo.get("LastModified")
                     if mtime is not None:
                         # mtime may be a datetime; normalise to float
@@ -347,6 +380,13 @@ class Project:
         types = set(camel_to_snake(_) for _ in types or ())
         if types and types - set(registry):
             raise ValueError(f"Unknown types: {set(types) - set(registry)}")
+        if self.fs is None:
+            # This project was deserialised without its fsspec backend
+            # available; we cannot read the filesystem to (re)scan it.
+            raise RuntimeError(
+                f"Cannot scan {self.path!r}: the required fsspec backend is not "
+                "installed in this environment. Install it and try again."
+            )
         # record when this (re)scan happened
         self.scanned_at = time.time()
         # sorting to ensure consistency
@@ -412,11 +452,7 @@ class Project:
 
     def text_summary(self, bare=False) -> str:
         """Only shows project types, not what they contain"""
-        txt = (
-            self.fs.unstrip_protocol(self.url)
-            if bare
-            else f"<Project '{self.fs.unstrip_protocol(self.url)}'>\n"
-        )
+        txt = self.display_url if bare else f"<Project '{self.display_url}'>\n"
         if not bare:
             txt += self._stats_line() + "\n"
         bits = [
@@ -459,11 +495,11 @@ class Project:
         return " " + " · ".join(parts) if parts else ""
 
     def __repr__(self):
-        return f"<Project '{self.fs.unstrip_protocol(self.url)}'>"
+        return f"<Project '{self.display_url}'>"
 
     def __str__(self):
         txt = "<Project '{}'>\n{}\n\n{}".format(
-            self.fs.unstrip_protocol(self.url),
+            self.display_url,
             self._stats_line(),
             "\n\n".join(str(_) for _ in self.specs.values()),
         )
@@ -571,10 +607,17 @@ class Project:
         return item in self.specs or any(item in _ for _ in self.children.values())
 
     def to_dict(self, compact=True) -> dict:
+        # Store the *protocol-qualified* URL (e.g. ``s3://bucket/key``,
+        # ``memory:///proj``) rather than the protocol-stripped ``self.path``.
+        # Otherwise deserialisation re-runs ``url_to_fs`` on a bare path and
+        # wrongly reconstructs a LocalFileSystem, so remote projects get
+        # interpreted as local (failing to scan / rescan).  ``display_url``
+        # also works when the fsspec backend is unavailable (``fs is None``).
+        url = self.display_url
         dic = AttrDict(
             specs=self.specs,
             children=self.children,
-            url=self.path,
+            url=url,
             storage_options=self.storage_options,
             artifacts=self.artifacts,
             contents=self.contents,
@@ -614,7 +657,17 @@ class Project:
         proj.artifacts = from_dict(dic["artifacts"], proj)
         proj.path = dic["url"]
         proj.storage_options = dic["storage_options"]
-        proj.fs, proj.url = fsspec.url_to_fs(proj.path, **proj.storage_options)
+        try:
+            proj.fs, proj.url = fsspec.url_to_fs(proj.path, **proj.storage_options)
+        except Exception:
+            # The fsspec backend for this URL may not be installed in the
+            # current environment (e.g. a library entry for ``s3://...`` loaded
+            # without ``s3fs``).  The project must still be loadable and
+            # displayable from its cached metadata; only operations that need
+            # the live filesystem (rescan, file access) should fail.  Leave
+            # ``fs`` unset and keep the (protocol-qualified) URL as-is.
+            proj.fs = None
+            proj.url = proj.path
         scanned_at = dic.get("scanned_at")
         try:
             proj.scanned_at = float(scanned_at)

@@ -354,21 +354,47 @@ def _build_widget(library: "ProjectLibrary"):
                 self._set_busy(False)
 
         def _resolve_entry_path(self, url: str) -> str | None:
-            """Return the filesystem path for the library entry *url*, if any.
+            """Return the path used to re-open the library entry *url*.
 
-            Always prefers the stored ``Project.path`` (which projspec
-            normalises to an absolute path via fsspec) to the library key.
-            The library key is an opaque identity used by the UI; reusing it
-            as a path breaks for entries keyed on a basename or relative
-            sub-path (e.g. walked children added under the library root).
+            The path must keep its protocol so remote projects (``memory://``,
+            ``s3://``, …) re-open against the right filesystem.  We prefer the
+            library key *url* when it already carries a protocol - it is the
+            authoritative, protocol-qualified identifier the UI holds, and is
+            reliable even when an older serialised library reconstructed the
+            entry's filesystem as local.  Otherwise we use the stored project's
+            protocol-qualified URL (``fs.unstrip_protocol(proj.url)``), since
+            ``proj.path``/``proj.url`` have the protocol stripped by
+            ``fsspec.url_to_fs`` (e.g. ``/proj`` for ``memory://proj``) and a
+            bare path would resolve against the *local* filesystem.
+
+            The library key is otherwise an opaque identity used by the UI;
+            reusing it as a path breaks for entries keyed on a basename or
+            relative sub-path (e.g. walked children added under the library
+            root), so we only fall back to ``_url_to_local`` when there is no
+            matching entry.
             """
+            if url and "://" in url:
+                return url
             proj = self._library.entries.get(url)
             if proj is not None and getattr(proj, "path", None):
-                return proj.path
+                try:
+                    return proj.fs.unstrip_protocol(proj.url)
+                except Exception:
+                    return proj.path
             # Fall back to the URL, minus any ``file://`` scheme prefix, so
             # the caller still gets *something* usable when there is no
             # matching entry (e.g., the UI is about to create one).
             return _url_to_local(url) if url else None
+
+        def _entry_storage_options(self, url: str) -> dict:
+            """Storage options stored on the library entry *url* (or ``{}``).
+
+            Remote projects (s3://, gcs://, authenticated http, …) need their
+            ``storage_options`` to be re-supplied when reconstructing the
+            ``Project`` on rescan, otherwise the filesystem access fails.
+            """
+            proj = self._library.entries.get(url)
+            return dict(getattr(proj, "storage_options", None) or {})
 
         def _rescan(self, url: str) -> None:
             """Re-run ``Project(...)`` for the entry *url* and replace it.
@@ -391,7 +417,11 @@ def _build_widget(library: "ProjectLibrary"):
                 return
             self._set_busy(True)
             try:
-                proj = projspec.Project(path, walk=False)
+                proj = projspec.Project(
+                    path,
+                    walk=False,
+                    storage_options=self._entry_storage_options(url),
+                )
                 # Keep the *original* library key so we don't duplicate the
                 # entry under a different protocol prefix.
                 self._library.entries[url] = proj
@@ -425,9 +455,10 @@ def _build_widget(library: "ProjectLibrary"):
                 return
             self._set_busy(True)
             try:
-                proj = projspec.Project(path, walk=False)
+                so = self._entry_storage_options(url)
+                proj = projspec.Project(path, walk=False, storage_options=so)
                 proj.create(spec)
-                fresh = projspec.Project(path, walk=False)
+                fresh = projspec.Project(path, walk=False, storage_options=so)
                 # Same key-preservation rule as _rescan.
                 self._library.entries[url] = fresh
                 if self._library.auto_save:

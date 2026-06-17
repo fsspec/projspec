@@ -263,9 +263,22 @@ export class ProjspecPanel {
         }
     }
 
+    /**
+     * The storage_options of the library entry for *url*, as a JSON string
+     * (or undefined if none). Remote projects need these re-supplied when the
+     * Project is reconstructed on rescan, otherwise filesystem access fails.
+     */
+    private entryStorageOptions(url: string): string | undefined {
+        const so = this.library[url]?.storage_options;
+        if (so && typeof so === 'object' && Object.keys(so).length > 0) {
+            return JSON.stringify(so);
+        }
+        return undefined;
+    }
+
     private async rescan(url: string): Promise<void> {
         await this.withBusy(async () => {
-            const res = await scan(url, true);
+            const res = await scan(url, true, this.entryStorageOptions(url));
             if (res.code !== 0) {
                 vscode.window.showWarningMessage(`projspec scan: ${res.stderr.trim() || 'failed'}`);
             }
@@ -305,7 +318,7 @@ export class ProjspecPanel {
                 vscode.window.showWarningMessage(`projspec create: ${res.stderr.trim() || 'failed'}`);
             }
             // Rescan the specific project, then refresh library.
-            await scan(p, true);
+            await scan(p, true, this.entryStorageOptions(url));
             await this.reload(false);
         });
     }
@@ -1022,7 +1035,7 @@ const PANEL_JS = String.raw`
         if (project.file_count != null && project.total_size != null)
             metaParts.push(parseInt(project.file_count).toLocaleString() + ' files, ' + fmtSize(project.total_size));
         if (project.is_writable != null)
-            metaParts.push(project.is_writable === 'True' ? 'writable' : 'read-only');
+            metaParts.push((project.is_writable === true || project.is_writable === 'True') ? 'writable' : 'read-only');
         if (project.last_modified != null) {
             const age = fmtAge(project.last_modified);
             const by = project.last_modified_by != null ? project.last_modified_by : null;
