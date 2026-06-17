@@ -460,10 +460,113 @@ class TestWidgetHandlers:
         widget, lib, url = widget_and_lib
         resolved = widget._resolve_entry_path(url)
         proj = lib.entries[url]
-        assert resolved == proj.path
+        # protocol-qualified form of the project URL, so remote projects
+        # re-open against the right filesystem on rescan
+        assert resolved == proj.fs.unstrip_protocol(proj.url)
+        # for a local project that resolves to a file:// URL of the path
+        assert resolved == "file://" + proj.path
+
+    def test_resolve_entry_path_remote_keeps_protocol(self, tmp_path):
+        """A remote (memory://) entry resolves to a protocol-qualified URL,
+        not the protocol-stripped ``proj.path`` (which would resolve against
+        the local filesystem and fail)."""
+        pytest.importorskip("anywidget")
+        import fsspec
+        import projspec
+
+        mfs = fsspec.filesystem("memory")
+        try:
+            mfs.rm("/ipw_rescan", recursive=True)
+        except FileNotFoundError:
+            pass
+        mfs.pipe("/ipw_rescan/pyproject.toml", b'[project]\nname="x"\nversion="0.1"\n')
+        try:
+            lib = ProjectLibrary(None, auto_save=False)
+            proj = projspec.Project("memory://ipw_rescan", walk=False)
+            key = proj.fs.unstrip_protocol(proj.url)
+            lib.entries[key] = proj
+
+            widget = lib.ipywidget()
+            widget.send = lambda c, buffers=None: None
+            widget._toast = lambda m: None
+
+            resolved = widget._resolve_entry_path(key)
+            assert resolved == "memory:///ipw_rescan"
+
+            # a full rescan must succeed and keep the same key + detected specs
+            _fire(widget, "rescan", url=key)
+            assert key in lib.entries
+            assert "python_library" in lib.entries[key].specs
+        finally:
+            mfs.rm("/ipw_rescan", recursive=True)
+
+    def test_resolve_entry_path_old_library_keeps_protocol(self, tmp_path):
+        """Even when an older serialised library reconstructed the entry's
+        filesystem as *local* (because the stored ``url`` lacked a protocol),
+        the protocol-qualified library *key* must be used to re-open it."""
+        pytest.importorskip("anywidget")
+        import fsspec
+        import json
+        import projspec
+        from projspec.config import temp_conf
+
+        mfs = fsspec.filesystem("memory")
+        try:
+            mfs.rm("/ipw_old", recursive=True)
+        except FileNotFoundError:
+            pass
+        mfs.pipe("/ipw_old/pyproject.toml", b'[project]\nname="x"\nversion="0.1"\n')
+
+        # an old-format entry: protocol-qualified key, but stripped ``url``
+        old_entry = {
+            "klass": "project",
+            "specs": {},
+            "children": {},
+            "contents": {},
+            "artifacts": {},
+            "url": "/ipw_old",
+            "storage_options": {},
+            "file_count": 1,
+            "total_size": 10,
+            "is_writable": True,
+            "last_modified": None,
+            "last_modified_by": None,
+            "scanned_at": 1.0,
+        }
+        libfile = str(tmp_path / "old_lib.json")
+        with open(libfile, "w") as f:
+            json.dump({"memory:///ipw_old": old_entry}, f)
+
+        try:
+            with temp_conf(auto_rescan=0):
+                lib = ProjectLibrary(libfile, auto_save=False)
+            # sanity: the reconstructed entry's fs is (wrongly) local here
+            assert lib.entries["memory:///ipw_old"].is_local()
+
+            widget = lib.ipywidget()
+            widget.send = lambda c, buffers=None: None
+            widget._toast = lambda m: None
+
+            # ...but the key's protocol is honoured regardless
+            assert (
+                widget._resolve_entry_path("memory:///ipw_old") == "memory:///ipw_old"
+            )
+            _fire(widget, "rescan", url="memory:///ipw_old")
+            entry = lib.entries["memory:///ipw_old"]
+            assert not entry.is_local()
+            assert "python_library" in entry.specs
+        finally:
+            mfs.rm("/ipw_old", recursive=True)
 
     def test_resolve_entry_path_falls_back_to_url_to_local(self, widget_and_lib):
         widget, lib, url = widget_and_lib
-        # A key that is not in the library gets _url_to_local applied
-        result = widget._resolve_entry_path("file:///some/other/path")
+        # A non-protocol key with no matching entry gets _url_to_local applied
+        result = widget._resolve_entry_path("/some/other/path")
         assert result == "/some/other/path"
+
+    def test_resolve_entry_path_file_url_kept(self, widget_and_lib):
+        widget, lib, url = widget_and_lib
+        # a file:// key already carries a protocol -> returned as-is (Project
+        # opens file:// URLs fine)
+        result = widget._resolve_entry_path("file:///some/other/path")
+        assert result == "file:///some/other/path"

@@ -296,7 +296,7 @@ class ProjspecWindow(QMainWindow):
             _spawn_detached(["jupyter", "lab", local])
 
     def _action_rescan(self, url: str) -> None:
-        self._scan_and_reload(url, walk=False)
+        self._rescan(url)
 
     def _action_create_spec(self, url: str) -> None:
         proj = library.entries.get(url)
@@ -398,6 +398,38 @@ class ProjspecWindow(QMainWindow):
 
     # ── Scan helper ─────────────────────────────────────────────────────────
 
+    def _rescan(self, url: str) -> None:
+        """Re-run ``Project(...)`` for an existing library entry and replace it.
+
+        The original library key (*url*) is preserved so the entry's identity
+        does not drift (selection in the UI is keyed on it).
+
+        The path used to rebuild the project must keep its protocol so remote
+        projects re-open against the right filesystem.  We prefer the library
+        key itself when it already carries a protocol (e.g.
+        ``memory:///proj``, ``s3://bucket/key``) - it is the authoritative
+        protocol-qualified identifier the UI holds, and is reliable even when
+        an older serialised library reconstructed the entry's filesystem as
+        local.  Otherwise we fall back to the stored project's
+        protocol-qualified URL.
+        """
+        if not url:
+            return
+        self._set_busy(True)
+        try:
+            existing = library.entries.get(url)
+            storage_options = dict(getattr(existing, "storage_options", None) or {})
+            path = _rescan_path(url, existing)
+            proj = projspec.Project(path, walk=False, storage_options=storage_options)
+            # Keep the original key so we update the entry in place rather than
+            # creating a duplicate under a differently-formatted key.
+            library.add_entry(url, proj)
+            self._reload()
+        except Exception as e:
+            QMessageBox.warning(self, "Rescan", f"Rescan failed: {e}")
+        finally:
+            self._set_busy(False)
+
     def _scan_and_reload(self, url: str, walk: bool) -> None:
         self._set_busy(True)
         try:
@@ -429,6 +461,25 @@ def _url_to_local(url: str) -> str:
     """Strip ``file://`` prefix so the result is a plain path."""
     if url.startswith("file://"):
         return url[len("file://") :]
+    return url
+
+
+def _rescan_path(url: str, existing) -> str:
+    """Resolve the path to re-open *url* as a Project, preserving protocol.
+
+    Prefers the library key *url* when it already carries a protocol (it is the
+    authoritative, protocol-qualified identifier and is reliable even if an
+    older serialised library reconstructed the entry's filesystem as local).
+    Otherwise falls back to the stored project's protocol-qualified URL, and
+    finally to the key itself.
+    """
+    if "://" in url:
+        return url
+    if existing is not None:
+        try:
+            return existing.fs.unstrip_protocol(existing.url)
+        except Exception:
+            return getattr(existing, "path", url) or url
     return url
 
 

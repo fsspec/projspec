@@ -354,17 +354,33 @@ def _build_widget(library: "ProjectLibrary"):
                 self._set_busy(False)
 
         def _resolve_entry_path(self, url: str) -> str | None:
-            """Return the filesystem path for the library entry *url*, if any.
+            """Return the path used to re-open the library entry *url*.
 
-            Always prefers the stored ``Project.path`` (which projspec
-            normalises to an absolute path via fsspec) to the library key.
-            The library key is an opaque identity used by the UI; reusing it
-            as a path breaks for entries keyed on a basename or relative
-            sub-path (e.g. walked children added under the library root).
+            The path must keep its protocol so remote projects (``memory://``,
+            ``s3://``, …) re-open against the right filesystem.  We prefer the
+            library key *url* when it already carries a protocol - it is the
+            authoritative, protocol-qualified identifier the UI holds, and is
+            reliable even when an older serialised library reconstructed the
+            entry's filesystem as local.  Otherwise we use the stored project's
+            protocol-qualified URL (``fs.unstrip_protocol(proj.url)``), since
+            ``proj.path``/``proj.url`` have the protocol stripped by
+            ``fsspec.url_to_fs`` (e.g. ``/proj`` for ``memory://proj``) and a
+            bare path would resolve against the *local* filesystem.
+
+            The library key is otherwise an opaque identity used by the UI;
+            reusing it as a path breaks for entries keyed on a basename or
+            relative sub-path (e.g. walked children added under the library
+            root), so we only fall back to ``_url_to_local`` when there is no
+            matching entry.
             """
+            if url and "://" in url:
+                return url
             proj = self._library.entries.get(url)
             if proj is not None and getattr(proj, "path", None):
-                return proj.path
+                try:
+                    return proj.fs.unstrip_protocol(proj.url)
+                except Exception:
+                    return proj.path
             # Fall back to the URL, minus any ``file://`` scheme prefix, so
             # the caller still gets *something* usable when there is no
             # matching entry (e.g., the UI is about to create one).
