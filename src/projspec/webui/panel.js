@@ -204,7 +204,7 @@
         if (project.file_count != null && project.total_size != null)
             metaParts.push(parseInt(project.file_count).toLocaleString() + ' files, ' + fmtSize(project.total_size));
         if (project.is_writable != null)
-            metaParts.push(project.is_writable === 'True' ? 'writable' : 'read-only');
+            metaParts.push((project.is_writable === true || project.is_writable === 'True') ? 'writable' : 'read-only');
         if (project.last_modified != null) {
             const age = fmtAge(project.last_modified);
             const by = project.last_modified_by != null ? project.last_modified_by : null;

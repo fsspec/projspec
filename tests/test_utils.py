@@ -11,6 +11,8 @@ from projspec.utils import (
     is_installed,
     sort_version_strings,
     run_subprocess,
+    to_dict,
+    from_dict,
 )
 
 
@@ -52,6 +54,55 @@ def test_enum():
     cls = get_cls("Stack", "enum")
     assert isinstance(st, cls)
     assert st.to_dict()["klass"] == ["enum", "stack"]
+
+
+def test_to_dict_preserves_json_native_types():
+    # JSON-native scalars must keep their type rather than being stringified,
+    # so storage_options like {"anon": True} serialise to JSON `true`, not
+    # the string "True".
+    import json
+
+    src = {
+        "anon": True,
+        "use_ssl": False,
+        "port": 8080,
+        "ratio": 0.5,
+        "token": "abc",
+        "missing": None,
+        "nested": {"flag": True, "n": 3},
+        "list": [True, 1, "x"],
+    }
+    d = to_dict(src)
+
+    assert d["anon"] is True
+    assert d["use_ssl"] is False
+    assert d["port"] == 8080 and isinstance(d["port"], int)
+    assert d["ratio"] == 0.5
+    assert d["token"] == "abc"
+    assert d["missing"] is None
+    assert d["nested"]["flag"] is True
+    assert d["list"] == [True, 1, "x"]
+
+    # and it survives a real JSON round-trip as native types
+    restored = json.loads(json.dumps(d))
+    assert restored["anon"] is True
+    assert restored["nested"]["flag"] is True
+    # from_dict passes scalars through unchanged
+    assert from_dict(restored)["anon"] is True
+
+
+def test_storage_options_bool_roundtrip():
+    # a Project's storage_options booleans must round-trip as real booleans
+    import json
+
+    p = projspec.Project(
+        ".", walk=False, storage_options={"anon": True, "use_listings_cache": False}
+    )
+    js = json.dumps(p.to_dict(compact=False))
+    assert '"anon": true' in js
+    p2 = projspec.Project.from_dict(json.loads(js))
+    assert p2.storage_options["anon"] is True
+    assert p2.storage_options["use_listings_cache"] is False
 
 
 def test_sort_versions():

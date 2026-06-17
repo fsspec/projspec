@@ -99,7 +99,10 @@ def to_dict(obj, compact=True):
             )
             for k, v in obj.items()
         }
-    if isinstance(obj, (bytes, str)):
+    # Preserve JSON-native scalar types as-is so they round-trip with the
+    # correct type (e.g. True -> true, not "True"). Note bool must be checked
+    # before/alongside int since bool is a subclass of int.
+    if isinstance(obj, (bool, int, float, str, bytes)):
         return obj
     if isinstance(obj, Iterable):
         return [to_dict(_, compact=compact) for _ in obj]

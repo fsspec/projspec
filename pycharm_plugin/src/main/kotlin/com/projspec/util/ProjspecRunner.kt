@@ -32,8 +32,22 @@ object ProjspecRunner {
     /** `projspec library list --json-out` — returns project library JSON. */
     fun runLibraryList(): CliResult = run(listOf(cli, "library", "list", "--json-out"))
 
-    /** `projspec scan --library <path>` — scan & register a directory. */
-    fun runScan(path: String): CliResult = run(listOf(cli, "scan", "--library", path))
+    /**
+     * `projspec scan --library <path>` — scan & register a directory.
+     *
+     * *storageOptions*, when non-blank, is forwarded as `--storage_options`
+     * (a JSON string) so remote projects (s3://, gcs://, …) can be re-scanned
+     * with their filesystem credentials/flags intact.
+     */
+    fun runScan(path: String, storageOptions: String? = null): CliResult {
+        val args = mutableListOf(cli, "scan", "--library")
+        if (!storageOptions.isNullOrBlank()) {
+            args.add("--storage_options")
+            args.add(storageOptions)
+        }
+        args.add(path)
+        return run(args)
+    }
 
     /** `projspec create <spec> <path>` — create a new spec inside a project. */
     fun runCreate(spec: String, path: String): CliResult =

@@ -326,10 +326,12 @@ class ProjspecWindow(QMainWindow):
         self._set_busy(True)
         try:
             path = _url_to_local(url)
-            proj = projspec.Project(path, walk=False)
+            existing = library.entries.get(url)
+            storage_options = dict(getattr(existing, "storage_options", None) or {})
+            proj = projspec.Project(path, walk=False, storage_options=storage_options)
             proj.create(spec)
             # Rescan and refresh.
-            fresh = projspec.Project(path, walk=False)
+            fresh = projspec.Project(path, walk=False, storage_options=storage_options)
             library.add_entry(path, fresh)
             self._reload()
         except Exception as e:
@@ -400,7 +402,11 @@ class ProjspecWindow(QMainWindow):
         self._set_busy(True)
         try:
             path = _url_to_local(url) if url.startswith("file://") else url
-            proj = projspec.Project(path, walk=walk)
+            # Re-supply storage_options from the existing library entry (if
+            # any) so rescanning a remote project keeps working.
+            existing = library.entries.get(url)
+            storage_options = dict(getattr(existing, "storage_options", None) or {})
+            proj = projspec.Project(path, walk=walk, storage_options=storage_options)
             if walk:
                 for child_url, child in (proj.children or {}).items():
                     if child.specs:

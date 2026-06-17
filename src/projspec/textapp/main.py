@@ -914,6 +914,19 @@ def _url_to_local(url: str) -> str:
     return url[len("file://") :] if url.startswith("file://") else url
 
 
+def _entry_storage_options(url: str) -> str:
+    """Storage options of the library entry *url*, as a JSON string ("" if none).
+
+    Remote projects need their ``storage_options`` re-supplied when the
+    ``Project`` is reconstructed on rescan, otherwise filesystem access fails.
+    """
+    import json as _json
+
+    proj = library.entries.get(url)
+    so = getattr(proj, "storage_options", None) or {}
+    return _json.dumps(so) if so else ""
+
+
 def _spawn_detached(cmd: list[str]) -> None:
     try:
         subprocess.Popen(
@@ -1349,7 +1362,9 @@ class ProjspecApp(App):
             elif key == "openJupyter":
                 _spawn_detached(["jupyter", "lab", _url_to_local(url)])
             elif key == "rescan":
-                self._scan_and_reload(url, walk=False)
+                self._scan_and_reload(
+                    url, walk=False, storage_options=_entry_storage_options(url)
+                )
             elif key == "createSpec":
                 self._open_create_spec(url)
             elif key == "remove":
@@ -1378,9 +1393,11 @@ class ProjspecApp(App):
             self._set_busy(True)
             try:
                 path = _url_to_local(url)
-                proj = projspec.Project(path, walk=False)
-                proj.create(pick)
-                fresh = projspec.Project(path, walk=False)
+                proj = library.entries.get(url)
+                so = getattr(proj, "storage_options", None) or {}
+                new = projspec.Project(path, walk=False, storage_options=so)
+                new.create(pick)
+                fresh = projspec.Project(path, walk=False, storage_options=so)
                 library.add_entry(path, fresh)
                 self.status_message = f"Created {pick} in {path}"
                 self._reload()

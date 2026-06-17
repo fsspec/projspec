@@ -382,6 +382,49 @@ class TestWidgetHandlers:
         _fire(widget, "rescan", url=url)
         assert url in lib.entries  # key must be preserved after rescan
 
+    def test_rescan_forwards_storage_options(self, tmp_path, widget_and_lib):
+        """Rescanning a (remote) entry must re-supply its storage_options to
+        the reconstructed Project, otherwise remote filesystem access fails."""
+        import projspec
+
+        widget, lib, url = widget_and_lib
+        # pretend the stored entry was opened with storage_options
+        lib.entries[url].storage_options = {"anon": True, "key": "secret"}
+
+        captured = {}
+        real_project = projspec.Project
+
+        def fake_project(path, *args, **kwargs):
+            captured["storage_options"] = kwargs.get("storage_options")
+            return real_project(path, *args, **kwargs)
+
+        with patch("projspec.Project", side_effect=fake_project):
+            _fire(widget, "rescan", url=url)
+
+        assert captured["storage_options"] == {"anon": True, "key": "secret"}
+
+    def test_create_spec_confirmed_forwards_storage_options(
+        self, tmp_path, widget_and_lib
+    ):
+        """createSpecConfirmed must also re-supply storage_options."""
+        import projspec
+
+        widget, lib, url = widget_and_lib
+        lib.entries[url].storage_options = {"anon": True}
+
+        seen = []
+        real_project = projspec.Project
+
+        def fake_project(path, *args, **kwargs):
+            seen.append(kwargs.get("storage_options"))
+            return real_project(path, *args, **kwargs)
+
+        with patch("projspec.Project", side_effect=fake_project):
+            _fire(widget, "createSpecConfirmed", url=url, spec="github_actions")
+
+        # both the create and the re-read Project constructions get the options
+        assert seen and all(s == {"anon": True} for s in seen)
+
     def test_set_busy_sends_loading_message(self, widget_and_lib):
         widget, lib, url = widget_and_lib
         sends = []

@@ -370,6 +370,16 @@ def _build_widget(library: "ProjectLibrary"):
             # matching entry (e.g., the UI is about to create one).
             return _url_to_local(url) if url else None
 
+        def _entry_storage_options(self, url: str) -> dict:
+            """Storage options stored on the library entry *url* (or ``{}``).
+
+            Remote projects (s3://, gcs://, authenticated http, …) need their
+            ``storage_options`` to be re-supplied when reconstructing the
+            ``Project`` on rescan, otherwise the filesystem access fails.
+            """
+            proj = self._library.entries.get(url)
+            return dict(getattr(proj, "storage_options", None) or {})
+
         def _rescan(self, url: str) -> None:
             """Re-run ``Project(...)`` for the entry *url* and replace it.
 
@@ -391,7 +401,11 @@ def _build_widget(library: "ProjectLibrary"):
                 return
             self._set_busy(True)
             try:
-                proj = projspec.Project(path, walk=False)
+                proj = projspec.Project(
+                    path,
+                    walk=False,
+                    storage_options=self._entry_storage_options(url),
+                )
                 # Keep the *original* library key so we don't duplicate the
                 # entry under a different protocol prefix.
                 self._library.entries[url] = proj
@@ -425,9 +439,10 @@ def _build_widget(library: "ProjectLibrary"):
                 return
             self._set_busy(True)
             try:
-                proj = projspec.Project(path, walk=False)
+                so = self._entry_storage_options(url)
+                proj = projspec.Project(path, walk=False, storage_options=so)
                 proj.create(spec)
-                fresh = projspec.Project(path, walk=False)
+                fresh = projspec.Project(path, walk=False, storage_options=so)
                 # Same key-preservation rule as _rescan.
                 self._library.entries[url] = fresh
                 if self._library.auto_save:
