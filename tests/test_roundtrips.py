@@ -49,7 +49,7 @@ from projspec.utils import get_cls
         "Dbt",
         "Quarto",
         "Nox",
-        "CroissantDataset"
+        "CroissantDataset",
         # Documentation — file-only _create()
         "MkDocs",
         "Sphinx",
