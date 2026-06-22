@@ -51,6 +51,7 @@ User Classes
     proj.conda_workspace.CondaWorkspace
     proj.datapackage.DVCRepo
     proj.datapackage.DataPackage
+    proj.datapackage.CroissantDataset
     proj.dataworkflows.Dbt
     proj.dataworkflows.Quarto
     proj.dataworkflows.Prefect
@@ -136,6 +137,7 @@ User Classes
 .. autoclass:: projspec.proj.conda_workspace.CondaWorkspace
 .. autoclass:: projspec.proj.datapackage.DVCRepo
 .. autoclass:: projspec.proj.datapackage.DataPackage
+.. autoclass:: projspec.proj.datapackage.CroissantDataset
 .. autoclass:: projspec.proj.dataworkflows.Dbt
 .. autoclass:: projspec.proj.dataworkflows.Quarto
 .. autoclass:: projspec.proj.dataworkflows.Prefect
@@ -224,6 +226,7 @@ User Classes
     content.cicd.ServiceDependency
     content.data.IntakeSource
     content.data.TabularData
+    content.data.CroissantRecordSet
     content.data.DataResource
     content.env_var.EnvironmentVariables
     content.environment.Environment
@@ -241,6 +244,7 @@ User Classes
 .. autoclass:: projspec.content.cicd.ServiceDependency
 .. autoclass:: projspec.content.data.IntakeSource
 .. autoclass:: projspec.content.data.DataResource
+.. autoclass:: projspec.content.data.CroissantRecordSet
 .. autoclass:: projspec.content.data.TabularData
 .. autoclass:: projspec.content.env_var.EnvironmentVariables
 .. autoclass:: projspec.content.environment.Environment
