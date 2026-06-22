@@ -161,3 +161,190 @@ class IntakeCatalog(ProjectExtra):
             version: 2
             """
             )
+
+
+class CroissantDataset(ProjectSpec):
+    """An ML Commons Croissant dataset described by a JSON-LD metadata file.
+
+    Croissant (http://mlcommons.org/croissant/1.0) is the standard format for
+    describing ML datasets using JSON-LD / schema.org vocabulary.  It captures
+    dataset-level metadata (name, description, license, citation) as well as a
+    structured schema of the data via ``RecordSet`` and ``Field`` objects.
+
+    Detection heuristic
+    -------------------
+    1. Look for any ``.json`` / ``.jsonld`` file whose **basename** matches a
+       list of common Croissant filenames (``croissant.json``,
+       ``croissant_metadata.json``, ``metadata.json``, …).
+    2. Open the candidate file and confirm it carries the Croissant conformance
+       marker (``conformsTo`` containing ``mlcommons.org/croissant`` or a
+       ``@context`` that maps ``cr`` / ``mlcommons``).
+
+    No file I/O other than reading the single metadata file is needed, so this
+    parser is compatible with remote filesystems.
+    """
+
+    icon = "🥐"
+    spec_doc = "https://docs.mlcommons.org/croissant/docs/croissant-spec.html"
+
+    # Filename matched during match(); reused in parse() to avoid re-scanning.
+    _matched_file: str | None = None
+    _CROISSANT_NAMES = re.compile(
+        r"^(croissant.*|.*[-_]?croissant[-_]?.*|metadata)\.json(ld)?$",
+        re.IGNORECASE,
+    )
+    _CROISSANT_CONFORMSTO = "mlcommons.org/croissant"
+
+    def match(self) -> bool:
+        """Return True when a plausible Croissant JSON-LD file is present."""
+        for basename in self.proj.basenames:
+            if self._CROISSANT_NAMES.match(basename):
+                # Peek at the file to confirm it is really Croissant.
+                # We use get_file() so the content may already be cached.
+                try:
+                    fobj = self.proj.get_file(basename)
+                    if fobj is None:
+                        continue
+                    text = fobj.read()
+                    if isinstance(text, bytes):
+                        text = text.decode("utf-8", errors="replace")
+                    if self._CROISSANT_CONFORMSTO in text:
+                        self._matched_file = basename
+                        return True
+                except Exception:
+                    continue
+        return False
+
+    def parse(self) -> None:
+        import json
+
+        from projspec.content import DescriptiveMetadata, License, Citation
+        from projspec.content.data import CroissantRecordSet
+        from projspec.utils import AttrDict
+
+        if self._matched_file is None:
+            raise ParseFailed("No Croissant file identified")
+
+        self._contents = AttrDict()
+        self._artifacts = AttrDict()
+
+        with self.proj.fs.open(self.proj.basenames[self._matched_file], "rt") as f:
+            meta = json.load(f)
+
+        # --- dataset-level metadata ---
+        dm_fields = {
+            "name",
+            "description",
+            "url",
+            "version",
+            "datePublished",
+            "dateCreated",
+            "dateModified",
+            "keywords",
+            "inLanguage",
+        }
+        self._contents["descriptive_metadata"] = DescriptiveMetadata(
+            proj=self.proj,
+            meta={k: str(v) for k, v in meta.items() if k in dm_fields and v},
+        )
+
+        # --- license ---
+        lic_raw = meta.get("license")
+        if lic_raw:
+            # license may be a string URL or a dict with @id / name
+            if isinstance(lic_raw, str):
+                self._contents["license"] = License(
+                    proj=self.proj, shortname=lic_raw, url=lic_raw
+                )
+            elif isinstance(lic_raw, dict):
+                self._contents["license"] = License(
+                    proj=self.proj,
+                    shortname=lic_raw.get("name", lic_raw.get("@id", "")),
+                    url=lic_raw.get("@id", lic_raw.get("url", "")),
+                )
+
+        # --- citation ---
+        cite_raw = meta.get("citeAs") or meta.get("citation")
+        if cite_raw:
+            self._contents["citation"] = Citation(
+                proj=self.proj,
+                meta={"citeAs": cite_raw} if isinstance(cite_raw, str) else cite_raw,
+            )
+
+        # --- record sets ---
+        record_sets_raw = meta.get("recordSet") or meta.get("cr:recordSet") or []
+        if isinstance(record_sets_raw, dict):
+            record_sets_raw = [record_sets_raw]
+
+        record_sets = {}
+        for rs in record_sets_raw:
+            rs_id = rs.get("name") or rs.get("@id", "")
+            description = rs.get("description", "")
+            fields_raw = rs.get("field") or rs.get("cr:field") or []
+            if isinstance(fields_raw, dict):
+                fields_raw = [fields_raw]
+            field_names = [
+                f.get("name") or f.get("@id", "")
+                for f in fields_raw
+                if isinstance(f, dict)
+            ]
+            record_sets[rs_id] = CroissantRecordSet(
+                proj=self.proj,
+                name=rs_id,
+                description=description,
+                fields=field_names,
+            )
+
+        if record_sets:
+            self._contents["croissant_record_set"] = AttrDict(record_sets)
+
+    @staticmethod
+    def _create(path: str) -> None:
+        """Write a minimal valid Croissant metadata file."""
+        import json
+
+        doc = {
+            "@context": {
+                "@language": "en",
+                "@vocab": "https://schema.org/",
+                "cr": "http://mlcommons.org/schema/",
+                "dct": "http://purl.org/dc/terms/",
+            },
+            "@type": "sc:Dataset",
+            "name": "my-dataset",
+            "description": "A short description of the dataset.",
+            "license": "https://creativecommons.org/licenses/by/4.0/",
+            "url": "https://example.com/my-dataset",
+            "dct:conformsTo": "http://mlcommons.org/croissant/1.0",
+            "distribution": [
+                {
+                    "@type": "cr:FileObject",
+                    "@id": "data.csv",
+                    "contentUrl": "data.csv",
+                    "encodingFormat": "text/csv",
+                }
+            ],
+            "recordSet": [
+                {
+                    "@type": "cr:RecordSet",
+                    "@id": "records",
+                    "name": "records",
+                    "field": [
+                        {
+                            "@type": "cr:Field",
+                            "@id": "records/id",
+                            "name": "id",
+                            "dataType": "sc:Integer",
+                        },
+                        {
+                            "@type": "cr:Field",
+                            "@id": "records/value",
+                            "name": "value",
+                            "dataType": "sc:Text",
+                        },
+                    ],
+                }
+            ],
+        }
+        with open(f"{path}/croissant.json", "wt") as f:
+            json.dump(doc, f, indent=2)

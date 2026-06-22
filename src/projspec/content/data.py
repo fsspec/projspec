@@ -49,6 +49,32 @@ class IntakeSource(BaseContent):
 
 
 @dataclass
+class CroissantRecordSet(BaseContent):
+    """A RecordSet described in a Croissant/JSON-LD dataset metadata file.
+
+    Croissant (http://mlcommons.org/croissant/1.0) is the ML Commons standard
+    for describing ML datasets using JSON-LD.  A ``RecordSet`` is a named,
+    structured collection of records (e.g. one table or one set of image
+    annotations) within the dataset.
+
+    Attributes
+    ----------
+    name:
+        The ``name`` (or ``@id``) of the ``cr:RecordSet``.
+    description:
+        Optional free-text description of the record set.
+    fields:
+        List of field names declared inside this record set.
+    """
+
+    icon = "🥐"
+
+    name: str
+    description: str = ""
+    fields: list = field(default_factory=list)
+
+
+@dataclass
 class Dataset(BaseContent):
     """A generic dataset discovered on disk and described by intake.
 

@@ -8,6 +8,7 @@ from projspec.content.cicd import (
     ServiceDependency,
 )
 from projspec.content.data import (
+    CroissantRecordSet,
     Dataset,
     FrictionlessData,
     IntakeSource,
@@ -24,6 +25,7 @@ from projspec.content.vcs import VCSInfo
 __all__ = [
     "BaseContent",
     "CIWorkflow",
+    "CroissantRecordSet",
     "GithubAction",
     "PipelineStage",
     "ServiceDependency",

@@ -25,7 +25,7 @@ from projspec.proj.conda_package import CondaRecipe, RattlerRecipe
 from projspec.proj.conda_project import CondaProject
 from projspec.proj.conda_workspace import CondaWorkspace
 from projspec.proj.data_project import DataProject
-from projspec.proj.datapackage import DataPackage, DVCRepo
+from projspec.proj.datapackage import DataPackage, DVCRepo, CroissantDataset
 from projspec.proj.dataworkflows import (
     Airflow,
     Dagster,
@@ -93,6 +93,7 @@ __all__ = [
     "CondaWorkspace",
     "RattlerRecipe",
     # Data
+    "CroissantDataset",
     "DataPackage",
     "DVCRepo",
     "DataProject",
