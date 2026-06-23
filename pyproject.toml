@@ -36,7 +36,7 @@ test = ["pytest", "pytest-cov", "django", "streamlit", "copier", "jinja2-time", 
     "maturin", "uv", "briefcase", "textual"]
 qt = ["pyqt>5,<6", "pyqtwebengin>5,<6"]
 textual = ["textual>=0.80"]
-ipywidget = ["anywidget>=0.9", "ipywidgets>=8", "ipython"]
+ipywidget = ["anywidget>=0.9"]
 
 [project.scripts]
 projspec = "projspec.__main__:main"

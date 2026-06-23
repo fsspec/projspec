@@ -635,9 +635,8 @@ class Project:
     def _ipython_display_(self):
         """Auto-display as the interactive widget when possible.
 
-        Falls back to a plain ``repr`` when ``anywidget`` /
-        ``ipywidgets`` is not available - Jupyter will then use the
-        normal text representation.
+        Falls back to a plain ``repr`` when ``anywidget`` is not
+        available - Jupyter will then use the normal text representation.
         """
         from projspec.library import ProjectLibrary
 

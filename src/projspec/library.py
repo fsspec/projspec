@@ -101,10 +101,10 @@ class ProjectLibrary:
         return {k: v for k, v in self.entries.items() if _match(v, filters)}
 
     # ------------------------------------------------------------------
-    #  Rich display / ipywidget
+    #  Rich display / widget
     # ------------------------------------------------------------------
-    def ipywidget(self):
-        """Return an interactive Jupyter widget for this library.
+    def widget(self):
+        """Return an interactive widget for this library.
 
         The widget mirrors the two-pane UI used by the VSCode extension,
         the Qt app and the PyCharm plugin: a filterable project list on
@@ -113,8 +113,13 @@ class ProjectLibrary:
         actions (rescan, create spec, remove from library, …) and per-
         artifact Make buttons.
 
-        Requires the optional ``anywidget`` and ``ipywidgets`` packages;
-        install them via ``pip install projspec[ipywidget]``.
+        Built on :mod:`anywidget` — no :mod:`ipywidgets` dependency is
+        required, so the widget runs under marimo as well as classic
+        Jupyter / JupyterLab.  Install via ``pip install projspec[ipywidget]``.
+
+        In marimo, return the widget from a cell to display it.  In
+        Jupyter, you can also just evaluate a :class:`ProjectLibrary`
+        directly (``_ipython_display_`` is called automatically).
 
         Only a single widget per notebook is supported - see the
         :mod:`projspec.webui.ipywidget` module docstring.
@@ -123,21 +128,30 @@ class ProjectLibrary:
 
         return make_widget(self)
 
+    def ipywidget(self):
+        """Deprecated alias for :meth:`widget`."""
+        return self.widget()
+
     def _ipython_display_(self):
         """Auto-display as the interactive widget when possible.
 
-        Falls back to a plain ``repr`` when ``anywidget`` /
-        ``ipywidgets`` is not available - Jupyter will then use the
-        normal text representation.
+        Falls back to a plain ``repr`` when ``anywidget`` is not
+        available — Jupyter will then use the normal text representation.
+
+        Not called by marimo; marimo users should return the widget from
+        a cell (e.g. ``library.widget()``).
         """
         try:
-            widget = self.ipywidget()
+            widget = self.widget()
         except ImportError:
             # No optional deps; let Jupyter fall back to repr().
             print(repr(self))
             return
-        from IPython.display import display
-
+        try:
+            from IPython.display import display
+        except ImportError:  # pragma: no cover - IPython not installed
+            print(repr(self))
+            return
         display(widget)
 
 

@@ -1,10 +1,14 @@
-"""Jupyter ``ipywidget`` representation of :class:`ProjectLibrary`.
+"""Jupyter / marimo widget representation of :class:`ProjectLibrary`.
 
 This module owns the *host* side of the shared webui transport for the
-Jupyter Notebook / JupyterLab / VSCode-notebook / Colab environments.  It
-builds an :mod:`anywidget` ``AnyWidget`` that loads the shared HTML, CSS
-and JS from :mod:`projspec.webui` and drives it from Python with the same
-command vocabulary as the VSCode extension and the Qt app.
+Jupyter Notebook / JupyterLab / VSCode-notebook / Colab / marimo
+environments.  It builds an :mod:`anywidget` ``AnyWidget`` that loads the
+shared HTML, CSS and JS from :mod:`projspec.webui` and drives it from
+Python with the same command vocabulary as the VSCode extension and the
+Qt app.
+
+Only :mod:`anywidget` is required — :mod:`ipywidgets` is **not** needed,
+which means the widget runs under marimo as well as classic Jupyter.
 
 Current limitations
 -------------------
@@ -179,13 +183,12 @@ def _build_widget(library: "ProjectLibrary"):
     """
     try:
         import anywidget
-        import traitlets
     except ImportError as exc:  # pragma: no cover - optional dep
         raise ImportError(
             "The ipywidget representation of ProjectLibrary requires the "
-            "'anywidget' and 'ipywidgets' packages.  Install them with "
+            "'anywidget' package.  Install it with "
             "``pip install projspec[ipywidget]`` or "
-            "``pip install anywidget ipywidgets``."
+            "``pip install anywidget``."
         ) from exc
 
     class ProjectLibraryWidget(anywidget.AnyWidget):
@@ -198,10 +201,10 @@ def _build_widget(library: "ProjectLibrary"):
         """
 
         _esm = _build_esm()
-        # CSS is embedded in the ESM; traitlets.Unicode default is fine.
+        # CSS is embedded in the ESM; anywidget ignores an empty _css.
         _css = ""
 
-        # No traitlets-level state: the widget exchanges messages via
+        # No traitlets state: the widget exchanges messages via
         # ``send`` / ``msg:custom`` instead of syncing a model attribute.
 
         def __init__(self, library_obj: "ProjectLibrary", **kwargs: Any):
@@ -709,7 +712,7 @@ def _collect_enum_members() -> dict[str, dict[str, int | str]]:
 def make_widget(library: "ProjectLibrary"):
     """Return an anywidget-backed DOMWidget for ``library``.
 
-    Public entry point used by :meth:`ProjectLibrary.ipywidget`.
+    Public entry point used by :meth:`ProjectLibrary.widget`.
     """
     return _build_widget(library)
 
