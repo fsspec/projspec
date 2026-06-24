@@ -2,7 +2,7 @@
 
 These tests don't require a browser or a real Jupyter kernel: we just
 check that the static resources are self-consistent and that the
-``ProjectLibrary.ipywidget`` plumbing degrades gracefully when the
+``ProjectLibrary.widget`` plumbing degrades gracefully when the
 optional ``anywidget`` dependency is unavailable.
 """
 
@@ -86,14 +86,14 @@ def test_panel_css_and_js_are_strings():
 
 
 def test_ipywidget_degrades_when_anywidget_missing(monkeypatch, tmp_path):
-    """Without anywidget / ipywidgets, .ipywidget() raises ImportError
+    """Without anywidget, .widget() raises ImportError
     and _ipython_display_ falls back to printing the repr."""
     try:
         import anywidget  # noqa: F401
     except ImportError:
         lib = ProjectLibrary(str(tmp_path / "lib.json"), auto_save=False)
         with pytest.raises(ImportError):
-            lib.ipywidget()
+            lib.widget()
 
 
 def test_ipywidget_esm_builds():
@@ -116,13 +116,12 @@ def test_ipywidget_esm_builds():
 
 
 def test_ipywidget_construction_if_available(tmp_path):
-    """If anywidget is available, ProjectLibrary.ipywidget() returns a
+    """If anywidget is available, ProjectLibrary.widget() returns a
     widget with a non-empty _esm."""
     anywidget = pytest.importorskip("anywidget")
-    pytest.importorskip("ipywidgets")
 
     lib = ProjectLibrary(str(tmp_path / "lib.json"), auto_save=False)
-    widget = lib.ipywidget()
+    widget = lib.widget()
     assert isinstance(widget, anywidget.AnyWidget)
     assert widget._esm and "export function render" in widget._esm
 
@@ -136,7 +135,6 @@ def test_ipywidget_handlers_respond(tmp_path):
     report as 'the button doesn't work'.
     """
     pytest.importorskip("anywidget")
-    pytest.importorskip("ipywidgets")
     from projspec import Project
 
     lib_file = tmp_path / "lib.json"
@@ -148,7 +146,7 @@ def test_ipywidget_handlers_respond(tmp_path):
     proj_url = "file://" + proj_path
     lib.entries[proj_url] = Project(proj_path, walk=False)
 
-    widget = lib.ipywidget()
+    widget = lib.widget()
     outbox: list[dict] = []
     toasts: list[str] = []
     widget.send = lambda content, buffers=None: outbox.append(content)
@@ -257,7 +255,6 @@ def test_make_cwd_uses_project_path_not_library_key(tmp_path, monkeypatch):
     import fsspec
 
     pytest.importorskip("anywidget")
-    pytest.importorskip("ipywidgets")
     from projspec.artifact.process import Process
     from projspec.proj.base import Project, ProjectSpec
     from projspec.utils import AttrDict, is_installed
@@ -297,7 +294,7 @@ def test_make_cwd_uses_project_path_not_library_key(tmp_path, monkeypatch):
 
     # Kernel cwd is deliberately somewhere else.
     monkeypatch.chdir("/")
-    w = lib.ipywidget()
+    w = lib.widget()
     w._toast = lambda m: None
     w.send = lambda c, buffers=None: None
 

@@ -1,6 +1,6 @@
 """Tests for module-level helpers in projspec.webui.ipywidget.
 
-These functions have no dependency on anywidget, ipywidgets, or a live
+These functions have no dependency on anywidget or a live
 Jupyter kernel, so they run in any environment.  Widget-construction tests
 that *do* require anywidget remain in test_webui.py.
 
@@ -334,7 +334,7 @@ def widget_and_lib(tmp_path):
     proj_url = "file://" + proj_path
     lib.entries[proj_url] = projspec.Project(proj_path, walk=False)
 
-    widget = lib.ipywidget()
+    widget = lib.widget()
     widget.send = lambda c, buffers=None: None
     widget._toast = lambda m: None
     return widget, lib, proj_url
@@ -486,7 +486,7 @@ class TestWidgetHandlers:
             key = proj.fs.unstrip_protocol(proj.url)
             lib.entries[key] = proj
 
-            widget = lib.ipywidget()
+            widget = lib.widget()
             widget.send = lambda c, buffers=None: None
             widget._toast = lambda m: None
 
@@ -543,7 +543,7 @@ class TestWidgetHandlers:
             # sanity: the reconstructed entry's fs is (wrongly) local here
             assert lib.entries["memory:///ipw_old"].is_local()
 
-            widget = lib.ipywidget()
+            widget = lib.widget()
             widget.send = lambda c, buffers=None: None
             widget._toast = lambda m: None
 
