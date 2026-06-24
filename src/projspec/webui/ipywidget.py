@@ -124,6 +124,12 @@ export function render({ model, el }) {
         try { el.removeChild(root); } catch {}
     };
 }
+
+// AFM spec requires a default export; the named `render` export is
+// deprecated in anywidget ≥ 0.9.13 and not recognised by some hosts
+// (e.g. marimo).  Export both so the module satisfies current validators
+// while remaining backward-compatible with older anywidget runtimes.
+export default { render };
 """
 
 
