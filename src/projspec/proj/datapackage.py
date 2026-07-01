@@ -202,12 +202,10 @@ class CroissantDataset(ProjectSpec):
                 # Peek at the file to confirm it is really Croissant.
                 # We use get_file() so the content may already be cached.
                 try:
-                    fobj = self.proj.get_file(basename)
+                    fobj = self.proj.get_file(basename, text=True)
                     if fobj is None:
                         continue
                     text = fobj.read()
-                    if isinstance(text, bytes):
-                        text = text.decode("utf-8", errors="replace")
                     if self._CROISSANT_CONFORMSTO in text:
                         self._matched_file = basename
                         return True
@@ -218,8 +216,12 @@ class CroissantDataset(ProjectSpec):
     def parse(self) -> None:
         import json
 
-        from projspec.content import DescriptiveMetadata, License, Citation
-        from projspec.content.data import CroissantRecordSet
+        from projspec.content import (
+            CroissantRecordSet,
+            DescriptiveMetadata,
+            License,
+            Citation,
+        )
         from projspec.utils import AttrDict
 
         if self._matched_file is None:
@@ -228,7 +230,7 @@ class CroissantDataset(ProjectSpec):
         self._contents = AttrDict()
         self._artifacts = AttrDict()
 
-        with self.proj.fs.open(self.proj.basenames[self._matched_file], "rt") as f:
+        with self.get_file(self._matched_file, text=True) as f:
             meta = json.load(f)
 
         # --- dataset-level metadata ---
@@ -295,6 +297,7 @@ class CroissantDataset(ProjectSpec):
                 fields=field_names,
             )
 
+        # TODO: file/fileSets, transforms
         if record_sets:
             self._contents["croissant_record_set"] = AttrDict(record_sets)
 
