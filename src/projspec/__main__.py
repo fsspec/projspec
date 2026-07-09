@@ -563,7 +563,15 @@ def fb_bookmarks_remove(url):
         "assigned port."
     ),
 )
-def serve(host, port, port_file):
+@click.option(
+    "--token",
+    default=None,
+    help=(
+        "Bearer token required in the Authorization header for all "
+        "endpoints except /ping.  If omitted, no authentication is required."
+    ),
+)
+def serve(host, port, port_file, token):
     """Start the projspec HTTP server (requires fastapi + uvicorn).
 
     The server exposes all projspec and filebrowser operations as JSON
@@ -576,7 +584,7 @@ def serve(host, port, port_file):
     """
     from projspec.server import run
 
-    run(host=host, port=port, port_file=port_file)
+    run(host=host, port=port, port_file=port_file, token=token)
 
 
 if __name__ == "__main__":
