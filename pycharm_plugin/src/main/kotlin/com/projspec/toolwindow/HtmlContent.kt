@@ -177,7 +177,9 @@ and on <code>PATH</code>, then restart the IDE.</p>
     var savedLibDeliver = window.__projspecDeliver;
     window.projspecRoot = root;
     window.projspecTransport = {
-        send: function() {},  // scan sub-panel never sends commands
+        send: function(msg) {
+            if (window.__javaBridge) window.__javaBridge.query(JSON.stringify(msg));
+        },
         onReady: function(d) {
             // panel.js already wrote window.__projspecDeliver = d above;
             // restore the library panel's dispatch so postData() still works.
