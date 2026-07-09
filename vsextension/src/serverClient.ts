@@ -165,6 +165,7 @@ export class ServerClient {
     private _proc: childProcess.ChildProcess | null = null;
     private _portFile: string;
     private _disposed = false;
+    private _startFailed = false;
 
     // -------------------------------------------------------------------------
     // Singleton
@@ -217,6 +218,11 @@ export class ServerClient {
             this._proc.on('exit', (code) => {
                 log(`Server process exited with code ${code}`);
                 this._port = null;
+                // A successfully-spawned process that exits before writing the
+                // port file (e.g. bad CLI args, missing runtime deps) will
+                // never come back — fail fast instead of polling for the
+                // full timeout.
+                this._startFailed = true;
             });
             // If projspec-server is not on PATH, retry with python3 -m projspec serve
             this._proc.on('error', (err: NodeJS.ErrnoException) => {
@@ -228,12 +234,21 @@ export class ServerClient {
                     );
                     retryProc.stdout?.on('data', (d: Buffer) => log(`[server stdout] ${d.toString().trimEnd()}`));
                     retryProc.stderr?.on('data', (d: Buffer) => log(`[server stderr] ${d.toString().trimEnd()}`));
-                    retryProc.on('exit', (code) => { log(`Server process exited with code ${code}`); this._port = null; });
-                    retryProc.on('error', (e) => { log(`Server process error: ${e}`); this._port = null; });
+                    retryProc.on('exit', (code) => {
+                        log(`Server process exited with code ${code}`);
+                        this._port = null;
+                        this._startFailed = true;
+                    });
+                    retryProc.on('error', (e) => {
+                        log(`Server process error: ${e}`);
+                        this._port = null;
+                        this._startFailed = true;
+                    });
                     this._proc = retryProc;
                 } else {
                     log(`Server process error: ${err}`);
                     this._port = null;
+                    this._startFailed = true;
                 }
             });
 
@@ -241,6 +256,11 @@ export class ServerClient {
             const deadline = Date.now() + START_TIMEOUT_MS;
             while (Date.now() < deadline) {
                 if (this._disposed) { return null; }
+                if (this._startFailed) {
+                    log('Server process exited before becoming ready — falling back to subprocess mode');
+                    this._killProc();
+                    return null;
+                }
                 try {
                     const raw = fs.readFileSync(this._portFile, 'utf-8').trim();
                     // Split on ':' but only for the first 3 colons;

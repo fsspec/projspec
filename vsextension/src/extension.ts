@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { CombinedPanel } from './combinedPanel';
 import { SidebarViewProvider } from './sidebarView';
+import { ServerClient } from './serverClient';
 
 export function activate(context: vscode.ExtensionContext): void {
     console.log('[projspec] activate called');
@@ -44,8 +45,11 @@ export function activate(context: vscode.ExtensionContext): void {
             }
         })
     );
+    // Ensure the projspec-server background process is killed when the
+    // extension context is disposed (e.g. on window reload or host shutdown).
+    context.subscriptions.push({ dispose: () => ServerClient.dispose() });
 }
 
 export function deactivate(): void {
-    // nothing to clean up
+    ServerClient.dispose();
 }

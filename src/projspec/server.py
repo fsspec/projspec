@@ -44,6 +44,7 @@ POST /filebrowser/bookmarks/remove → {"url": str}
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import hmac
 import json
 import logging
 import os
@@ -98,6 +99,23 @@ _log = _setup_logging()
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="projspec", docs_url=None, redoc_url=None)
+
+# ---------------------------------------------------------------------------
+# Bearer-token auth — set by run() when the server is started with a token.
+# Every endpoint except GET /ping requires "Authorization: Bearer <token>".
+# ---------------------------------------------------------------------------
+_TOKEN: str | None = None
+
+
+@app.middleware("http")
+async def _auth_check(request: Request, call_next):
+    """Reject requests without a valid bearer token (except /ping)."""
+    if _TOKEN and request.url.path != "/ping":
+        expected = f"Bearer {_TOKEN}"
+        supplied = request.headers.get("authorization", "")
+        if not hmac.compare_digest(supplied, expected):
+            return JSONResponse(status_code=401, content={"error": "unauthorized"})
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -448,27 +466,134 @@ def fb_bookmark_remove(req: BookmarkRemoveRequest):
 # ---------------------------------------------------------------------------
 
 
-def run(host: str = "127.0.0.1", port: int = 0, port_file: str | None = None) -> None:
-    """Start the uvicorn server."""
+def _generate_self_signed_cert() -> tuple[bytes, str, str]:
+    """Generate an ephemeral self-signed TLS cert+key for 127.0.0.1/localhost.
+
+    Returns ``(cert_der, cert_path, key_path)``: ``cert_der`` is the raw
+    DER-encoded certificate (published hex-encoded via the port file so that
+    pinned clients — the VS Code extension and the PyCharm plugin — can trust
+    it without a real CA); ``cert_path``/``key_path`` are PEM files on disk
+    suitable for uvicorn's ``ssl_certfile``/``ssl_keyfile``.
+    """
+    import datetime
+    import ipaddress
+    import tempfile
+
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.x509.oid import NameOID
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "projspec server requires 'cryptography' to generate its TLS "
+            "certificate.  Install it with:  pip install 'projspec[serve]'"
+        ) from exc
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "projspec-server")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(minutes=5))
+        .not_valid_after(now + datetime.timedelta(days=825))
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [
+                    x509.DNSName("localhost"),
+                    x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+                    x509.IPAddress(ipaddress.ip_address("::1")),
+                ]
+            ),
+            critical=False,
+        )
+        .sign(key, hashes.SHA256())
+    )
+
+    cert_der = cert.public_bytes(serialization.Encoding.DER)
+    cert_pem = cert.public_bytes(serialization.Encoding.PEM)
+    key_pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+    cert_fh = tempfile.NamedTemporaryFile(
+        suffix=".pem", prefix="projspec-cert-", delete=False
+    )
+    cert_fh.write(cert_pem)
+    cert_fh.close()
+    key_fh = tempfile.NamedTemporaryFile(
+        suffix=".pem", prefix="projspec-key-", delete=False
+    )
+    key_fh.write(key_pem)
+    key_fh.close()
+    os.chmod(key_fh.name, 0o600)
+
+    return cert_der, cert_fh.name, key_fh.name
+
+
+def run(
+    host: str = "127.0.0.1",
+    port: int = 0,
+    port_file: str | None = None,
+    token: str | None = None,
+) -> None:
+    """Start the uvicorn server over HTTPS with an ephemeral self-signed cert.
+
+    If ``token`` is given, every endpoint other than ``GET /ping`` requires
+    an ``Authorization: Bearer <token>`` header.  The port file (if given)
+    is written as ``"https:<port>:<token>:<certHex>"`` once the server is
+    ready — ``certHex`` is the hex-encoded DER certificate, allowing callers
+    to pin it rather than trusting a real CA.
+    """
+    import atexit
     import socket
+
     import uvicorn
+
+    global _TOKEN
+    _TOKEN = token or None
 
     if port == 0:
         with socket.socket() as s:
             s.bind((host, 0))
             port = s.getsockname()[1]
 
-    _log.info("SERVER starting on %s:%d — log: %s", host, port, _log_path())
+    cert_der, cert_path, key_path = _generate_self_signed_cert()
+
+    def _cleanup_cert_files() -> None:
+        for p in (cert_path, key_path):
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
+
+    atexit.register(_cleanup_cert_files)
+
+    _log.info("SERVER starting on https://%s:%d — log: %s", host, port, _log_path())
 
     if port_file:
-        import os
-
         os.makedirs(os.path.dirname(os.path.abspath(port_file)), exist_ok=True)
         with open(port_file, "w") as fh:
-            fh.write(str(port))
+            fh.write(f"https:{port}:{token or ''}:{cert_der.hex()}")
         _log.info("SERVER port file written: %s", port_file)
 
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    try:
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            log_level="info",
+            ssl_certfile=cert_path,
+            ssl_keyfile=key_path,
+        )
+    finally:
+        _cleanup_cert_files()
 
 
 def main() -> None:
@@ -476,7 +601,7 @@ def main() -> None:
 
     Accepts the same arguments as :func:`run` via the command line::
 
-        projspec-server [--host HOST] [--port PORT] [--port-file PATH]
+        projspec-server [--host HOST] [--port PORT] [--port-file PATH] [--token TOKEN]
 
     Defaults: host=127.0.0.1, port=0 (free port chosen automatically).
     """
@@ -503,8 +628,17 @@ def main() -> None:
         metavar="PATH",
         help="Write the chosen port number to this file once the server is ready",
     )
+    parser.add_argument(
+        "--token",
+        default=None,
+        help=(
+            "Bearer token required in the Authorization header for all "
+            "endpoints except /ping.  If omitted, no authentication is "
+            "required."
+        ),
+    )
     args = parser.parse_args()
-    run(host=args.host, port=args.port, port_file=args.port_file)
+    run(host=args.host, port=args.port, port_file=args.port_file, token=args.token)
 
 
 if __name__ == "__main__":
