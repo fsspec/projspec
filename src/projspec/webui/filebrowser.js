@@ -328,12 +328,14 @@
                 e.stopPropagation();
                 toggleDir(url, toggle, childrenEl);
             });
-            // Double-click on row: navigate to dir as new root
-            row.addEventListener('dblclick', function(e) {
-                e.stopPropagation();
-                navigateTo(url, currentSo);
-            });
         }
+        // Double-click on row: "Open" this entry — same as the context
+        // menu's Open item. Directories reset the tree root (navigateTo);
+        // files open in the editor.
+        row.addEventListener('dblclick', function(e) {
+            e.stopPropagation();
+            openEntry({ url: url, type: entry.type, so: currentSo });
+        });
 
         wrapper.appendChild(row);
         if (childrenEl) wrapper.appendChild(childrenEl);
@@ -601,16 +603,26 @@
             proto = protoMatch[0];
             rest = url.slice(proto.length);
         }
+        // Absolute local-style paths (file:///Users/...) leave a leading
+        // '/' in `rest` after the two protocol slashes are stripped off —
+        // that's the root slash, not a path segment separator. Remember
+        // it so the reconstructed segment targets below keep it (otherwise
+        // clicking "Users" would rebuild the URL as the malformed
+        // file://Users, which the backend treats as a *relative* path
+        // instead of an absolute one). Remote-style URLs with no root
+        // slash convention (s3://bucket/key) are unaffected.
+        const hasRootSlash = rest.charAt(0) === '/';
         const parts = rest.replace(/\/+$/, '').split('/').filter(Boolean);
         if (proto) {
+            const rootTarget = proto + (hasRootSlash ? '/' : '');
             const link = document.createElement('span');
             link.className = 'bc-seg';
             link.textContent = proto;
-            link.title = proto;
-            link.addEventListener('click', function() { navigateTo(proto, currentSo); });
+            link.title = rootTarget;
+            link.addEventListener('click', function() { navigateTo(rootTarget, currentSo); });
             breadcrumb.appendChild(link);
         }
-        let accumulated = proto;
+        let accumulated = proto + (hasRootSlash ? '/' : '');
         for (let i = 0; i < parts.length; i++) {
             accumulated += (accumulated.slice(-1) === '/' ? '' : '/') + parts[i];
             const sep = document.createElement('span');
@@ -672,7 +684,10 @@
                 show = action === 'paste';
                 if (action === 'paste') disabled = !clipboard;
             } else {
-                if (action === 'rename') {
+                if (action === 'open') {
+                    // Open only makes sense for exactly one item.
+                    show = n === 1;
+                } else if (action === 'rename') {
                     // Rename only makes sense for exactly one item.
                     show = n === 1;
                 } else if (action === 'paste') {
@@ -755,6 +770,18 @@
         renOverlay.classList.remove('hidden');
         setTimeout(function() { renInput.focus(); }, 0);
     }
+    // "Open" context-menu action: for a file this is identical to the
+    // info-pane's Open button (opens it in the editor); for a directory
+    // it resets the browser tree root to that directory, same as a
+    // double-click on the row.
+    function openEntry(target) {
+        if (target.type === 'directory') {
+            navigateTo(target.url, target.so);
+        } else {
+            dbg('openFile ' + target.url);
+            vscode.postMessage({ cmd: 'openFile', url: target.url, storageOptions: target.so || undefined });
+        }
+    }
     // items: [{url, so}, ...]
     function sendPaste(items, dstDir, dstSo, mode, confirmed) {
         dbg('paste ' + mode + ' ' + items.length + ' item(s) -> ' + dstDir);
@@ -782,7 +809,9 @@
         var target = ctxTarget;
         hideCtxMenu();
         if (!target) return;
-        if (action === 'copy') {
+        if (action === 'open') {
+            if (target.targets.length === 1) openEntry(target.targets[0]);
+        } else if (action === 'copy') {
             setClipboard(target.targets, 'copy');
         } else if (action === 'cut') {
             setClipboard(target.targets, 'cut');

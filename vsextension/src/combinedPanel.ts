@@ -1425,6 +1425,8 @@ function getFbHtmlBody(panelBodyHtml: string): string {
   </div>
 </div>
 <div id="fb-ctxmenu" class="hidden">
+  <div class="fb-ctxmenu-item" data-action="open">Open</div>
+  <div class="fb-ctxmenu-sep"></div>
   <div class="fb-ctxmenu-item" data-action="copy">Copy</div>
   <div class="fb-ctxmenu-item" data-action="cut">Cut</div>
   <div class="fb-ctxmenu-item" data-action="paste">Paste</div>
