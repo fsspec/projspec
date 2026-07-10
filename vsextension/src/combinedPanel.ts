@@ -48,6 +48,10 @@ import { ServerClient, fbCall } from './serverClient';
 // Helpers
 // ---------------------------------------------------------------------------
 
+function basenameOf(url: string): string {
+    return url.replace(/\/+$/, '').split('/').pop() || url;
+}
+
 function getNonce(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     return Array.from({ length: 32 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
@@ -556,8 +560,22 @@ export class CombinedPanel {
             case 'deleteEntry':
                 await this.fbDeleteEntry(msg.url as string, msg.isDir as boolean, msg.storageOptions as string | undefined);
                 break;
+            case 'deleteEntries':
+                await this.fbDeleteEntries(
+                    msg.items as { url: string; isDir: boolean; storageOptions?: string }[],
+                );
+                break;
             case 'renameEntry':
                 await this.fbRenameEntry(msg.url as string, msg.newName as string, msg.storageOptions as string | undefined);
+                break;
+            case 'paste':
+                await this.fbPasteEntry(
+                    msg.items as { src: string; srcStorageOptions?: string }[],
+                    msg.dstDir as string,
+                    msg.dstStorageOptions as string | undefined,
+                    msg.mode as string,
+                    (msg.confirmed as boolean | undefined) ?? false,
+                );
                 break;
             case 'mkdir':
                 await this.fbMkdirEntry(msg.parentUrl as string, msg.name as string, msg.storageOptions as string | undefined);
@@ -769,6 +787,37 @@ export class CombinedPanel {
         });
     }
 
+    /**
+     * Delete one or more entries (multi-select). Shows a single confirm
+     * dialog for the whole batch, then deletes each item and reports
+     * per-item results so partial failures are visible.
+     */
+    private async fbDeleteEntries(
+        items: { url: string; isDir: boolean; storageOptions?: string }[],
+    ): Promise<void> {
+        if (!items.length) { return; }
+        const label = items.length === 1
+            ? (items[0].url.split('/').pop() || items[0].url)
+            : `${items.length} items`;
+        const confirm = await vscode.window.showWarningMessage(`Delete ${label}?`, { modal: true }, 'Delete');
+        if (confirm !== 'Delete') { return; }
+        await this.fbWithBusy(async () => {
+            const results: { url: string; error: string | null }[] = [];
+            let refreshDir: string | undefined;
+            for (const item of items) {
+                const so = item.storageOptions ? JSON.parse(item.storageOptions) : null;
+                const res = await fbCall('delete', so
+                    ? { url: item.url, recursive: item.isDir, storage_options: so }
+                    : { url: item.url, recursive: item.isDir });
+                const data = (res.data as Record<string, unknown>) || { error: res.stderr || `exit ${res.code}` };
+                results.push({ url: item.url, error: (data['error'] as string) || null });
+                refreshDir = item.url.replace(/\/?[^/]+$/, '') || '/';
+            }
+            this.fbPost({ type: 'deleteEntriesResult', results });
+            if (refreshDir) { await this.fbBrowse(refreshDir, items[0].storageOptions, false); }
+        });
+    }
+
     private async fbRenameEntry(url: string, newName: string, storageOptions: string | undefined): Promise<void> {
         await this.fbWithBusy(async () => {
             const parent = url.replace(/\/?[^/]+$/, '') || '/';
@@ -780,6 +829,76 @@ export class CombinedPanel {
             const data = res.data as Record<string, unknown>;
             if (data?.['error']) { throw new Error(data['error'] as string); }
             await this.fbBrowse(parent, storageOptions, false);
+        });
+    }
+
+    /**
+     * Paste one or more previously copied/cut entries into `dstDir`.
+     * `mode` is 'copy' or 'cut' — 'cut' maps to `move()` per item; 'copy'
+     * first checks the aggregate size of all items via `total_size()` (a
+     * single call rather than one per item) and, if it exceeds the
+     * configured threshold and `confirmed` is not set, reports
+     * `pasteNeedsConfirm` back to the webview instead of copying anything.
+     * Once confirmed (or under the threshold), each item is copied/moved
+     * individually and per-item results are reported so partial failures
+     * are visible.
+     */
+    /**
+     * Paste one or more previously copied/cut entries into `dstDir`.
+     * `mode` is 'copy' or 'cut' — 'cut' maps to `move()` per item; 'copy'
+     * first checks the *aggregate* size of all items via a single
+     * `total_size()` call (which reports `needs_confirm` using the same
+     * `filebrowser_copy_confirm_bytes` threshold `copy()` itself enforces).
+     * If confirmation is needed and `confirmed` wasn't already set, nothing
+     * is copied yet — `pasteNeedsConfirm` is reported back to the webview,
+     * which re-sends this same message with `confirmed: true` once the user
+     * accepts. Once confirmed (or under the threshold), each item is
+     * copied/moved individually — passing `confirmed: true` through so the
+     * per-item calls don't redundantly re-check a threshold we've already
+     * cleared for the batch — and per-item results are reported so partial
+     * failures are visible.
+     */
+    private async fbPasteEntry(
+        items: { src: string; srcStorageOptions?: string }[],
+        dstDir: string,
+        dstStorageOptions: string | undefined,
+        mode: string,
+        confirmed: boolean,
+    ): Promise<void> {
+        if (!items.length) { return; }
+        await this.fbWithBusy(async () => {
+            const soStr = items[0].srcStorageOptions || dstStorageOptions;
+            const so = soStr ? JSON.parse(soStr) : null;
+            const fn = mode === 'cut' ? 'move' : 'copy';
+
+            if (fn === 'copy' && !confirmed) {
+                const urls = items.map((it) => it.src);
+                const tsRes = await fbCall('total_size', so ? { urls, storage_options: so } : { urls });
+                const tsData = (tsRes.data as Record<string, unknown>) || {};
+                if (tsData['needs_confirm']) {
+                    this.fbPost({
+                        type: 'pasteNeedsConfirm',
+                        items, dstDir, dstStorageOptions, mode,
+                        totalSize: tsData['total_size'],
+                    });
+                    return;
+                }
+            }
+
+            const results: { src: string; dst: string; error: string | null }[] = [];
+            for (const item of items) {
+                const itemSoStr = item.srcStorageOptions || dstStorageOptions;
+                const itemSo = itemSoStr ? JSON.parse(itemSoStr) : so;
+                const dst = dstDir.replace(/\/$/, '') + '/' + basenameOf(item.src);
+                const kwargs: Record<string, unknown> = itemSo
+                    ? { src: item.src, dst, storage_options: itemSo }
+                    : { src: item.src, dst };
+                if (fn === 'copy') { kwargs['confirmed'] = true; }
+                const res = await fbCall(fn, kwargs);
+                const data = (res.data as Record<string, unknown>) || { error: res.stderr || `exit ${res.code}` };
+                results.push({ src: item.src, dst, error: (data['error'] as string) || null });
+            }
+            this.fbPost({ type: 'pasteResult', mode, results, error: null });
         });
     }
 
@@ -1214,6 +1333,9 @@ function getFbHtmlBody(panelBodyHtml: string): string {
       <button id="btn-refresh" class="fb-icon-btn" title="Refresh">&#8635;</button>
       <button id="btn-bm-dropdown" class="fb-icon-btn" title="Bookmarks">&#9733;</button>
       <button id="btn-so"      class="fb-icon-btn" title="Storage options">&#128273;</button>
+      <label id="fb-show-hidden-label" class="fb-checkbox-label" title="Show hidden files and directories">
+        <input type="checkbox" id="fb-show-hidden" /> Show hidden
+      </label>
       <div class="fb-spacer"></div>
       <button id="btn-new-file" class="fb-icon-btn" title="New file">+F</button>
       <button id="btn-new-dir"  class="fb-icon-btn" title="New folder">+D</button>
@@ -1241,11 +1363,7 @@ function getFbHtmlBody(panelBodyHtml: string): string {
     <div id="fb-info-header">
       <div id="fb-info-title">No file selected</div>
       <div id="fb-info-actions" class="hidden">
-        <button id="btn-open-editor" class="primary" title="Open in editor">Open</button>
         <button id="btn-add-to-lib"  title="Add to projspec library">+ Library</button>
-        <button id="btn-bookmark"    title="Bookmark this location">Bookmark</button>
-        <button id="btn-delete-sel"  class="danger"  title="Delete">Delete</button>
-        <button id="btn-rename-sel"  title="Rename">Rename</button>
       </div>
     </div>
     <div id="fb-info-top">
@@ -1302,6 +1420,28 @@ function getFbHtmlBody(panelBodyHtml: string): string {
     <div class="fb-modal-footer">
       <button id="rename-cancel" class="secondary">Cancel</button>
       <button id="rename-ok" class="primary">Rename</button>
+    </div>
+  </div>
+</div>
+<div id="fb-ctxmenu" class="hidden">
+  <div class="fb-ctxmenu-item" data-action="open">Open</div>
+  <div class="fb-ctxmenu-sep"></div>
+  <div class="fb-ctxmenu-item" data-action="copy">Copy</div>
+  <div class="fb-ctxmenu-item" data-action="cut">Cut</div>
+  <div class="fb-ctxmenu-item" data-action="paste">Paste</div>
+  <div class="fb-ctxmenu-sep"></div>
+  <div class="fb-ctxmenu-item" data-action="rename">Rename</div>
+  <div class="fb-ctxmenu-item fb-ctxmenu-danger" data-action="delete">Delete</div>
+</div>
+<div id="paste-confirm-overlay" class="overlay hidden">
+  <div class="fb-modal" role="dialog">
+    <div class="fb-modal-title">Confirm large copy</div>
+    <div class="fb-modal-body">
+      <p id="paste-confirm-msg" class="hint"></p>
+    </div>
+    <div class="fb-modal-footer">
+      <button id="paste-confirm-cancel" class="secondary">Cancel</button>
+      <button id="paste-confirm-ok" class="primary">Copy anyway</button>
     </div>
   </div>
 </div>

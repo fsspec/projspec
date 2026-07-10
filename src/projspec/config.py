@@ -46,6 +46,7 @@ def defaults():
         "data_min_play_size": 1,  # 64 * 1024,
         "data_consolidate_min_group": 3,
         "data_inspect_max_datasets": 50,
+        "filebrowser_copy_confirm_bytes": 256 * 1024 * 1024,  # 256 MB
         "excludes": [
             "bld",
             "build",
@@ -107,6 +108,11 @@ config_doc = {
     "data_inspect_max_datasets": (
         "do not run intake inspection if more than this many distinct datasets "
         "are found in a directory (avoids huge scans)."
+    ),
+    "filebrowser_copy_confirm_bytes": (
+        "in the file browser UI, ask for confirmation before copying/pasting "
+        "a file or directory tree whose total size (bytes) exceeds this "
+        "value. Default is 256 MB."
     ),
     "excludes": (
         "directory names to skip when walking a project tree for child projects "

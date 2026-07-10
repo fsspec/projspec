@@ -172,6 +172,18 @@ body { margin: 0; padding: 0;
 }
 .fb-icon-btn:hover { background: var(--vscode-toolbar-hoverBackground); }
 .fb-icon-btn:disabled { opacity: 0.4; cursor: default; }
+.fb-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  padding: 0 4px;
+  white-space: nowrap;
+  user-select: none;
+}
+.fb-checkbox-label input[type="checkbox"] { cursor: pointer; margin: 0; }
 .fb-spacer { flex: 1; }
 .fb-go-btn {
   background: var(--vscode-button-background);
@@ -479,7 +491,7 @@ body { margin: 0; padding: 0;
 }
 .fc-reader-summary::-webkit-details-marker { display: none; }
 .fc-reader-summary::before {
-  content: '\\25B6';
+  content: '\25B6';
   font-size: 8px;
   transition: transform 0.15s;
 }
@@ -623,5 +635,49 @@ details[open] > .fc-reader-summary::before { transform: rotate(90deg); }
   border: 1px solid var(--vscode-panel-border);
 }
 .fb-modal-footer button.secondary:hover { background: var(--vscode-toolbar-hoverBackground); }
+
+/* Right-click context menu */
+#fb-ctxmenu {
+  position: fixed;
+  z-index: 300;
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border));
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+  min-width: 140px;
+  padding: 3px;
+}
+.fb-ctxmenu-item {
+  padding: 5px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.fb-ctxmenu-item:hover {
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-menu-selectionForeground, var(--vscode-foreground));
+}
+.fb-ctxmenu-item.disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+.fb-ctxmenu-item.fb-ctxmenu-danger:hover {
+  background: var(--vscode-list-errorForeground, #c00);
+  color: #fff;
+}
+.fb-ctxmenu-sep {
+  height: 1px;
+  margin: 3px 4px;
+  background: var(--vscode-menu-separatorBackground, var(--vscode-panel-border));
+}
+
+/* Cut entries: dim until pasted or the cut is replaced/cancelled */
+.fb-entry.fb-cut .fb-entry-name,
+.fb-entry.fb-cut .fb-entry-icon {
+  opacity: 0.5;
+}
 
 .hidden { display: none !important; }

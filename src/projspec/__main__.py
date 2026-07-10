@@ -468,6 +468,71 @@ def fb_move(src, dst, storage_options):
     print(json.dumps(move(src, dst, storage_options=so)))
 
 
+@filebrowser.command("copy")
+@click.argument("src")
+@click.argument("dst")
+@click.option("--storage-options", default="", help="fsspec storage options as JSON")
+@click.option(
+    "--no-recursive",
+    "recursive",
+    is_flag=True,
+    default=True,
+    flag_value=False,
+    help="Do not copy directory contents recursively (default: recursive)",
+)
+@click.option(
+    "--confirmed",
+    is_flag=True,
+    default=False,
+    help=(
+        "Proceed even if the total size exceeds filebrowser_copy_confirm_bytes. "
+        "Without this flag, a copy exceeding that threshold is not performed; "
+        "the command instead reports needs_confirm=true and the total size."
+    ),
+)
+def fb_copy(src, dst, storage_options, recursive, confirmed):
+    """Copy SRC to DST, recursively for directories.
+
+    Uses fsspec.generic to support copying between different filesystems.
+
+    Outputs JSON with keys: src, dst, error, needs_confirm, total_size.
+    """
+    from projspec.filebrowser import copy
+
+    so = json.loads(storage_options) if storage_options.strip() else None
+    print(
+        json.dumps(
+            copy(
+                src,
+                dst,
+                storage_options=so,
+                recursive=recursive,
+                confirmed=confirmed,
+            )
+        )
+    )
+
+
+@filebrowser.command("total-size")
+@click.argument("urls", nargs=-1, required=True)
+@click.option("--storage-options", default="", help="fsspec storage options as JSON")
+def fb_total_size(urls, storage_options):
+    """Compute the combined size (bytes) of one or more URLs (files/dirs).
+
+    Used by the multi-select copy/paste confirmation gate to check the
+    total size of a batch in a single call instead of once per item.
+
+    Outputs JSON with keys: total_size, error.
+    """
+    from projspec.filebrowser import total_size
+
+    so = json.loads(storage_options) if storage_options.strip() else None
+    # NB: do not call `list(urls)` here — this module defines a click
+    # command named `list` (see `library list`) which shadows the builtin.
+    # `urls` (a tuple from nargs=-1) is already a fine iterable for total_size().
+    print(json.dumps(total_size(urls, storage_options=so)))
+
+
 @filebrowser.command("mkdir")
 @click.argument("url")
 @click.option("--storage-options", default="", help="fsspec storage options as JSON")

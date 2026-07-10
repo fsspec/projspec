@@ -300,8 +300,14 @@ class ProjspecToolWindowPanel(
                                                     msg["name"] as? String ?: "", so) }
             "deleteEntry"  -> pool { fbDeleteEntry(msg["url"] as? String ?: "",
                                                     msg["isDir"] == true, so) }
+            "deleteEntries" -> pool { fbDeleteEntries(msg["items"] as? List<*> ?: emptyList<Any>()) }
             "renameEntry"  -> pool { fbRenameEntry(msg["url"] as? String ?: "",
                                                     msg["newName"] as? String ?: "", so) }
+            "paste"        -> pool { fbPasteEntry(msg["items"] as? List<*> ?: emptyList<Any>(),
+                                                   msg["dstDir"] as? String ?: "",
+                                                   msg["dstStorageOptions"] as? String,
+                                                   msg["mode"] as? String ?: "copy",
+                                                   msg["confirmed"] == true) }
             "mkdir"        -> pool { fbMkdir(msg["parentUrl"] as? String ?: "",
                                              msg["name"] as? String ?: "", so) }
             "addBookmark"  -> pool { fbBookmarkAdd(msg["url"] as? String ?: "",
@@ -829,12 +835,118 @@ class ProjspecToolWindowPanel(
         fbBrowse(url.trimEnd('/').substringBeforeLast('/').ifBlank { "/" }, storageOptions, false)
     }
 
+    /**
+     * Delete one or more entries (multi-select). Deletes each item
+     * individually (fire-and-forget, like [fbDeleteEntry]) and reports
+     * per-item results so partial failures are visible in the webview.
+     */
+    private fun fbDeleteEntries(items: List<*>) {
+        if (items.isEmpty()) return
+        val results = mutableListOf<Map<String, Any?>>()
+        var refreshDir: String? = null
+        var refreshSo: String? = null
+        for (raw in items) {
+            @Suppress("UNCHECKED_CAST")
+            val item = raw as? Map<String, Any?> ?: continue
+            val url = item["url"] as? String ?: continue
+            val isDir = item["isDir"] == true
+            val storageOptions = item["storageOptions"] as? String
+            val so = server.parseSo(storageOptions)
+            val error = if (server.delete(url, isDir, so) != null) {
+                null
+            } else {
+                ProjspecRunner.runFbDelete(url, isDir, storageOptions)
+                null
+            }
+            results.add(mapOf("url" to url, "error" to error))
+            refreshDir = url.trimEnd('/').substringBeforeLast('/').ifBlank { "/" }
+            refreshSo = storageOptions
+        }
+        deliverToFbWebview(mapOf("type" to "deleteEntriesResult", "results" to results))
+        if (refreshDir != null) fbBrowse(refreshDir, refreshSo, false)
+    }
+
     private fun fbRenameEntry(url: String, newName: String, storageOptions: String?) {
         val parent = url.trimEnd('/').substringBeforeLast('/').ifBlank { "/" }
         val dst = parent.trimEnd('/') + "/" + newName
         val so = server.parseSo(storageOptions)
         if (server.move(url, dst, so) == null) ProjspecRunner.runFbMove(url, dst, storageOptions)
         fbBrowse(parent, storageOptions, false)
+    }
+
+    /**
+     * Paste one or more previously copied/cut entries into `dstDir`. `mode`
+     * is "copy" or "cut" — "cut" maps to `move()` per item (fire-and-forget,
+     * like [fbRenameEntry]); "copy" first checks the *aggregate* size of all
+     * items via a single `totalSize()` call, which reports `needsConfirm`
+     * using the same `filebrowser_copy_confirm_bytes` threshold `copy()`
+     * itself enforces per item. If confirmation is needed and `confirmed`
+     * wasn't already set, nothing is copied yet — `pasteNeedsConfirm` is
+     * delivered to the webview, which re-sends this same message with
+     * `confirmed=true` once the user accepts. Each item is then
+     * copied/moved individually (passing `confirmed=true` through so the
+     * per-item calls don't redundantly re-check a threshold already cleared
+     * for the batch) and per-item results are reported.
+     */
+    private fun fbPasteEntry(
+        items: List<*>,
+        dstDir: String,
+        dstStorageOptions: String?,
+        mode: String,
+        confirmed: Boolean,
+    ) {
+        @Suppress("UNCHECKED_CAST")
+        val parsedItems = items.mapNotNull { it as? Map<String, Any?> }
+        if (parsedItems.isEmpty()) return
+        val firstSrcSo = parsedItems[0]["srcStorageOptions"] as? String
+        val soStr = firstSrcSo ?: dstStorageOptions
+        val so = server.parseSo(soStr)
+
+        if (mode != "cut" && !confirmed) {
+            val urls = parsedItems.mapNotNull { it["src"] as? String }
+            val tsData: Map<String, Any?> = server.totalSize(urls, so) ?: run {
+                val raw = ProjspecRunner.runFbTotalSize(urls, soStr)
+                try {
+                    @Suppress("UNCHECKED_CAST")
+                    gson.fromJson(raw, Map::class.java) as Map<String, Any?>
+                } catch (_: Exception) {
+                    mapOf("total_size" to null, "error" to raw, "needs_confirm" to false)
+                }
+            }
+            if (tsData["needs_confirm"] == true) {
+                deliverToFbWebview(mapOf(
+                    "type" to "pasteNeedsConfirm",
+                    "items" to items, "dstDir" to dstDir, "dstStorageOptions" to dstStorageOptions,
+                    "mode" to mode, "totalSize" to tsData["total_size"],
+                ))
+                return
+            }
+        }
+
+        val results = mutableListOf<Map<String, Any?>>()
+        for (item in parsedItems) {
+            val src = item["src"] as? String ?: continue
+            val itemSoStr = (item["srcStorageOptions"] as? String) ?: dstStorageOptions
+            val itemSo = server.parseSo(itemSoStr) ?: so
+            val dst = dstDir.trimEnd('/') + "/" + (src.trimEnd('/').substringAfterLast('/'))
+            val error: Any? = if (mode == "cut") {
+                if (server.move(src, dst, itemSo) == null) ProjspecRunner.runFbMove(src, dst, itemSoStr)
+                null
+            } else {
+                val data: Map<String, Any?> = server.copy(src, dst, itemSo, true) ?: run {
+                    val raw = ProjspecRunner.runFbCopy(src, dst, itemSoStr, true)
+                    try {
+                        @Suppress("UNCHECKED_CAST")
+                        gson.fromJson(raw, Map::class.java) as Map<String, Any?>
+                    } catch (_: Exception) {
+                        mapOf("error" to raw)
+                    }
+                }
+                data["error"]
+            }
+            results.add(mapOf("src" to src, "dst" to dst, "error" to error))
+        }
+        deliverToFbWebview(mapOf("type" to "pasteResult", "mode" to mode, "results" to results, "error" to null))
     }
 
     private fun fbMkdir(parentUrl: String, name: String, storageOptions: String?) {

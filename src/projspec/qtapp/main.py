@@ -322,9 +322,19 @@ class ProjspecWindow(QMainWindow):
                     msg.get("isDir", False),
                     msg.get("storageOptions") or None,
                 )
+            elif cmd == "deleteEntries":
+                self._fb_delete_entries(msg.get("items") or [])
             elif cmd == "renameEntry":
                 self._fb_rename_entry(
                     msg["url"], msg["newName"], msg.get("storageOptions") or None
+                )
+            elif cmd == "paste":
+                self._fb_paste_entry(
+                    msg.get("items") or [],
+                    msg["dstDir"],
+                    msg.get("dstStorageOptions") or None,
+                    msg.get("mode", "copy"),
+                    bool(msg.get("confirmed")),
                 )
             elif cmd == "mkdir":
                 self._fb_mkdir(
@@ -608,6 +618,42 @@ class ProjspecWindow(QMainWindow):
         parent = url.rstrip("/").rsplit("/", 1)[0] or "/"
         self._fb_browse(parent, storage_options, push_history=False)
 
+    def _fb_delete_entries(self, items: list) -> None:
+        """Delete one or more entries (multi-select). Shows a single
+        confirm dialog for the whole batch, then deletes each item and
+        reports per-item results so partial failures are visible."""
+        from projspec.filebrowser import delete
+
+        if not items:
+            return
+        label = (
+            (items[0]["url"].rstrip("/").rsplit("/", 1)[-1] or items[0]["url"])
+            if len(items) == 1
+            else f"{len(items)} items"
+        )
+        reply = QMessageBox.question(
+            self,
+            "Delete",
+            f"Delete {label}?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        results = []
+        refresh_parent = None
+        refresh_so = None
+        for item in items:
+            url = item["url"]
+            so = _parse_so(item.get("storageOptions"))
+            result = delete(url, storage_options=so, recursive=item.get("isDir", False))
+            results.append({"url": url, "error": result.get("error")})
+            refresh_parent = url.rstrip("/").rsplit("/", 1)[0] or "/"
+            refresh_so = item.get("storageOptions")
+        self._fb_bridge.send({"type": "deleteEntriesResult", "results": results})
+        if refresh_parent is not None:
+            self._fb_browse(refresh_parent, refresh_so, push_history=False)
+
     def _fb_rename_entry(self, url: str, new_name: str, storage_options=None) -> None:
         from projspec.filebrowser import move
 
@@ -619,6 +665,64 @@ class ProjspecWindow(QMainWindow):
             QMessageBox.warning(self, "Rename", result["error"])
             return
         self._fb_browse(parent, storage_options, push_history=False)
+
+    def _fb_paste_entry(
+        self,
+        items: list,
+        dst_dir: str,
+        dst_storage_options=None,
+        mode: str = "copy",
+        confirmed: bool = False,
+    ) -> None:
+        """Paste one or more previously copied/cut entries into `dst_dir`.
+        `mode` is "copy" or "cut" — "cut" maps to `move()` per item; "copy"
+        first checks the *aggregate* size of all items via a single
+        `total_size()` call (which reports `needs_confirm` using the same
+        threshold `copy()` itself enforces per item). If confirmation is
+        needed and `confirmed` is not set, nothing is copied yet — a
+        `pasteNeedsConfirm` message is sent instead, and the webview
+        re-sends this same message with `confirmed=True` once accepted.
+        Each item is then copied/moved individually and per-item results
+        are reported so partial failures are visible."""
+        if not items:
+            return
+        so = _parse_so(items[0].get("srcStorageOptions")) or _parse_so(
+            dst_storage_options
+        )
+
+        if mode != "cut" and not confirmed:
+            from projspec.filebrowser import total_size
+
+            urls = [it["src"] for it in items]
+            ts = total_size(urls, storage_options=so)
+            if ts.get("needs_confirm"):
+                self._fb_bridge.send(
+                    {
+                        "type": "pasteNeedsConfirm",
+                        "items": items,
+                        "dstDir": dst_dir,
+                        "dstStorageOptions": dst_storage_options,
+                        "mode": mode,
+                        "totalSize": ts.get("total_size"),
+                    }
+                )
+                return
+
+        from projspec.filebrowser import copy, move
+
+        results = []
+        for item in items:
+            src = item["src"]
+            item_so = _parse_so(item.get("srcStorageOptions")) or so
+            dst = dst_dir.rstrip("/") + "/" + (src.rstrip("/").rsplit("/", 1)[-1])
+            if mode == "cut":
+                result = move(src, dst, storage_options=item_so)
+            else:
+                result = copy(src, dst, storage_options=item_so, confirmed=True)
+            results.append({"src": src, "dst": dst, "error": result.get("error")})
+        self._fb_bridge.send(
+            {"type": "pasteResult", "mode": mode, "results": results, "error": None}
+        )
 
     def _fb_mkdir(self, parent_url: str, name: str, storage_options=None) -> None:
         from projspec.filebrowser import mkdir

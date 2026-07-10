@@ -821,10 +821,157 @@ def move(
     try:
         fs, src_path = _get_fs(src, storage_options)
         _, dst_path = _get_fs(dst, storage_options)
-        fs.mv(src_path, dst_path)
+        fs.mv(src_path, dst_path, recursive=True)
         return {"src": src, "dst": dst, "error": None}
     except Exception as exc:
         return {"src": src, "dst": dst, "error": str(exc)}
+
+
+def copy(
+    src: str,
+    dst: str,
+    storage_options: dict | None = None,
+    recursive: bool = True,
+    confirmed: bool = False,
+) -> dict:
+    """Copy *src* to *dst*, recursively if *src* is a directory.
+
+    Works across different filesystems/protocols by using
+    ``fsspec.generic`` (``rsync`` for directory trees, and
+    ``GenericFileSystem.cp_file`` for single files) whenever *src* and
+    *dst* don't resolve to the same fsspec filesystem class; same-filesystem
+    copies use the plain, more efficient ``fs.copy()``.
+
+    Before copying, the total size of *src* is computed (via ``fs.du()``
+    for directories, ``fs.size()`` for a single file).  If this exceeds the
+    ``filebrowser_copy_confirm_bytes`` config value (default 256 MB) and
+    *confirmed* is not True, nothing is copied and the returned dict has
+    ``"needs_confirm": True`` plus the computed ``"total_size"`` so the
+    caller can prompt the user and retry with ``confirmed=True``.
+
+    Returns::
+
+        {
+            "src": ..., "dst": ...,
+            "error": null or <error message>,
+            "needs_confirm": bool,
+            "total_size": <bytes> or null,
+        }
+    """
+    from projspec.config import get_conf
+
+    try:
+        src_fs, src_path = _get_fs(src, storage_options)
+        try:
+            is_dir = src_fs.isdir(src_path)
+        except Exception:
+            is_dir = False
+
+        try:
+            total_size = (
+                src_fs.du(src_path, total=True) if is_dir else src_fs.size(src_path)
+            )
+        except Exception:
+            total_size = None
+
+        threshold = get_conf("filebrowser_copy_confirm_bytes")
+        if (
+            not confirmed
+            and total_size is not None
+            and threshold
+            and total_size > threshold
+        ):
+            return {
+                "src": src,
+                "dst": dst,
+                "error": None,
+                "needs_confirm": True,
+                "total_size": total_size,
+            }
+
+        dst_fs, dst_path = _get_fs(dst, storage_options)
+
+        if src_fs is dst_fs:
+            # Same filesystem class + credentials: use the direct, efficient copy.
+            src_fs.copy(src_path, dst_path, recursive=recursive)
+        else:
+            # Different filesystems/protocols: fall back to fsspec.generic,
+            # which knows how to stream data between arbitrary backends.
+            from fsspec.generic import GenericFileSystem, rsync
+
+            GenericFileSystem(default_method="current").cp(src, dst)
+
+        return {
+            "src": src,
+            "dst": dst,
+            "error": None,
+            "needs_confirm": False,
+            "total_size": total_size,
+        }
+    except Exception as exc:
+        return {
+            "src": src,
+            "dst": dst,
+            "error": str(exc),
+            "needs_confirm": False,
+            "total_size": None,
+        }
+
+
+def total_size(
+    urls: list[str],
+    storage_options: dict | None = None,
+) -> dict:
+    """Compute the combined size (bytes) of *urls* (files and/or directories).
+
+    Used by multi-select copy/paste to decide, in a single upfront check,
+    whether the whole batch exceeds ``filebrowser_copy_confirm_bytes`` —
+    rather than checking (and possibly prompting) once per item.  A URL
+    that can't be sized (e.g. permission error) is skipped rather than
+    aborting the whole computation; if *every* URL fails, ``total_size``
+    is ``None``.
+
+    ``needs_confirm`` mirrors the same threshold check that ``copy()``
+    performs for a single item, applied here to the *combined* size of the
+    whole batch — callers should use this (not re-derive the threshold
+    themselves) to decide whether to prompt before pasting/copying several
+    items at once, then invoke each item's ``copy(confirmed=True)``.
+
+    Returns::
+
+        {
+            "total_size": <bytes> or null,
+            "error": null or <error message>,
+            "needs_confirm": bool,
+        }
+    """
+    from projspec.config import get_conf
+
+    total = 0
+    any_ok = False
+    try:
+        for url in urls:
+            try:
+                fs, path = _get_fs(url, storage_options)
+                is_dir = fs.isdir(path)
+                size = fs.du(path, total=True) if is_dir else fs.size(path)
+                if size is not None:
+                    total += size
+                    any_ok = True
+            except Exception:
+                continue
+        final_total = total if any_ok else None
+        threshold = get_conf("filebrowser_copy_confirm_bytes")
+        needs_confirm = bool(
+            final_total is not None and threshold and final_total > threshold
+        )
+        return {
+            "total_size": final_total,
+            "error": None,
+            "needs_confirm": needs_confirm,
+        }
+    except Exception as exc:
+        return {"total_size": None, "error": str(exc), "needs_confirm": False}
 
 
 def mkdir(

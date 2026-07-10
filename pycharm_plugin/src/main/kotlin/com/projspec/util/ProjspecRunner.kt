@@ -186,6 +186,30 @@ print(json.dumps(result))
         run(args)
     }
 
+    /** `projspec filebrowser copy <src> <dst> [--confirmed] [--storage-options JSON]` → JSON result */
+    fun runFbCopy(src: String, dst: String, storageOptions: String?, confirmed: Boolean): String {
+        val args = mutableListOf(cli, "filebrowser", "copy", src, dst)
+        if (confirmed) args.add("--confirmed")
+        if (!storageOptions.isNullOrBlank()) { args.add("--storage-options"); args.add(storageOptions) }
+        return when (val r = run(args)) {
+            is CliResult.Success -> extractJson(r.stdout).ifBlank { "{}" }
+            is CliResult.Failure ->
+                """{"src":"$src","dst":"$dst","error":"${r.message.replace("\"", "'")}","needs_confirm":false,"total_size":null}"""
+        }
+    }
+
+    /** `projspec filebrowser total-size <url>... [--storage-options JSON]` → JSON result */
+    fun runFbTotalSize(urls: List<String>, storageOptions: String?): String {
+        val args = mutableListOf(cli, "filebrowser", "total-size")
+        args.addAll(urls)
+        if (!storageOptions.isNullOrBlank()) { args.add("--storage-options"); args.add(storageOptions) }
+        return when (val r = run(args)) {
+            is CliResult.Success -> extractJson(r.stdout).ifBlank { "{}" }
+            is CliResult.Failure ->
+                """{"total_size":null,"error":"${r.message.replace("\"", "'")}","needs_confirm":false}"""
+        }
+    }
+
     /** `projspec filebrowser mkdir <url> [--storage-options JSON]` */
     fun runFbMkdir(url: String, storageOptions: String?) {
         val args = mutableListOf(cli, "filebrowser", "mkdir", url)

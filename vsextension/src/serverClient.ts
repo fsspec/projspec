@@ -439,6 +439,30 @@ export class ServerClient {
         });
     }
 
+    async copy(
+        src: string,
+        dst: string,
+        storageOptions?: Record<string, unknown> | null,
+        confirmed?: boolean,
+    ): Promise<unknown | null> {
+        return this._post('/filebrowser/copy', {
+            src,
+            dst,
+            storage_options: storageOptions ?? null,
+            confirmed: confirmed ?? false,
+        });
+    }
+
+    async totalSize(
+        urls: string[],
+        storageOptions?: Record<string, unknown> | null,
+    ): Promise<unknown | null> {
+        return this._post('/filebrowser/total_size', {
+            urls,
+            storage_options: storageOptions ?? null,
+        });
+    }
+
     async mkdir(url: string, storageOptions?: Record<string, unknown> | null): Promise<unknown | null> {
         return this._post('/filebrowser/mkdir', { url, storage_options: storageOptions ?? null });
     }
@@ -578,6 +602,17 @@ export async function fbCall(
                 break;
             case 'move':
                 result = await client.move(kwargs['src'] as string, kwargs['dst'] as string, so);
+                break;
+            case 'copy':
+                result = await client.copy(
+                    kwargs['src'] as string,
+                    kwargs['dst'] as string,
+                    so,
+                    (kwargs['confirmed'] as boolean | undefined) ?? false,
+                );
+                break;
+            case 'total_size':
+                result = await client.totalSize(kwargs['urls'] as string[], so);
                 break;
             case 'mkdir':               result = await client.mkdir(kwargs['url'] as string, so); break;
             case 'add_to_projspec_library': result = await client.addToLibrary(kwargs['url'] as string, so); break;

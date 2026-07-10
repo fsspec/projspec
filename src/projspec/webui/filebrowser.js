@@ -55,6 +55,26 @@
     let histIdx    = -1;
     let selected   = null;
     let newentryMode = 'file';
+    let showHidden = false;       // off by default — hides dotfile-style entries
+
+    // Multi-select state: url -> {type, so}. `selected` (above) is kept in
+    // sync as a convenience derived value: non-null only when exactly one
+    // entry is selected (used by the single-item-only info panel actions:
+    // Open, +Library, Bookmark, Rename).
+    let selectedSet = new Map();
+    let anchorUrl = null;  // last click target, used as the shift-range anchor
+
+    // Copy/cut/paste clipboard — { items: [{url, so, type}], mode: 'copy'|'cut' } or null.
+    // Always a list, even for a single copied/cut item.
+    let clipboard = null;
+    // Context-menu target — { targets: [{url, so, type}], isBackground } or null.
+    let ctxTarget = null;
+    // Pending paste awaiting large-copy confirmation —
+    // { items: [{src, srcSo}], dstDir, dstSo, mode } or null.
+    let pendingPaste = null;
+    // Shared rename target (set from either the toolbar button or the context menu).
+    // Rename only ever applies to a single item.
+    let renameTarget = null;
 
     // ── DOM refs ───────────────────────────────────────────────────────────
     // NOTE: #fb-entries is the scrollable entry list. #fb-empty and
@@ -83,6 +103,9 @@
     const neInput     = $fbId('newentry-name');
     const renOverlay  = $fbId('rename-overlay');
     const renInput    = $fbId('rename-input');
+    const ctxMenu       = $fbId('fb-ctxmenu');
+    const pasteConfirmOverlay = $fbId('paste-confirm-overlay');
+    const pasteConfirmMsg    = $fbId('paste-confirm-msg');
 
     // Verify critical elements exist
     const missing = ['fb-entries','fb-empty','fb-error','fb-url-input','fb-breadcrumb',
@@ -95,6 +118,17 @@
         const s = (url || '').replace(/\/+$/, '');
         const i = s.lastIndexOf('/');
         return i >= 0 ? s.slice(i + 1) : s;
+    }
+    // "Hidden" follows the standard dotfile convention (name starts with
+    // '.'); fsspec/browse() doesn't expose a platform hidden-attribute, so
+    // this is the same simple, universal rule every Unix-like file manager
+    // uses.
+    function isHiddenEntry(entry) {
+        var name = entry.basename || basename(entry.name || '');
+        return name.charAt(0) === '.';
+    }
+    function visibleEntries(entries) {
+        return showHidden ? entries : entries.filter(function(e) { return !isHiddenEntry(e); });
     }
     function parentUrl(url) {
         const s = (url || '').replace(/\/+$/, '');
@@ -182,6 +216,33 @@
         });
     }
 
+    // Re-renders the root-level (#fb-entries) listing from the cached raw
+    // `lastBrowseEntries` — applying the current sort and show-hidden
+    // filter without a network round-trip. Used after a sort-column
+    // change, after toggling "Show hidden", and by renderBrowse() itself.
+    // Any expanded subdirectories collapse (treeNodes is reset); the
+    // filter applies to their contents too the next time they're expanded.
+    function renderRootEntries() {
+        treeNodes = {};
+        entriesEl.innerHTML = '';
+        emptyEl.classList.add('hidden');
+        var visible = visibleEntries(lastBrowseEntries);
+        if (lastBrowseEntries.length === 0) {
+            emptyEl.textContent = 'Directory is empty.';
+            emptyEl.classList.remove('hidden');
+            return;
+        }
+        if (visible.length === 0) {
+            emptyEl.textContent = 'All items are hidden.';
+            emptyEl.classList.remove('hidden');
+            return;
+        }
+        var sorted = sortEntries(visible);
+        for (var i = 0; i < sorted.length; i++) {
+            entriesEl.appendChild(makeEntryRow(sorted[i], 0));
+        }
+    }
+
     // Wire up column header clicks
     (_fbRoot === document ? document : _fbRoot).querySelectorAll('.fb-col-hdr').forEach(function(el) {
         el.addEventListener('click', function() {
@@ -194,14 +255,7 @@
             }
             updateSortHeaders();
             // Re-render root entries with new sort (no network call)
-            if (lastBrowseEntries.length > 0) {
-                treeNodes = {};
-                entriesEl.innerHTML = '';
-                var sorted = sortEntries(lastBrowseEntries);
-                for (var i = 0; i < sorted.length; i++) {
-                    entriesEl.appendChild(makeEntryRow(sorted[i], 0));
-                }
-            }
+            renderRootEntries();
         });
     });
     updateSortHeaders();
@@ -221,6 +275,12 @@
         row.className = 'fb-entry' + (isDir ? ' is-dir' : '');
         row.dataset.url  = url;
         row.dataset.type = entry.type || 'file';
+        if (clipboard && clipboard.mode === 'cut' && clipboard.items.some(function(it) { return it.url === url; })) {
+            row.classList.add('fb-cut');
+        }
+        if (selectedSet.has(url)) {
+            row.classList.add('active');
+        }
 
         // Name cell: indent + toggle + icon + name
         var nameCell = document.createElement('span');
@@ -269,10 +329,29 @@
             treeNodes[url] = childrenEl;
         }
 
-        // Click: select
+        // Click: select (supports ctrl/cmd-click toggle and shift-click range)
         row.addEventListener('click', function(e) {
             e.stopPropagation();
-            selectEntry(url, entry.type, row);
+            if (e.shiftKey) {
+                selectRangeTo(url, entry.type);
+            } else if (e.ctrlKey || e.metaKey) {
+                toggleSelect(url, entry.type);
+            } else {
+                selectOnly(url, entry.type);
+            }
+        });
+
+        // Right-click: context menu (copy/cut/paste/rename/delete).
+        // If the row is already part of a multi-selection, the menu acts on
+        // the whole selection; otherwise it replaces the selection with just
+        // this row.
+        row.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!selectedSet.has(url)) {
+                selectOnly(url, entry.type);
+            }
+            showCtxMenu(e.clientX, e.clientY, { targets: ctxTargetsFromSelection(), isBackground: false });
         });
 
         // Toggle click: expand/collapse (stop propagation so row click doesn't fire)
@@ -281,12 +360,14 @@
                 e.stopPropagation();
                 toggleDir(url, toggle, childrenEl);
             });
-            // Double-click on row: navigate to dir as new root
-            row.addEventListener('dblclick', function(e) {
-                e.stopPropagation();
-                navigateTo(url, currentSo);
-            });
         }
+        // Double-click on row: "Open" this entry — same as the context
+        // menu's Open item. Directories reset the tree root (navigateTo);
+        // files open in the editor.
+        row.addEventListener('dblclick', function(e) {
+            e.stopPropagation();
+            openEntry({ url: url, type: entry.type, so: currentSo });
+        });
 
         wrapper.appendChild(row);
         if (childrenEl) wrapper.appendChild(childrenEl);
@@ -345,11 +426,12 @@
             return;
         }
 
-        var entries = data.entries || [];
-        if (entries.length === 0) {
+        var rawEntries = data.entries || [];
+        var entries = visibleEntries(rawEntries);
+        if (rawEntries.length === 0 || entries.length === 0) {
             var emptyMsg = document.createElement('div');
             emptyMsg.className = 'fb-child-loading';
-            emptyMsg.textContent = 'Empty';
+            emptyMsg.textContent = rawEntries.length === 0 ? 'Empty' : 'All items are hidden';
             childrenEl.appendChild(emptyMsg);
             return;
         }
@@ -375,6 +457,11 @@
         // Reset tree node map and stored entries
         treeNodes = {};
         lastBrowseEntries = [];
+        // Selection is scoped to the current listing — a fresh listing
+        // (navigation, refresh, or post-paste/delete reload) always clears
+        // it. The copy/cut clipboard is a separate concern and survives this.
+        selectedSet = new Map();
+        anchorUrl = null;
 
         entriesEl.innerHTML = '';
         emptyEl.classList.add('hidden');
@@ -383,36 +470,117 @@
         if (data.error) {
             errorEl.textContent = 'Error: ' + data.error;
             errorEl.classList.remove('hidden');
+            updateSelectionUI();
             return;
         }
 
-        var entries = data.entries || [];
-        if (entries.length === 0) {
-            emptyEl.classList.remove('hidden');
-            return;
-        }
-
-        lastBrowseEntries = entries;
-        var sorted = sortEntries(entries);
-        for (var i = 0; i < sorted.length; i++) {
-            entriesEl.appendChild(makeEntryRow(sorted[i], 0));
-        }
-        dbg('rendered ' + sorted.length + ' entries');
+        lastBrowseEntries = data.entries || [];
+        renderRootEntries();
+        dbg('rendered ' + lastBrowseEntries.length + ' raw entries (showHidden=' + showHidden + ')');
+        updateSelectionUI();
     }
 
-    function selectEntry(url, type, rowEl) {
-        (_fbRoot === document ? document : _fbRoot).querySelectorAll('.fb-entry.active').forEach(function(el) { el.classList.remove('active'); });
-        if (rowEl) rowEl.classList.add('active');
-        selected = { url: url, type: type, so: currentSo };
+    // ── multi-select ───────────────────────────────────────────────────────
+    function allRows() {
+        return Array.from((_fbRoot === document ? document : _fbRoot).querySelectorAll('.fb-entry'));
+    }
+    function ctxTargetsFromSelection() {
+        return Array.from(selectedSet.entries()).map(function(e) {
+            return { url: e[0], type: e[1].type, so: e[1].so };
+        });
+    }
+    function selectOnly(url, type) {
+        selectedSet = new Map([[url, { type: type, so: currentSo }]]);
+        anchorUrl = url;
+        updateSelectionUI();
+    }
+    function toggleSelect(url, type) {
+        if (selectedSet.has(url)) {
+            selectedSet.delete(url);
+        } else {
+            selectedSet.set(url, { type: type, so: currentSo });
+        }
+        anchorUrl = url;
+        updateSelectionUI();
+    }
+    function selectRangeTo(url, type) {
+        var rows = allRows();
+        var urls = rows.map(function(r) { return r.dataset.url; });
+        var i1 = anchorUrl ? urls.indexOf(anchorUrl) : -1;
+        var i2 = urls.indexOf(url);
+        if (i1 < 0) i1 = i2;
+        var lo = Math.min(i1, i2), hi = Math.max(i1, i2);
+        var next = new Map();
+        for (var i = lo; i <= hi && i >= 0 && i < rows.length; i++) {
+            next.set(rows[i].dataset.url, { type: rows[i].dataset.type, so: currentSo });
+        }
+        selectedSet = next;
+        updateSelectionUI();
+    }
+    function clearSelection() {
+        selectedSet = new Map();
+        anchorUrl = null;
+        updateSelectionUI();
+    }
+
+    // Re-renders the .active class on all rows and the info panel to match
+    // `selectedSet`. Single selection reuses the existing inspect/scan info
+    // view; multi-selection shows a lightweight "N items selected" summary.
+    // Copy/cut/paste/rename/delete are all done via the right-click context
+    // menu, so the info-pane actions row is only ever used for "+ Library",
+    // which only applies to a single selected directory.
+    function updateSelectionUI() {
+        allRows().forEach(function(row) {
+            row.classList.toggle('active', selectedSet.has(row.dataset.url));
+        });
+
+        if (selectedSet.size === 0) {
+            selected = null;
+            infoTitle.textContent = 'No file selected';
+            infoActions.classList.add('hidden');
+            infoMeta.innerHTML = '';
+            infoPreview.innerHTML = '';
+            if (scanPane) scanPane.classList.add('hidden');
+            return;
+        }
+
+        if (selectedSet.size === 1) {
+            var entry = selectedSet.entries().next().value;
+            selected = { url: entry[0], type: entry[1].type, so: entry[1].so };
+            showSingleSelectionInfo(selected.url, selected.type);
+            return;
+        }
+
+        // Multi-select summary — no info-pane actions apply.
+        selected = null;
+        infoActions.classList.add('hidden');
+        infoTitle.textContent = selectedSet.size + ' items selected';
+        infoMeta.innerHTML = '';
+        infoPreview.innerHTML = '';
+        if (scanPane) scanPane.classList.add('hidden');
+        if (scanPanelRoot) scanPanelRoot.classList.remove('hidden');
+        if (fileContent) { fileContent.classList.add('hidden'); fileContent.innerHTML = ''; }
+        if (typeof window.__fbPanelDeliver === 'function') {
+            window.__fbPanelDeliver({ type: 'data', library: {}, info: {}, enums: {} });
+        }
+    }
+
+    function showSingleSelectionInfo(url, type) {
         dbg('selected ' + type + ': ' + url);
 
         infoTitle.textContent = basename(url);
-        infoActions.classList.remove('hidden');
 
         const isFile = type !== 'directory';
         selectedIsFile = isFile;
-        $fbId('btn-open-editor').style.display = isFile ? '' : 'none';
-        $fbId('btn-add-to-lib').style.display = type === 'directory' ? '' : 'none';
+        // "+ Library" is the only remaining info-pane action (Open, Rename,
+        // and Delete are all available via the right-click context menu
+        // instead). It only applies to a directory that (a) isn't already
+        // in the library and (b) actually matched a recognised project
+        // type when scanned — hide the row for now; for a directory,
+        // updateAddToLibButtonVisibility() decides once the scan result
+        // (projectScanned) arrives, avoiding a flash of a button that's
+        // about to disappear.
+        infoActions.classList.add('hidden');
 
         infoMeta.innerHTML = '';
         infoPreview.innerHTML = '';
@@ -461,16 +629,26 @@
             proto = protoMatch[0];
             rest = url.slice(proto.length);
         }
+        // Absolute local-style paths (file:///Users/...) leave a leading
+        // '/' in `rest` after the two protocol slashes are stripped off —
+        // that's the root slash, not a path segment separator. Remember
+        // it so the reconstructed segment targets below keep it (otherwise
+        // clicking "Users" would rebuild the URL as the malformed
+        // file://Users, which the backend treats as a *relative* path
+        // instead of an absolute one). Remote-style URLs with no root
+        // slash convention (s3://bucket/key) are unaffected.
+        const hasRootSlash = rest.charAt(0) === '/';
         const parts = rest.replace(/\/+$/, '').split('/').filter(Boolean);
         if (proto) {
+            const rootTarget = proto + (hasRootSlash ? '/' : '');
             const link = document.createElement('span');
             link.className = 'bc-seg';
             link.textContent = proto;
-            link.title = proto;
-            link.addEventListener('click', function() { navigateTo(proto, currentSo); });
+            link.title = rootTarget;
+            link.addEventListener('click', function() { navigateTo(rootTarget, currentSo); });
             breadcrumb.appendChild(link);
         }
-        let accumulated = proto;
+        let accumulated = proto + (hasRootSlash ? '/' : '');
         for (let i = 0; i < parts.length; i++) {
             accumulated += (accumulated.slice(-1) === '/' ? '' : '/') + parts[i];
             const sep = document.createElement('span');
@@ -518,12 +696,191 @@
         infoPreview.innerHTML = '';
     }
 
+    // ── context menu (copy/cut/paste/rename/delete) ───────────────────────
+    function showCtxMenu(x, y, target) {
+        // target = { targets: [{url, type, so}, ...], isBackground }
+        ctxTarget = target;
+        var n = target.targets.length;
+        var items = ctxMenu.querySelectorAll('.fb-ctxmenu-item');
+        items.forEach(function(item) {
+            var action = item.dataset.action;
+            var show = true;
+            var disabled = false;
+            if (target.isBackground) {
+                show = action === 'paste';
+                if (action === 'paste') disabled = !clipboard;
+            } else {
+                if (action === 'open') {
+                    // Open only makes sense for exactly one item.
+                    show = n === 1;
+                } else if (action === 'rename') {
+                    // Rename only makes sense for exactly one item.
+                    show = n === 1;
+                } else if (action === 'paste') {
+                    // Paste-into-folder only offered when right-clicking a
+                    // single directory (pasting into several dirs at once
+                    // is ambiguous). Background right-click (above) is the
+                    // way to paste into the currently browsed directory.
+                    show = n === 1 && target.targets[0].type === 'directory';
+                    disabled = !clipboard;
+                }
+            }
+            item.classList.toggle('hidden', !show);
+            item.classList.toggle('disabled', disabled);
+        });
+        ctxMenu.classList.remove('hidden');
+        ctxMenu.style.left = x + 'px';
+        ctxMenu.style.top = y + 'px';
+        requestAnimationFrame(function() {
+            var rect = ctxMenu.getBoundingClientRect();
+            var vw = window.innerWidth, vh = window.innerHeight;
+            if (rect.right > vw)  ctxMenu.style.left = Math.max(0, vw - rect.width - 4) + 'px';
+            if (rect.bottom > vh) ctxMenu.style.top  = Math.max(0, vh - rect.height - 4) + 'px';
+        });
+    }
+    function hideCtxMenu() {
+        ctxMenu.classList.add('hidden');
+        ctxTarget = null;
+    }
+    // Right-click on empty space in the file list: paste-into-current-dir only.
+    $fbId('fb-file-list').addEventListener('contextmenu', function(e) {
+        if (e.target.closest && e.target.closest('.fb-entry')) return;  // handled by row listener
+        e.preventDefault();
+        showCtxMenu(e.clientX, e.clientY, {
+            targets: [{ url: currentUrl, so: currentSo, type: 'directory' }],
+            isBackground: true,
+        });
+    });
+    // Plain left-click on empty space clears the current multi-selection
+    // (modifier-clicks are reserved for range/toggle-select on rows, so a
+    // background click never carries one that matters here).
+    $fbId('fb-file-list').addEventListener('click', function(e) {
+        if (e.target.closest && e.target.closest('.fb-entry')) return;
+        clearSelection();
+    });
+
+    function clearCutVisual() {
+        (_fbRoot === document ? document : _fbRoot).querySelectorAll('.fb-entry.fb-cut').forEach(function(el) { el.classList.remove('fb-cut'); });
+    }
+    function markCutVisual(url) {
+        var sel = '.fb-entry[data-url="' + (window.CSS && CSS.escape ? CSS.escape(url) : url) + '"]';
+        var row = (_fbRoot === document ? document : _fbRoot).querySelector(sel);
+        if (row) row.classList.add('fb-cut');
+    }
+    // targets: [{url, type, so}, ...]
+    function setClipboard(targets, mode) {
+        clearCutVisual();
+        clipboard = {
+            items: targets.map(function(t) { return { url: t.url, so: t.so, type: t.type }; }),
+            mode: mode,
+        };
+        if (mode === 'cut') {
+            clipboard.items.forEach(function(it) { markCutVisual(it.url); });
+        }
+        dbg('clipboard: ' + mode + ' ' + clipboard.items.length + ' item(s)');
+    }
+    // targets: [{url, type, so}, ...]
+    function deleteEntriesFor(targets) {
+        if (!targets.length) return;
+        dbg('deleteEntries ' + targets.length + ' item(s)');
+        vscode.postMessage({
+            cmd: 'deleteEntries',
+            items: targets.map(function(t) {
+                return { url: t.url, isDir: t.type === 'directory', storageOptions: t.so || undefined };
+            }),
+        });
+    }
+    function openRenameModalFor(url, so) {
+        renameTarget = { url: url, so: so };
+        renInput.value = basename(url);
+        renOverlay.classList.remove('hidden');
+        setTimeout(function() { renInput.focus(); }, 0);
+    }
+    // "Open" context-menu action: for a file this is identical to the
+    // info-pane's Open button (opens it in the editor); for a directory
+    // it resets the browser tree root to that directory, same as a
+    // double-click on the row.
+    function openEntry(target) {
+        if (target.type === 'directory') {
+            navigateTo(target.url, target.so);
+        } else {
+            dbg('openFile ' + target.url);
+            vscode.postMessage({ cmd: 'openFile', url: target.url, storageOptions: target.so || undefined });
+        }
+    }
+    // items: [{url, so}, ...]
+    function sendPaste(items, dstDir, dstSo, mode, confirmed) {
+        dbg('paste ' + mode + ' ' + items.length + ' item(s) -> ' + dstDir);
+        vscode.postMessage({
+            cmd: 'paste',
+            items: items.map(function(it) { return { src: it.url, srcStorageOptions: it.so || undefined }; }),
+            dstDir: dstDir,
+            dstStorageOptions: dstSo || undefined,
+            mode: mode,
+            confirmed: !!confirmed,
+        });
+    }
+    function doPaste(target) {
+        if (!clipboard || !clipboard.items.length) return;
+        var dstDir = target.isBackground ? currentUrl : target.targets[0].url;
+        var dstSo  = target.isBackground ? currentSo  : target.targets[0].so;
+        sendPaste(clipboard.items, dstDir, dstSo, clipboard.mode, false);
+    }
+
+    // Context-menu action dispatch.
+    ctxMenu.addEventListener('click', function(e) {
+        var item = e.target.closest('.fb-ctxmenu-item');
+        if (!item || item.classList.contains('disabled') || item.classList.contains('hidden')) return;
+        var action = item.dataset.action;
+        var target = ctxTarget;
+        hideCtxMenu();
+        if (!target) return;
+        if (action === 'open') {
+            if (target.targets.length === 1) openEntry(target.targets[0]);
+        } else if (action === 'copy') {
+            setClipboard(target.targets, 'copy');
+        } else if (action === 'cut') {
+            setClipboard(target.targets, 'cut');
+        } else if (action === 'paste') {
+            doPaste(target);
+        } else if (action === 'rename') {
+            if (target.targets.length === 1) openRenameModalFor(target.targets[0].url, target.targets[0].so);
+        } else if (action === 'delete') {
+            deleteEntriesFor(target.targets);
+        }
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            if (!ctxMenu.classList.contains('hidden')) { hideCtxMenu(); return; }
+            if (selectedSet.size > 0) { clearSelection(); }
+        }
+    });
+
+    // Paste size-confirmation modal
+    $fbId('paste-confirm-cancel').addEventListener('click', function() {
+        pendingPaste = null;
+        pasteConfirmOverlay.classList.add('hidden');
+    });
+    $fbId('paste-confirm-ok').addEventListener('click', function() {
+        pasteConfirmOverlay.classList.add('hidden');
+        if (!pendingPaste) return;
+        sendPaste(pendingPaste.items, pendingPaste.dstDir, pendingPaste.dstSo, pendingPaste.mode, true);
+        pendingPaste = null;
+    });
+    pasteConfirmOverlay.addEventListener('click', function(e) {
+        if (e.target === pasteConfirmOverlay) {
+            pendingPaste = null;
+            pasteConfirmOverlay.classList.add('hidden');
+        }
+    });
+
     // ── navigation ─────────────────────────────────────────────────────────
     function navigateTo(url, so, push) {
         const shouldPush = push !== false;
         dbg('navigateTo push=' + shouldPush + ' url=' + url);
         vscode.postMessage({ cmd: 'browse', url: url, storageOptions: so || undefined, push: shouldPush });
         selected = null;
+        hideCtxMenu();
         infoTitle.textContent = 'Loading...';
         infoActions.classList.add('hidden');
         infoMeta.innerHTML = '';
@@ -638,6 +995,9 @@
         if (!bmPanel.contains(e.target) && e.target !== $fbId('btn-bm-dropdown')) {
             bmPanel.classList.add('hidden');
         }
+        if (!ctxMenu.contains(e.target) && !ctxMenu.classList.contains('hidden')) {
+            hideCtxMenu();
+        }
     });
 
     // Storage options
@@ -664,6 +1024,15 @@
     });
     soOverlay.addEventListener('click', function(e) {
         if (e.target === soOverlay) soOverlay.classList.add('hidden');
+    });
+
+    // Show hidden files/directories — off by default. Re-renders the
+    // current listing from cache (no network round-trip); any expanded
+    // subdirectories collapse and re-apply the filter when re-expanded.
+    $fbId('fb-show-hidden').addEventListener('change', function(e) {
+        showHidden = !!e.target.checked;
+        dbg('showHidden = ' + showHidden);
+        renderRootEntries();
     });
 
     // Go / URL bar
@@ -717,55 +1086,31 @@
     });
 
     // Info panel actions
-    $fbId('btn-open-editor').addEventListener('click', function() {
-        if (!selected || selected.type === 'directory') return;
-        dbg('openFile ' + selected.url);
-        vscode.postMessage({ cmd: 'openFile', url: selected.url, storageOptions: selected.so || undefined });
-    });
     $fbId('btn-add-to-lib').addEventListener('click', function() {
         if (!selected) return;
         dbg('addToLibrary ' + selected.url);
         vscode.postMessage({ cmd: 'addToLibrary', url: selected.url, storageOptions: selected.so || undefined });
     });
-    $fbId('btn-bookmark').addEventListener('click', function() {
-        const url = selected ? selected.url : currentUrl;
-        dbg('addBookmark ' + url);
-        vscode.postMessage({ cmd: 'addBookmark', url: url, storageOptions: currentSo || undefined });
-    });
-    $fbId('btn-delete-sel').addEventListener('click', function() {
-        if (!selected) return;
-        dbg('deleteEntry ' + selected.url);
-        vscode.postMessage({
-            cmd: 'deleteEntry',
-            url: selected.url,
-            isDir: selected.type === 'directory',
-            storageOptions: selected.so || undefined,
-        });
-    });
-    $fbId('btn-rename-sel').addEventListener('click', function() {
-        if (!selected) return;
-        renInput.value = basename(selected.url);
-        renOverlay.classList.remove('hidden');
-        setTimeout(function() { renInput.focus(); }, 0);
-    });
 
     // Rename modal
     $fbId('rename-cancel').addEventListener('click', function() {
+        renameTarget = null;
         renOverlay.classList.add('hidden');
     });
     $fbId('rename-ok').addEventListener('click', function() {
         const newName = renInput.value.trim();
-        if (!newName || !selected) return;
+        if (!newName || !renameTarget) return;
         renOverlay.classList.add('hidden');
-        dbg('rename ' + selected.url + ' -> ' + newName);
-        vscode.postMessage({ cmd: 'renameEntry', url: selected.url, newName: newName, storageOptions: selected.so || undefined });
+        dbg('rename ' + renameTarget.url + ' -> ' + newName);
+        vscode.postMessage({ cmd: 'renameEntry', url: renameTarget.url, newName: newName, storageOptions: renameTarget.so || undefined });
+        renameTarget = null;
     });
     renInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') $fbId('rename-ok').click();
-        if (e.key === 'Escape') renOverlay.classList.add('hidden');
+        if (e.key === 'Escape') { renameTarget = null; renOverlay.classList.add('hidden'); }
     });
     renOverlay.addEventListener('click', function(e) {
-        if (e.target === renOverlay) renOverlay.classList.add('hidden');
+        if (e.target === renOverlay) { renameTarget = null; renOverlay.classList.add('hidden'); }
     });
 
     // ── embedded projspec panel ────────────────────────────────────────────
@@ -994,6 +1339,19 @@
         }
     }
 
+    // Show "+ Library" only for a directory that (a) isn't already in the
+    // library and (b) matched at least one recognised project type when
+    // scanned (i.e. `project.specs` is non-empty). Guards against a stale
+    // scan result arriving after the user has since selected something
+    // else.
+    function updateAddToLibButtonVisibility(url, project) {
+        if (!selected || selected.url !== url || selectedIsFile) return;
+        var hasSpecs = !!(project && project.specs && Object.keys(project.specs).length > 0);
+        var show = hasSpecs && !libraryUrls.has(url);
+        infoActions.classList.toggle('hidden', !show);
+        if (show) { $fbId('btn-add-to-lib').style.display = ''; }
+    }
+
     // ── message bus ────────────────────────────────────────────────────────
     // Inbound messages are delivered via transport.onReady(dispatch).
     function _fbDispatch(msg) {
@@ -1043,6 +1401,7 @@
                 } else {
                     // Directory: full embedded library panel
                     showProjectInPanel(msg);
+                    updateAddToLibButtonVisibility(msg.url, msg.project);
                 }
                 break;
 
@@ -1056,7 +1415,58 @@
                 libraryUrls = new Set(msg.libraryUrls || []);
                 dbg('library URLs updated: ' + libraryUrls.size);
                 refreshLibraryBadges();
+                // If the currently selected directory just became a
+                // library member (e.g. the user clicked +Library), hide
+                // the now-irrelevant action row immediately rather than
+                // waiting for a re-selection/re-scan.
+                if (selected && !selectedIsFile && libraryUrls.has(selected.url)) {
+                    infoActions.classList.add('hidden');
+                }
                 break;
+
+            case 'pasteResult':
+                if (msg.error) {
+                    errorEl.textContent = 'Paste error: ' + msg.error;
+                    errorEl.classList.remove('hidden');
+                    dbg('paste error: ' + msg.error);
+                } else {
+                    var pResults = msg.results || [];
+                    var pFailed = pResults.filter(function(r) { return r.error; });
+                    if (pFailed.length) {
+                        errorEl.textContent = 'Paste: ' + (pResults.length - pFailed.length) + ' of ' +
+                            pResults.length + ' item(s) succeeded. Failed: ' +
+                            pFailed.map(function(f) { return basename(f.src) + ' (' + f.error + ')'; }).join(', ');
+                        errorEl.classList.remove('hidden');
+                    }
+                    if (msg.mode === 'cut') { clipboard = null; clearCutVisual(); }
+                    dbg('paste ok: ' + pResults.length + ' item(s)');
+                    navigateTo(currentUrl, currentSo, false);
+                }
+                break;
+
+            case 'pasteNeedsConfirm':
+                pendingPaste = {
+                    items: msg.items, dstDir: msg.dstDir, dstSo: msg.dstStorageOptions,
+                    mode: msg.mode,
+                };
+                pasteConfirmMsg.textContent = 'This will copy ' + fmtSize(msg.totalSize) +
+                    ' (' + msg.items.length + ' item' + (msg.items.length === 1 ? '' : 's') +
+                    ') into "' + msg.dstDir + '". Continue?';
+                pasteConfirmOverlay.classList.remove('hidden');
+                break;
+
+            case 'deleteEntriesResult': {
+                var dResults = msg.results || [];
+                var dFailed = dResults.filter(function(r) { return r.error; });
+                if (dFailed.length) {
+                    errorEl.textContent = 'Delete: ' + (dResults.length - dFailed.length) + ' of ' +
+                        dResults.length + ' item(s) succeeded. Failed: ' +
+                        dFailed.map(function(f) { return basename(f.url) + ' (' + f.error + ')'; }).join(', ');
+                    errorEl.classList.remove('hidden');
+                }
+                navigateTo(currentUrl, currentSo, false);
+                break;
+            }
 
             case 'error':
                 errorEl.textContent = 'Error: ' + (msg.message || 'unknown');
