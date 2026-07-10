@@ -559,6 +559,16 @@ export class CombinedPanel {
             case 'renameEntry':
                 await this.fbRenameEntry(msg.url as string, msg.newName as string, msg.storageOptions as string | undefined);
                 break;
+            case 'paste':
+                await this.fbPasteEntry(
+                    msg.src as string,
+                    msg.srcStorageOptions as string | undefined,
+                    msg.dst as string,
+                    msg.dstStorageOptions as string | undefined,
+                    msg.mode as string,
+                    (msg.confirmed as boolean | undefined) ?? false,
+                );
+                break;
             case 'mkdir':
                 await this.fbMkdirEntry(msg.parentUrl as string, msg.name as string, msg.storageOptions as string | undefined);
                 break;
@@ -780,6 +790,45 @@ export class CombinedPanel {
             const data = res.data as Record<string, unknown>;
             if (data?.['error']) { throw new Error(data['error'] as string); }
             await this.fbBrowse(parent, storageOptions, false);
+        });
+    }
+
+    /**
+     * Paste a previously copied/cut entry into `dst`.  `mode` is 'copy' or
+     * 'cut' — 'cut' maps to `move()`, 'copy' maps to `copy()` (which may
+     * come back with `needs_confirm` if the total size exceeds the
+     * configured threshold; the caller must re-invoke with confirmed=true).
+     */
+    private async fbPasteEntry(
+        src: string,
+        srcStorageOptions: string | undefined,
+        dst: string,
+        dstStorageOptions: string | undefined,
+        mode: string,
+        confirmed: boolean,
+    ): Promise<void> {
+        await this.fbWithBusy(async () => {
+            const soStr = srcStorageOptions || dstStorageOptions;
+            const so = soStr ? JSON.parse(soStr) : null;
+            const kwargs: Record<string, unknown> = so ? { src, dst, storage_options: so } : { src, dst };
+            const fn = mode === 'cut' ? 'move' : 'copy';
+            if (fn === 'copy') { kwargs['confirmed'] = confirmed; }
+            const res = await fbCall(fn, kwargs);
+            const data = (res.data as Record<string, unknown>) || { error: res.stderr || `exit ${res.code}` };
+            if (data['error']) {
+                this.fbPost({ type: 'pasteResult', src, dst, mode, error: data['error'] });
+                return;
+            }
+            if (fn === 'copy' && data['needs_confirm']) {
+                this.fbPost({
+                    type: 'pasteNeedsConfirm',
+                    src, dst, mode,
+                    srcStorageOptions, dstStorageOptions,
+                    totalSize: data['total_size'],
+                });
+                return;
+            }
+            this.fbPost({ type: 'pasteResult', src, dst, mode, error: null });
         });
     }
 
@@ -1302,6 +1351,26 @@ function getFbHtmlBody(panelBodyHtml: string): string {
     <div class="fb-modal-footer">
       <button id="rename-cancel" class="secondary">Cancel</button>
       <button id="rename-ok" class="primary">Rename</button>
+    </div>
+  </div>
+</div>
+<div id="fb-ctxmenu" class="hidden">
+  <div class="fb-ctxmenu-item" data-action="copy">Copy</div>
+  <div class="fb-ctxmenu-item" data-action="cut">Cut</div>
+  <div class="fb-ctxmenu-item" data-action="paste">Paste</div>
+  <div class="fb-ctxmenu-sep"></div>
+  <div class="fb-ctxmenu-item" data-action="rename">Rename</div>
+  <div class="fb-ctxmenu-item fb-ctxmenu-danger" data-action="delete">Delete</div>
+</div>
+<div id="paste-confirm-overlay" class="overlay hidden">
+  <div class="fb-modal" role="dialog">
+    <div class="fb-modal-title">Confirm large copy</div>
+    <div class="fb-modal-body">
+      <p id="paste-confirm-msg" class="hint"></p>
+    </div>
+    <div class="fb-modal-footer">
+      <button id="paste-confirm-cancel" class="secondary">Cancel</button>
+      <button id="paste-confirm-ok" class="primary">Copy anyway</button>
     </div>
   </div>
 </div>

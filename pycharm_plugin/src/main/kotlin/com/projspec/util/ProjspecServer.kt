@@ -362,6 +362,11 @@ class ProjspecServer {
     fun move(src: String, dst: String, so: Map<String, Any?>? = null): Map<String, Any?>? =
         post("/filebrowser/move", mapOf("src" to src, "dst" to dst, "storage_options" to so)) as? Map<String, Any?>
 
+    fun copy(src: String, dst: String, so: Map<String, Any?>? = null, confirmed: Boolean = false): Map<String, Any?>? =
+        post("/filebrowser/copy", mapOf(
+            "src" to src, "dst" to dst, "storage_options" to so, "confirmed" to confirmed,
+        )) as? Map<String, Any?>
+
     fun mkdir(url: String, so: Map<String, Any?>? = null): Map<String, Any?>? =
         post("/filebrowser/mkdir", mapOf("url" to url, "storage_options" to so)) as? Map<String, Any?>
 

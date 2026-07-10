@@ -56,6 +56,15 @@
     let selected   = null;
     let newentryMode = 'file';
 
+    // Copy/cut/paste clipboard — { url, so, type, mode: 'copy'|'cut' } or null.
+    let clipboard = null;
+    // Context-menu target — { url, so, type, isBackground } or null.
+    let ctxTarget = null;
+    // Pending paste awaiting large-copy confirmation — { src, srcSo, dst, dstSo, mode } or null.
+    let pendingPaste = null;
+    // Shared rename target (set from either the toolbar button or the context menu).
+    let renameTarget = null;
+
     // ── DOM refs ───────────────────────────────────────────────────────────
     // NOTE: #fb-entries is the scrollable entry list. #fb-empty and
     // #fb-error are siblings of #fb-entries inside #fb-file-list and must
@@ -83,6 +92,9 @@
     const neInput     = $fbId('newentry-name');
     const renOverlay  = $fbId('rename-overlay');
     const renInput    = $fbId('rename-input');
+    const ctxMenu       = $fbId('fb-ctxmenu');
+    const pasteConfirmOverlay = $fbId('paste-confirm-overlay');
+    const pasteConfirmMsg    = $fbId('paste-confirm-msg');
 
     // Verify critical elements exist
     const missing = ['fb-entries','fb-empty','fb-error','fb-url-input','fb-breadcrumb',
@@ -221,6 +233,9 @@
         row.className = 'fb-entry' + (isDir ? ' is-dir' : '');
         row.dataset.url  = url;
         row.dataset.type = entry.type || 'file';
+        if (clipboard && clipboard.mode === 'cut' && clipboard.url === url) {
+            row.classList.add('fb-cut');
+        }
 
         // Name cell: indent + toggle + icon + name
         var nameCell = document.createElement('span');
@@ -273,6 +288,15 @@
         row.addEventListener('click', function(e) {
             e.stopPropagation();
             selectEntry(url, entry.type, row);
+        });
+
+        // Right-click: context menu (copy/cut/paste/rename/delete)
+        row.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            (_fbRoot === document ? document : _fbRoot).querySelectorAll('.fb-entry.active').forEach(function(el) { el.classList.remove('active'); });
+            row.classList.add('active');
+            showCtxMenu(e.clientX, e.clientY, { url: url, so: currentSo, type: entry.type, isBackground: false });
         });
 
         // Toggle click: expand/collapse (stop propagation so row click doesn't fire)
@@ -518,12 +542,137 @@
         infoPreview.innerHTML = '';
     }
 
+    // ── context menu (copy/cut/paste/rename/delete) ───────────────────────
+    function showCtxMenu(x, y, target) {
+        ctxTarget = target;
+        var items = ctxMenu.querySelectorAll('.fb-ctxmenu-item');
+        items.forEach(function(item) {
+            var action = item.dataset.action;
+            var show = true;
+            var disabled = false;
+            if (target.isBackground) {
+                show = action === 'paste';
+                if (action === 'paste') disabled = !clipboard;
+            } else if (action === 'paste') {
+                show = target.type === 'directory';
+                disabled = !clipboard;
+            }
+            item.classList.toggle('hidden', !show);
+            item.classList.toggle('disabled', disabled);
+        });
+        ctxMenu.classList.remove('hidden');
+        ctxMenu.style.left = x + 'px';
+        ctxMenu.style.top = y + 'px';
+        requestAnimationFrame(function() {
+            var rect = ctxMenu.getBoundingClientRect();
+            var vw = window.innerWidth, vh = window.innerHeight;
+            if (rect.right > vw)  ctxMenu.style.left = Math.max(0, vw - rect.width - 4) + 'px';
+            if (rect.bottom > vh) ctxMenu.style.top  = Math.max(0, vh - rect.height - 4) + 'px';
+        });
+    }
+    function hideCtxMenu() {
+        ctxMenu.classList.add('hidden');
+        ctxTarget = null;
+    }
+    // Right-click on empty space in the file list: paste-into-current-dir only.
+    $fbId('fb-file-list').addEventListener('contextmenu', function(e) {
+        if (e.target.closest && e.target.closest('.fb-entry')) return;  // handled by row listener
+        e.preventDefault();
+        showCtxMenu(e.clientX, e.clientY, { url: currentUrl, so: currentSo, type: 'directory', isBackground: true });
+    });
+
+    function clearCutVisual() {
+        (_fbRoot === document ? document : _fbRoot).querySelectorAll('.fb-entry.fb-cut').forEach(function(el) { el.classList.remove('fb-cut'); });
+    }
+    function markCutVisual(url) {
+        var sel = '.fb-entry[data-url="' + (window.CSS && CSS.escape ? CSS.escape(url) : url) + '"]';
+        var row = (_fbRoot === document ? document : _fbRoot).querySelector(sel);
+        if (row) row.classList.add('fb-cut');
+    }
+    function setClipboard(url, so, type, mode) {
+        clearCutVisual();
+        clipboard = { url: url, so: so, type: type, mode: mode };
+        if (mode === 'cut') markCutVisual(url);
+        dbg('clipboard: ' + mode + ' ' + url);
+    }
+    function deleteEntryFor(url, isDir, so) {
+        dbg('deleteEntry ' + url);
+        vscode.postMessage({ cmd: 'deleteEntry', url: url, isDir: isDir, storageOptions: so || undefined });
+    }
+    function openRenameModalFor(url, so) {
+        renameTarget = { url: url, so: so };
+        renInput.value = basename(url);
+        renOverlay.classList.remove('hidden');
+        setTimeout(function() { renInput.focus(); }, 0);
+    }
+    function sendPaste(src, srcSo, dst, dstSo, mode, confirmed) {
+        dbg('paste ' + mode + ' ' + src + ' -> ' + dst);
+        vscode.postMessage({
+            cmd: 'paste',
+            src: src,
+            srcStorageOptions: srcSo || undefined,
+            dst: dst,
+            dstStorageOptions: dstSo || undefined,
+            mode: mode,
+            confirmed: !!confirmed,
+        });
+    }
+    function doPaste(target) {
+        if (!clipboard) return;
+        var dstDir = target.isBackground ? currentUrl : target.url;
+        var dst = dstDir.replace(/\/$/, '') + '/' + basename(clipboard.url);
+        sendPaste(clipboard.url, clipboard.so, dst, target.so, clipboard.mode, false);
+    }
+
+    // Context-menu action dispatch.
+    ctxMenu.addEventListener('click', function(e) {
+        var item = e.target.closest('.fb-ctxmenu-item');
+        if (!item || item.classList.contains('disabled') || item.classList.contains('hidden')) return;
+        var action = item.dataset.action;
+        var target = ctxTarget;
+        hideCtxMenu();
+        if (!target) return;
+        if (action === 'copy') {
+            setClipboard(target.url, target.so, target.type, 'copy');
+        } else if (action === 'cut') {
+            setClipboard(target.url, target.so, target.type, 'cut');
+        } else if (action === 'paste') {
+            doPaste(target);
+        } else if (action === 'rename') {
+            openRenameModalFor(target.url, target.so);
+        } else if (action === 'delete') {
+            deleteEntryFor(target.url, target.type === 'directory', target.so);
+        }
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !ctxMenu.classList.contains('hidden')) hideCtxMenu();
+    });
+
+    // Paste size-confirmation modal
+    $fbId('paste-confirm-cancel').addEventListener('click', function() {
+        pendingPaste = null;
+        pasteConfirmOverlay.classList.add('hidden');
+    });
+    $fbId('paste-confirm-ok').addEventListener('click', function() {
+        pasteConfirmOverlay.classList.add('hidden');
+        if (!pendingPaste) return;
+        sendPaste(pendingPaste.src, pendingPaste.srcSo, pendingPaste.dst, pendingPaste.dstSo, pendingPaste.mode, true);
+        pendingPaste = null;
+    });
+    pasteConfirmOverlay.addEventListener('click', function(e) {
+        if (e.target === pasteConfirmOverlay) {
+            pendingPaste = null;
+            pasteConfirmOverlay.classList.add('hidden');
+        }
+    });
+
     // ── navigation ─────────────────────────────────────────────────────────
     function navigateTo(url, so, push) {
         const shouldPush = push !== false;
         dbg('navigateTo push=' + shouldPush + ' url=' + url);
         vscode.postMessage({ cmd: 'browse', url: url, storageOptions: so || undefined, push: shouldPush });
         selected = null;
+        hideCtxMenu();
         infoTitle.textContent = 'Loading...';
         infoActions.classList.add('hidden');
         infoMeta.innerHTML = '';
@@ -638,6 +787,9 @@
         if (!bmPanel.contains(e.target) && e.target !== $fbId('btn-bm-dropdown')) {
             bmPanel.classList.add('hidden');
         }
+        if (!ctxMenu.contains(e.target) && !ctxMenu.classList.contains('hidden')) {
+            hideCtxMenu();
+        }
     });
 
     // Storage options
@@ -734,38 +886,32 @@
     });
     $fbId('btn-delete-sel').addEventListener('click', function() {
         if (!selected) return;
-        dbg('deleteEntry ' + selected.url);
-        vscode.postMessage({
-            cmd: 'deleteEntry',
-            url: selected.url,
-            isDir: selected.type === 'directory',
-            storageOptions: selected.so || undefined,
-        });
+        deleteEntryFor(selected.url, selected.type === 'directory', selected.so);
     });
     $fbId('btn-rename-sel').addEventListener('click', function() {
         if (!selected) return;
-        renInput.value = basename(selected.url);
-        renOverlay.classList.remove('hidden');
-        setTimeout(function() { renInput.focus(); }, 0);
+        openRenameModalFor(selected.url, selected.so);
     });
 
     // Rename modal
     $fbId('rename-cancel').addEventListener('click', function() {
+        renameTarget = null;
         renOverlay.classList.add('hidden');
     });
     $fbId('rename-ok').addEventListener('click', function() {
         const newName = renInput.value.trim();
-        if (!newName || !selected) return;
+        if (!newName || !renameTarget) return;
         renOverlay.classList.add('hidden');
-        dbg('rename ' + selected.url + ' -> ' + newName);
-        vscode.postMessage({ cmd: 'renameEntry', url: selected.url, newName: newName, storageOptions: selected.so || undefined });
+        dbg('rename ' + renameTarget.url + ' -> ' + newName);
+        vscode.postMessage({ cmd: 'renameEntry', url: renameTarget.url, newName: newName, storageOptions: renameTarget.so || undefined });
+        renameTarget = null;
     });
     renInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') $fbId('rename-ok').click();
-        if (e.key === 'Escape') renOverlay.classList.add('hidden');
+        if (e.key === 'Escape') { renameTarget = null; renOverlay.classList.add('hidden'); }
     });
     renOverlay.addEventListener('click', function(e) {
-        if (e.target === renOverlay) renOverlay.classList.add('hidden');
+        if (e.target === renOverlay) { renameTarget = null; renOverlay.classList.add('hidden'); }
     });
 
     // ── embedded projspec panel ────────────────────────────────────────────
@@ -1056,6 +1202,29 @@
                 libraryUrls = new Set(msg.libraryUrls || []);
                 dbg('library URLs updated: ' + libraryUrls.size);
                 refreshLibraryBadges();
+                break;
+
+            case 'pasteResult':
+                if (msg.error) {
+                    errorEl.textContent = 'Paste error: ' + msg.error;
+                    errorEl.classList.remove('hidden');
+                    dbg('paste error: ' + msg.error);
+                } else {
+                    if (msg.mode === 'cut') { clipboard = null; clearCutVisual(); }
+                    dbg('paste ok: ' + msg.src + ' -> ' + msg.dst);
+                    navigateTo(currentUrl, currentSo, false);
+                }
+                break;
+
+            case 'pasteNeedsConfirm':
+                pendingPaste = {
+                    src: msg.src, srcSo: msg.srcStorageOptions,
+                    dst: msg.dst, dstSo: msg.dstStorageOptions,
+                    mode: msg.mode,
+                };
+                pasteConfirmMsg.textContent = 'This will copy ' + fmtSize(msg.totalSize) +
+                    ' from "' + msg.src + '" to "' + msg.dst + '". Continue?';
+                pasteConfirmOverlay.classList.remove('hidden');
                 break;
 
             case 'error':

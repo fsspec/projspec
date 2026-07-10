@@ -302,6 +302,12 @@ class ProjspecToolWindowPanel(
                                                     msg["isDir"] == true, so) }
             "renameEntry"  -> pool { fbRenameEntry(msg["url"] as? String ?: "",
                                                     msg["newName"] as? String ?: "", so) }
+            "paste"        -> pool { fbPasteEntry(msg["src"] as? String ?: "",
+                                                   msg["srcStorageOptions"] as? String,
+                                                   msg["dst"] as? String ?: "",
+                                                   msg["dstStorageOptions"] as? String,
+                                                   msg["mode"] as? String ?: "copy",
+                                                   msg["confirmed"] == true) }
             "mkdir"        -> pool { fbMkdir(msg["parentUrl"] as? String ?: "",
                                              msg["name"] as? String ?: "", so) }
             "addBookmark"  -> pool { fbBookmarkAdd(msg["url"] as? String ?: "",
@@ -835,6 +841,55 @@ class ProjspecToolWindowPanel(
         val so = server.parseSo(storageOptions)
         if (server.move(url, dst, so) == null) ProjspecRunner.runFbMove(url, dst, storageOptions)
         fbBrowse(parent, storageOptions, false)
+    }
+
+    /**
+     * Paste a previously copied/cut entry.  `mode` is "copy" or "cut" —
+     * "cut" maps to `move()` (fire-and-forget, like [fbRenameEntry]); "copy"
+     * maps to `copy()`, which may report `needs_confirm` if the total size
+     * exceeds the configured threshold — the webview must then re-send with
+     * `confirmed=true` to proceed.
+     */
+    private fun fbPasteEntry(
+        src: String,
+        srcStorageOptions: String?,
+        dst: String,
+        dstStorageOptions: String?,
+        mode: String,
+        confirmed: Boolean,
+    ) {
+        val soStr = srcStorageOptions ?: dstStorageOptions
+        val so = server.parseSo(soStr)
+        if (mode == "cut") {
+            if (server.move(src, dst, so) == null) ProjspecRunner.runFbMove(src, dst, soStr)
+            deliverToFbWebview(mapOf("type" to "pasteResult", "src" to src, "dst" to dst, "mode" to mode, "error" to null))
+            return
+        }
+        val data: Map<String, Any?> = server.copy(src, dst, so, confirmed) ?: run {
+            val raw = ProjspecRunner.runFbCopy(src, dst, soStr, confirmed)
+            try {
+                @Suppress("UNCHECKED_CAST")
+                gson.fromJson(raw, Map::class.java) as Map<String, Any?>
+            } catch (_: Exception) {
+                mapOf("src" to src, "dst" to dst, "error" to raw, "needs_confirm" to false, "total_size" to null)
+            }
+        }
+        val error = data["error"]
+        if (error != null) {
+            deliverToFbWebview(mapOf("type" to "pasteResult", "src" to src, "dst" to dst, "mode" to mode, "error" to error))
+            return
+        }
+        if (data["needs_confirm"] == true) {
+            deliverToFbWebview(mapOf(
+                "type" to "pasteNeedsConfirm",
+                "src" to src, "dst" to dst, "mode" to mode,
+                "srcStorageOptions" to srcStorageOptions,
+                "dstStorageOptions" to dstStorageOptions,
+                "totalSize" to data["total_size"],
+            ))
+            return
+        }
+        deliverToFbWebview(mapOf("type" to "pasteResult", "src" to src, "dst" to dst, "mode" to mode, "error" to null))
     }
 
     private fun fbMkdir(parentUrl: String, name: String, storageOptions: String?) {

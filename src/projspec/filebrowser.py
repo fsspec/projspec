@@ -821,10 +821,101 @@ def move(
     try:
         fs, src_path = _get_fs(src, storage_options)
         _, dst_path = _get_fs(dst, storage_options)
-        fs.mv(src_path, dst_path)
+        fs.mv(src_path, dst_path, recursive=True)
         return {"src": src, "dst": dst, "error": None}
     except Exception as exc:
         return {"src": src, "dst": dst, "error": str(exc)}
+
+
+def copy(
+    src: str,
+    dst: str,
+    storage_options: dict | None = None,
+    recursive: bool = True,
+    confirmed: bool = False,
+) -> dict:
+    """Copy *src* to *dst*, recursively if *src* is a directory.
+
+    Works across different filesystems/protocols by using
+    ``fsspec.generic`` (``rsync`` for directory trees, and
+    ``GenericFileSystem.cp_file`` for single files) whenever *src* and
+    *dst* don't resolve to the same fsspec filesystem class; same-filesystem
+    copies use the plain, more efficient ``fs.copy()``.
+
+    Before copying, the total size of *src* is computed (via ``fs.du()``
+    for directories, ``fs.size()`` for a single file).  If this exceeds the
+    ``filebrowser_copy_confirm_bytes`` config value (default 256 MB) and
+    *confirmed* is not True, nothing is copied and the returned dict has
+    ``"needs_confirm": True`` plus the computed ``"total_size"`` so the
+    caller can prompt the user and retry with ``confirmed=True``.
+
+    Returns::
+
+        {
+            "src": ..., "dst": ...,
+            "error": null or <error message>,
+            "needs_confirm": bool,
+            "total_size": <bytes> or null,
+        }
+    """
+    from projspec.config import get_conf
+
+    try:
+        src_fs, src_path = _get_fs(src, storage_options)
+        try:
+            is_dir = src_fs.isdir(src_path)
+        except Exception:
+            is_dir = False
+
+        try:
+            total_size = (
+                src_fs.du(src_path, total=True) if is_dir else src_fs.size(src_path)
+            )
+        except Exception:
+            total_size = None
+
+        threshold = get_conf("filebrowser_copy_confirm_bytes")
+        if (
+            not confirmed
+            and total_size is not None
+            and threshold
+            and total_size > threshold
+        ):
+            return {
+                "src": src,
+                "dst": dst,
+                "error": None,
+                "needs_confirm": True,
+                "total_size": total_size,
+            }
+
+        dst_fs, dst_path = _get_fs(dst, storage_options)
+
+        if src_fs is dst_fs:
+            # Same filesystem class + credentials: use the direct, efficient copy.
+            src_fs.copy(src_path, dst_path, recursive=recursive)
+        else:
+            # Different filesystems/protocols: fall back to fsspec.generic,
+            # which knows how to stream data between arbitrary backends.
+            from fsspec.generic import GenericFileSystem, rsync
+
+            GenericFileSystem(default_method="current").cp(src, dst)
+
+        return {
+            "src": src,
+            "dst": dst,
+            "error": None,
+            "needs_confirm": False,
+            "total_size": total_size,
+        }
+    except Exception as exc:
+        return {
+            "src": src,
+            "dst": dst,
+            "error": str(exc),
+            "needs_confirm": False,
+            "total_size": None,
+        }
 
 
 def mkdir(

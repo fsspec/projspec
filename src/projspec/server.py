@@ -33,6 +33,7 @@ POST /filebrowser/read_file      → {"url": str, "storage_options": obj|null, "
 POST /filebrowser/write_file     → {"url": str, "content": str, "storage_options": obj|null}
 POST /filebrowser/delete         → {"url": str, "storage_options": obj|null, "recursive": bool}
 POST /filebrowser/move           → {"src": str, "dst": str, "storage_options": obj|null}
+POST /filebrowser/copy           → {"src": str, "dst": str, "storage_options": obj|null, "confirmed": bool}
 POST /filebrowser/mkdir          → {"url": str, "storage_options": obj|null}
 POST /filebrowser/add_to_library → {"url": str, "storage_options": obj|null}
 GET  /filebrowser/protocols      → [str, ...]
@@ -341,6 +342,13 @@ class MoveRequest(BaseModel):
     storage_options: dict | None = None
 
 
+class CopyRequest(BaseModel):
+    src: str
+    dst: str
+    storage_options: dict | None = None
+    confirmed: bool = False
+
+
 class BookmarkAddRequest(BaseModel):
     url: str
     label: str = ""
@@ -415,6 +423,20 @@ def fb_move(req: MoveRequest):
     from projspec.filebrowser import move
 
     return _json(move(req.src, req.dst, storage_options=req.storage_options))
+
+
+@app.post("/filebrowser/copy")
+def fb_copy(req: CopyRequest):
+    from projspec.filebrowser import copy
+
+    return _json(
+        copy(
+            req.src,
+            req.dst,
+            storage_options=req.storage_options,
+            confirmed=req.confirmed,
+        )
+    )
 
 
 @app.post("/filebrowser/mkdir")

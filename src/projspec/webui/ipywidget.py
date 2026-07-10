@@ -402,6 +402,15 @@ def _build_widget(library: "ProjectLibrary"):
                     content["newName"],
                     _parse_so(content.get("storageOptions")),
                 )
+            elif cmd == "paste":
+                self._fb_paste_entry(
+                    content["src"],
+                    content["dst"],
+                    content.get("mode", "copy"),
+                    content.get("srcStorageOptions"),
+                    content.get("dstStorageOptions"),
+                    bool(content.get("confirmed")),
+                )
             elif cmd == "mkdir":
                 self._fb_mkdir(
                     content["parentUrl"],
@@ -587,6 +596,72 @@ def _build_widget(library: "ProjectLibrary"):
                     "pushHistory": False,
                     "storageOptions": json.dumps(so) if so else "",
                     **data,
+                }
+            )
+
+        def _fb_paste_entry(
+            self,
+            src: str,
+            dst: str,
+            mode: str = "copy",
+            src_storage_options=None,
+            dst_storage_options=None,
+            confirmed: bool = False,
+        ) -> None:
+            """Paste a previously copied/cut entry ("cut" -> move(), "copy"
+            -> copy()). copy() may report needs_confirm for large trees; the
+            webview shows a confirm dialog and re-sends with confirmed=True.
+            """
+            so = _parse_so(src_storage_options) or _parse_so(dst_storage_options)
+            if mode == "cut":
+                from projspec.filebrowser import move
+
+                result = move(src, dst, storage_options=so)
+                self._fb_send(
+                    {
+                        "type": "pasteResult",
+                        "src": src,
+                        "dst": dst,
+                        "mode": mode,
+                        "error": result.get("error"),
+                    }
+                )
+                return
+
+            from projspec.filebrowser import copy
+
+            result = copy(src, dst, storage_options=so, confirmed=confirmed)
+            if result.get("error"):
+                self._fb_send(
+                    {
+                        "type": "pasteResult",
+                        "src": src,
+                        "dst": dst,
+                        "mode": mode,
+                        "error": result["error"],
+                    }
+                )
+                return
+            if result.get("needs_confirm"):
+                self._fb_send(
+                    {
+                        "type": "pasteNeedsConfirm",
+                        "src": src,
+                        "dst": dst,
+                        "mode": mode,
+                        "srcStorageOptions": src_storage_options,
+                        "dstStorageOptions": dst_storage_options,
+                        "totalSize": result.get("total_size"),
+                    }
+                )
+                return
+            self._fb_send(
+                {
+                    "type": "pasteResult",
+                    "src": src,
+                    "dst": dst,
+                    "mode": mode,
+                    "error": None,
                 }
             )
 

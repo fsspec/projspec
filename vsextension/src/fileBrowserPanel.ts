@@ -941,6 +941,30 @@ const FB_HTML_BODY = `
     </div>
   </div>
 </div>
+
+<!-- Right-click context menu -->
+<div id="fb-ctxmenu" class="hidden">
+  <div class="fb-ctxmenu-item" data-action="copy">Copy</div>
+  <div class="fb-ctxmenu-item" data-action="cut">Cut</div>
+  <div class="fb-ctxmenu-item" data-action="paste">Paste</div>
+  <div class="fb-ctxmenu-sep"></div>
+  <div class="fb-ctxmenu-item" data-action="rename">Rename</div>
+  <div class="fb-ctxmenu-item fb-ctxmenu-danger" data-action="delete">Delete</div>
+</div>
+
+<!-- Paste size-confirmation modal -->
+<div id="paste-confirm-overlay" class="overlay hidden">
+  <div class="fb-modal" role="dialog">
+    <div class="fb-modal-title">Confirm large copy</div>
+    <div class="fb-modal-body">
+      <p id="paste-confirm-msg" class="hint"></p>
+    </div>
+    <div class="fb-modal-footer">
+      <button id="paste-confirm-cancel" class="secondary">Cancel</button>
+      <button id="paste-confirm-ok" class="primary">Copy anyway</button>
+    </div>
+  </div>
+</div>
 `;
 
 // ---------------------------------------------------------------------------

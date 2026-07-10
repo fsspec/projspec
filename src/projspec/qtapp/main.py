@@ -326,6 +326,15 @@ class ProjspecWindow(QMainWindow):
                 self._fb_rename_entry(
                     msg["url"], msg["newName"], msg.get("storageOptions") or None
                 )
+            elif cmd == "paste":
+                self._fb_paste_entry(
+                    msg["src"],
+                    msg["dst"],
+                    msg.get("mode", "copy"),
+                    msg.get("srcStorageOptions") or None,
+                    msg.get("dstStorageOptions") or None,
+                    bool(msg.get("confirmed")),
+                )
             elif cmd == "mkdir":
                 self._fb_mkdir(
                     msg["parentUrl"], msg["name"], msg.get("storageOptions") or None
@@ -619,6 +628,65 @@ class ProjspecWindow(QMainWindow):
             QMessageBox.warning(self, "Rename", result["error"])
             return
         self._fb_browse(parent, storage_options, push_history=False)
+
+    def _fb_paste_entry(
+        self,
+        src: str,
+        dst: str,
+        mode: str,
+        src_storage_options=None,
+        dst_storage_options=None,
+        confirmed: bool = False,
+    ) -> None:
+        """Paste a previously copied/cut entry ("cut" -> move(), "copy" ->
+        copy()). copy() may report needs_confirm for large trees; the
+        webview shows a confirm dialog and re-sends with confirmed=True."""
+        so = _parse_so(src_storage_options) or _parse_so(dst_storage_options)
+        if mode == "cut":
+            from projspec.filebrowser import move
+
+            result = move(src, dst, storage_options=so)
+            self._fb_bridge.send(
+                {
+                    "type": "pasteResult",
+                    "src": src,
+                    "dst": dst,
+                    "mode": mode,
+                    "error": result.get("error"),
+                }
+            )
+            return
+
+        from projspec.filebrowser import copy
+
+        result = copy(src, dst, storage_options=so, confirmed=confirmed)
+        if result.get("error"):
+            self._fb_bridge.send(
+                {
+                    "type": "pasteResult",
+                    "src": src,
+                    "dst": dst,
+                    "mode": mode,
+                    "error": result["error"],
+                }
+            )
+            return
+        if result.get("needs_confirm"):
+            self._fb_bridge.send(
+                {
+                    "type": "pasteNeedsConfirm",
+                    "src": src,
+                    "dst": dst,
+                    "mode": mode,
+                    "srcStorageOptions": src_storage_options,
+                    "dstStorageOptions": dst_storage_options,
+                    "totalSize": result.get("total_size"),
+                }
+            )
+            return
+        self._fb_bridge.send(
+            {"type": "pasteResult", "src": src, "dst": dst, "mode": mode, "error": None}
+        )
 
     def _fb_mkdir(self, parent_url: str, name: str, storage_options=None) -> None:
         from projspec.filebrowser import mkdir

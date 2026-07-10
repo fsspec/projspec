@@ -40,6 +40,7 @@ try:
     from textual.app import App, ComposeResult
     from textual.binding import Binding
     from textual.containers import Horizontal, Vertical, VerticalScroll
+    from textual.events import Click
     from textual.message import Message
     from textual.reactive import reactive
     from textual.screen import ModalScreen
@@ -176,6 +177,19 @@ def _fmt_age(ts: float) -> str:
     from projspec.proj.base import _humanize_age
 
     return _humanize_age(ts)
+
+
+def _fmt_size(n: float | None) -> str:
+    """Human-readable byte size, e.g. ``12.3 MB``. Used for the file browser's
+    large-copy confirmation prompt."""
+    if n is None:
+        return "unknown size"
+    size = float(n)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024 or unit == "TB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 
 def _is_enum(v: Any) -> bool:
@@ -1035,6 +1049,14 @@ class FbEntry(Static):
             super().__init__()
             self.url = url
 
+    class ContextMenu(Message):
+        """Right-click (or long-press) on this entry."""
+
+        def __init__(self, url: str, entry_type: str) -> None:
+            super().__init__()
+            self.url = url
+            self.entry_type = entry_type
+
     def __init__(self, entry: dict) -> None:
         self._entry = entry
         self._url = entry.get("name", "")
@@ -1049,7 +1071,13 @@ class FbEntry(Static):
         super().__init__(label)
         self._last_click: float = 0.0
 
-    def on_click(self) -> None:
+    def on_click(self, event: Click) -> None:
+        if event.button == 3:
+            # Right-click: open the copy/cut/paste/rename/delete context menu.
+            event.stop()
+            self.post_message(FbEntry.ContextMenu(self._url, self._type))
+            return
+
         import time
 
         now = time.monotonic()
@@ -1060,6 +1088,146 @@ class FbEntry(Static):
         else:
             self._last_click = now
             self.post_message(FbEntry.Selected(self._url, self._type))
+
+
+class FbContextMenuModal(ModalScreen[str | None]):
+    """Right-click context menu for a file-browser entry, or for empty
+    space in the entries list (background — paste-only).
+
+    Returns the string key of the chosen action (``copy``, ``cut``,
+    ``paste``, ``rename``, ``delete``) or ``None`` if dismissed.
+    """
+
+    DEFAULT_CSS = """
+    FbContextMenuModal { align: center middle; }
+    #fbctx-box {
+        background: #252526; border: solid #454545;
+        padding: 0; width: 30; height: auto;
+    }
+    #fbctx-box ListView { background: #252526; }
+    #fbctx-box ListItem { padding: 0 2; }
+    #fbctx-box ListItem.disabled { color: #6a6a6a; }
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, is_dir: bool, has_clipboard: bool, is_background: bool) -> None:
+        super().__init__()
+        self._is_dir = is_dir
+        self._has_clipboard = has_clipboard
+        self._is_background = is_background
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="fbctx-box"):
+            yield ListView(id="fbctx-list")
+
+    def on_mount(self) -> None:
+        lv = self.query_one("#fbctx-list", ListView)
+        items: list[tuple[str, str, bool]] = []  # (key, label, disabled)
+        if not self._is_background:
+            items.append(("copy", "Copy", False))
+            items.append(("cut", "Cut", False))
+        if self._is_background or self._is_dir:
+            items.append(("paste", "Paste", not self._has_clipboard))
+        if not self._is_background:
+            items.append(("rename", "Rename", False))
+            items.append(("delete", "Delete", False))
+        for key, label, disabled in items:
+            item = ListItem(Label(label))
+            item.data = key  # type: ignore[attr-defined]
+            if disabled:
+                item.add_class("disabled")
+                item.disabled = True
+            lv.append(item)
+        lv.focus()
+
+    @on(ListView.Selected, "#fbctx-list")
+    def _on_selected(self, event: ListView.Selected) -> None:
+        key = getattr(event.item, "data", None)
+        self.dismiss(key)
+
+
+class ConfirmModal(ModalScreen[bool]):
+    """Generic Yes/No confirmation dialog (delete confirm, large-copy confirm)."""
+
+    DEFAULT_CSS = """
+    ConfirmModal { align: center middle; }
+    #confirm-box {
+        background: #252526; border: solid #454545;
+        padding: 1 2; width: 60; height: auto;
+    }
+    #confirm-msg { margin-bottom: 1; }
+    #confirm-btn-row { height: 3; }
+    #confirm-btn-row Button { margin-right: 1; }
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
+
+    def __init__(self, message: str) -> None:
+        super().__init__()
+        self._message = message
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="confirm-box"):
+            yield Label(self._message, id="confirm-msg")
+            with Horizontal(id="confirm-btn-row"):
+                yield Button("Yes", variant="primary", id="confirm-yes")
+                yield Button("No", id="confirm-no")
+
+    @on(Button.Pressed, "#confirm-yes")
+    def _on_yes(self) -> None:
+        self.dismiss(True)
+
+    @on(Button.Pressed, "#confirm-no")
+    def _on_no(self) -> None:
+        self.dismiss(False)
+
+
+class RenameModal(ModalScreen[str | None]):
+    """Prompt for a new name (file browser context menu → Rename)."""
+
+    DEFAULT_CSS = """
+    RenameModal { align: center middle; }
+    #rename-box {
+        background: #252526; border: solid #454545;
+        padding: 1 2; width: 60; height: auto;
+    }
+    #rename-btn-row { margin-top: 1; height: 3; }
+    #rename-btn-row Button { margin-right: 1; }
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, current_name: str) -> None:
+        super().__init__()
+        self._current_name = current_name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="rename-box"):
+            yield Label("New name:")
+            yield Input(value=self._current_name, id="rename-input")
+            with Horizontal(id="rename-btn-row"):
+                yield Button("Rename", variant="primary", id="rename-ok")
+                yield Button("Cancel", id="rename-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#rename-input", Input).focus()
+
+    @on(Input.Submitted, "#rename-input")
+    def _on_submitted(self) -> None:
+        self._apply()
+
+    @on(Button.Pressed, "#rename-ok")
+    def _on_ok(self) -> None:
+        self._apply()
+
+    @on(Button.Pressed, "#rename-cancel")
+    def _on_cancel(self) -> None:
+        self.dismiss(None)
+
+    def _apply(self) -> None:
+        value = self.query_one("#rename-input", Input).value.strip()
+        self.dismiss(value or None)
 
 
 class StorageOptionsModal(ModalScreen[str | None]):
@@ -1222,6 +1390,9 @@ class ProjspecApp(App):
         self._fb_selected_type: str = ""
         self._fb_storage_options: str = ""  # current SO JSON string (empty = none)
         self._fb_bookmarks: list[dict] = []  # cached from filebrowser.bookmarks_list()
+        self._fb_clipboard: dict | None = (
+            None  # {"url","so","type","mode"} for copy/cut → paste
+        )
 
     # ── Layout ──────────────────────────────────────────────────────────────
 
@@ -1404,6 +1575,148 @@ class ProjspecApp(App):
     def _on_fb_navigate_to(self, event: "FbEntry.NavigateTo") -> None:
         self._fb_navigate(event.url)
         event.stop()
+
+    @on(FbEntry.ContextMenu)
+    def _on_fb_entry_context_menu(self, event: "FbEntry.ContextMenu") -> None:
+        event.stop()
+        self._fb_show_context_menu(event.url, event.entry_type, is_background=False)
+
+    @on(Click, "#fb-entries-pane")
+    def _on_fb_entries_pane_click(self, event: Click) -> None:
+        if event.button != 3:
+            return
+        self._fb_show_context_menu(
+            self._fb_current_url, "directory", is_background=True
+        )
+
+    # ── File browser context menu (copy/cut/paste/rename/delete) ────────────
+
+    def _fb_show_context_menu(
+        self, url: str, entry_type: str, is_background: bool
+    ) -> None:
+        is_dir = entry_type == "directory"
+        has_clipboard = self._fb_clipboard is not None
+
+        def _cb(action: str | None) -> None:
+            if not action:
+                return
+            so = self._fb_so_dict()
+            if action == "copy":
+                self._fb_clipboard = {
+                    "url": url,
+                    "so": so,
+                    "type": entry_type,
+                    "mode": "copy",
+                }
+                self.status_message = f"Copied: {url}"
+            elif action == "cut":
+                self._fb_clipboard = {
+                    "url": url,
+                    "so": so,
+                    "type": entry_type,
+                    "mode": "cut",
+                }
+                self.status_message = f"Cut: {url}"
+            elif action == "paste":
+                dst_dir = url if (is_background or is_dir) else self._fb_current_url
+                self._fb_do_paste(dst_dir)
+            elif action == "rename":
+                self._fb_start_rename(url, so)
+            elif action == "delete":
+                self._fb_start_delete(url, is_dir, so)
+
+        self.push_screen(
+            FbContextMenuModal(
+                is_dir=is_dir, has_clipboard=has_clipboard, is_background=is_background
+            ),
+            _cb,
+        )
+
+    def _fb_do_paste(self, dst_dir: str) -> None:
+        clip = self._fb_clipboard
+        if not clip:
+            return
+        name = clip["url"].rstrip("/").rsplit("/", 1)[-1]
+        dst = dst_dir.rstrip("/") + "/" + name
+        self._fb_paste(clip["url"], clip["so"], dst, clip["mode"], confirmed=False)
+
+    def _fb_paste(
+        self,
+        src: str,
+        src_so: dict | None,
+        dst: str,
+        mode: str,
+        confirmed: bool,
+    ) -> None:
+        self._set_busy(True)
+        try:
+            if mode == "cut":
+                from projspec.filebrowser import move
+
+                result = move(src, dst, storage_options=src_so)
+                if result.get("error"):
+                    self.status_message = f"Move error: {result['error']}"
+                else:
+                    self._fb_clipboard = None
+                    self.status_message = f"Moved to {dst}"
+                    self._fb_navigate(self._fb_current_url)
+                return
+
+            from projspec.filebrowser import copy
+
+            result = copy(src, dst, storage_options=src_so, confirmed=confirmed)
+            if result.get("error"):
+                self.status_message = f"Copy error: {result['error']}"
+                return
+            if result.get("needs_confirm"):
+                msg = f'Copy {_fmt_size(result.get("total_size"))} from "{src}" to "{dst}"?'
+
+                def _confirm_cb(ok: bool) -> None:
+                    if ok:
+                        self._fb_paste(src, src_so, dst, mode, confirmed=True)
+
+                self.push_screen(ConfirmModal(msg), _confirm_cb)
+                return
+            self.status_message = f"Copied to {dst}"
+            self._fb_navigate(self._fb_current_url)
+        finally:
+            self._set_busy(False)
+
+    def _fb_start_rename(self, url: str, so: dict | None) -> None:
+        current_name = url.rstrip("/").rsplit("/", 1)[-1]
+
+        def _cb(new_name: str | None) -> None:
+            if not new_name or new_name == current_name:
+                return
+            from projspec.filebrowser import move
+
+            parent = url.rstrip("/").rsplit("/", 1)[0] or "/"
+            dst = parent.rstrip("/") + "/" + new_name
+            result = move(url, dst, storage_options=so)
+            if result.get("error"):
+                self.status_message = f"Rename error: {result['error']}"
+            else:
+                self.status_message = f"Renamed to {new_name}"
+                self._fb_navigate(self._fb_current_url)
+
+        self.push_screen(RenameModal(current_name), _cb)
+
+    def _fb_start_delete(self, url: str, is_dir: bool, so: dict | None) -> None:
+        name = url.rstrip("/").rsplit("/", 1)[-1] or url
+
+        def _cb(ok: bool) -> None:
+            if not ok:
+                return
+            from projspec.filebrowser import delete
+
+            result = delete(url, storage_options=so, recursive=is_dir)
+            if result.get("error"):
+                self.status_message = f"Delete error: {result['error']}"
+            else:
+                self.status_message = f"Deleted {name}"
+                self._fb_navigate(self._fb_current_url)
+
+        self.push_screen(ConfirmModal(f'Delete "{name}"?'), _cb)
 
     # ── File browser core logic ──────────────────────────────────────────────
 
