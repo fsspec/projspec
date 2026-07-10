@@ -56,13 +56,23 @@
     let selected   = null;
     let newentryMode = 'file';
 
-    // Copy/cut/paste clipboard — { url, so, type, mode: 'copy'|'cut' } or null.
+    // Multi-select state: url -> {type, so}. `selected` (above) is kept in
+    // sync as a convenience derived value: non-null only when exactly one
+    // entry is selected (used by the single-item-only info panel actions:
+    // Open, +Library, Bookmark, Rename).
+    let selectedSet = new Map();
+    let anchorUrl = null;  // last click target, used as the shift-range anchor
+
+    // Copy/cut/paste clipboard — { items: [{url, so, type}], mode: 'copy'|'cut' } or null.
+    // Always a list, even for a single copied/cut item.
     let clipboard = null;
-    // Context-menu target — { url, so, type, isBackground } or null.
+    // Context-menu target — { targets: [{url, so, type}], isBackground } or null.
     let ctxTarget = null;
-    // Pending paste awaiting large-copy confirmation — { src, srcSo, dst, dstSo, mode } or null.
+    // Pending paste awaiting large-copy confirmation —
+    // { items: [{src, srcSo}], dstDir, dstSo, mode } or null.
     let pendingPaste = null;
     // Shared rename target (set from either the toolbar button or the context menu).
+    // Rename only ever applies to a single item.
     let renameTarget = null;
 
     // ── DOM refs ───────────────────────────────────────────────────────────
@@ -233,8 +243,11 @@
         row.className = 'fb-entry' + (isDir ? ' is-dir' : '');
         row.dataset.url  = url;
         row.dataset.type = entry.type || 'file';
-        if (clipboard && clipboard.mode === 'cut' && clipboard.url === url) {
+        if (clipboard && clipboard.mode === 'cut' && clipboard.items.some(function(it) { return it.url === url; })) {
             row.classList.add('fb-cut');
+        }
+        if (selectedSet.has(url)) {
+            row.classList.add('active');
         }
 
         // Name cell: indent + toggle + icon + name
@@ -284,19 +297,29 @@
             treeNodes[url] = childrenEl;
         }
 
-        // Click: select
+        // Click: select (supports ctrl/cmd-click toggle and shift-click range)
         row.addEventListener('click', function(e) {
             e.stopPropagation();
-            selectEntry(url, entry.type, row);
+            if (e.shiftKey) {
+                selectRangeTo(url, entry.type);
+            } else if (e.ctrlKey || e.metaKey) {
+                toggleSelect(url, entry.type);
+            } else {
+                selectOnly(url, entry.type);
+            }
         });
 
-        // Right-click: context menu (copy/cut/paste/rename/delete)
+        // Right-click: context menu (copy/cut/paste/rename/delete).
+        // If the row is already part of a multi-selection, the menu acts on
+        // the whole selection; otherwise it replaces the selection with just
+        // this row.
         row.addEventListener('contextmenu', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            (_fbRoot === document ? document : _fbRoot).querySelectorAll('.fb-entry.active').forEach(function(el) { el.classList.remove('active'); });
-            row.classList.add('active');
-            showCtxMenu(e.clientX, e.clientY, { url: url, so: currentSo, type: entry.type, isBackground: false });
+            if (!selectedSet.has(url)) {
+                selectOnly(url, entry.type);
+            }
+            showCtxMenu(e.clientX, e.clientY, { targets: ctxTargetsFromSelection(), isBackground: false });
         });
 
         // Toggle click: expand/collapse (stop propagation so row click doesn't fire)
@@ -399,6 +422,11 @@
         // Reset tree node map and stored entries
         treeNodes = {};
         lastBrowseEntries = [];
+        // Selection is scoped to the current listing — a fresh listing
+        // (navigation, refresh, or post-paste/delete reload) always clears
+        // it. The copy/cut clipboard is a separate concern and survives this.
+        selectedSet = new Map();
+        anchorUrl = null;
 
         entriesEl.innerHTML = '';
         emptyEl.classList.add('hidden');
@@ -407,12 +435,14 @@
         if (data.error) {
             errorEl.textContent = 'Error: ' + data.error;
             errorEl.classList.remove('hidden');
+            updateSelectionUI();
             return;
         }
 
         var entries = data.entries || [];
         if (entries.length === 0) {
             emptyEl.classList.remove('hidden');
+            updateSelectionUI();
             return;
         }
 
@@ -422,12 +452,98 @@
             entriesEl.appendChild(makeEntryRow(sorted[i], 0));
         }
         dbg('rendered ' + sorted.length + ' entries');
+        updateSelectionUI();
     }
 
-    function selectEntry(url, type, rowEl) {
-        (_fbRoot === document ? document : _fbRoot).querySelectorAll('.fb-entry.active').forEach(function(el) { el.classList.remove('active'); });
-        if (rowEl) rowEl.classList.add('active');
-        selected = { url: url, type: type, so: currentSo };
+    // ── multi-select ───────────────────────────────────────────────────────
+    function allRows() {
+        return Array.from((_fbRoot === document ? document : _fbRoot).querySelectorAll('.fb-entry'));
+    }
+    function ctxTargetsFromSelection() {
+        return Array.from(selectedSet.entries()).map(function(e) {
+            return { url: e[0], type: e[1].type, so: e[1].so };
+        });
+    }
+    function selectOnly(url, type) {
+        selectedSet = new Map([[url, { type: type, so: currentSo }]]);
+        anchorUrl = url;
+        updateSelectionUI();
+    }
+    function toggleSelect(url, type) {
+        if (selectedSet.has(url)) {
+            selectedSet.delete(url);
+        } else {
+            selectedSet.set(url, { type: type, so: currentSo });
+        }
+        anchorUrl = url;
+        updateSelectionUI();
+    }
+    function selectRangeTo(url, type) {
+        var rows = allRows();
+        var urls = rows.map(function(r) { return r.dataset.url; });
+        var i1 = anchorUrl ? urls.indexOf(anchorUrl) : -1;
+        var i2 = urls.indexOf(url);
+        if (i1 < 0) i1 = i2;
+        var lo = Math.min(i1, i2), hi = Math.max(i1, i2);
+        var next = new Map();
+        for (var i = lo; i <= hi && i >= 0 && i < rows.length; i++) {
+            next.set(rows[i].dataset.url, { type: rows[i].dataset.type, so: currentSo });
+        }
+        selectedSet = next;
+        updateSelectionUI();
+    }
+    function clearSelection() {
+        selectedSet = new Map();
+        anchorUrl = null;
+        updateSelectionUI();
+    }
+
+    // Re-renders the .active class on all rows and the info panel to match
+    // `selectedSet`. Single selection reuses the existing inspect/scan info
+    // view; multi-selection shows a lightweight "N items selected" summary
+    // and hides the single-item-only actions (Open, +Library, Bookmark,
+    // Rename) — only Delete applies to a multi-selection.
+    function updateSelectionUI() {
+        allRows().forEach(function(row) {
+            row.classList.toggle('active', selectedSet.has(row.dataset.url));
+        });
+
+        var singleOnlyBtns = ['btn-open-editor', 'btn-add-to-lib', 'btn-bookmark', 'btn-rename-sel'];
+
+        if (selectedSet.size === 0) {
+            selected = null;
+            infoTitle.textContent = 'No file selected';
+            infoActions.classList.add('hidden');
+            infoMeta.innerHTML = '';
+            infoPreview.innerHTML = '';
+            if (scanPane) scanPane.classList.add('hidden');
+            return;
+        }
+
+        if (selectedSet.size === 1) {
+            var entry = selectedSet.entries().next().value;
+            selected = { url: entry[0], type: entry[1].type, so: entry[1].so };
+            singleOnlyBtns.forEach(function(id) { $fbId(id).style.display = ''; });
+            showSingleSelectionInfo(selected.url, selected.type);
+            return;
+        }
+
+        // Multi-select summary
+        selected = null;
+        singleOnlyBtns.forEach(function(id) { $fbId(id).style.display = 'none'; });
+        infoActions.classList.remove('hidden');
+        infoTitle.textContent = selectedSet.size + ' items selected';
+        infoMeta.innerHTML = '';
+        infoPreview.innerHTML = '';
+        if (scanPane) scanPane.classList.add('hidden');
+        if (scanPanelRoot) scanPanelRoot.classList.remove('hidden');
+        if (fileContent) { fileContent.classList.add('hidden'); fileContent.innerHTML = ''; }
+        if (typeof window.__fbPanelDeliver === 'function') {
+            window.__fbPanelDeliver({ type: 'data', library: {}, info: {}, enums: {} });
+        }
+    }
+
+    function showSingleSelectionInfo(url, type) {
         dbg('selected ' + type + ': ' + url);
 
         infoTitle.textContent = basename(url);
@@ -544,7 +660,9 @@
 
     // ── context menu (copy/cut/paste/rename/delete) ───────────────────────
     function showCtxMenu(x, y, target) {
+        // target = { targets: [{url, type, so}, ...], isBackground }
         ctxTarget = target;
+        var n = target.targets.length;
         var items = ctxMenu.querySelectorAll('.fb-ctxmenu-item');
         items.forEach(function(item) {
             var action = item.dataset.action;
@@ -553,9 +671,18 @@
             if (target.isBackground) {
                 show = action === 'paste';
                 if (action === 'paste') disabled = !clipboard;
-            } else if (action === 'paste') {
-                show = target.type === 'directory';
-                disabled = !clipboard;
+            } else {
+                if (action === 'rename') {
+                    // Rename only makes sense for exactly one item.
+                    show = n === 1;
+                } else if (action === 'paste') {
+                    // Paste-into-folder only offered when right-clicking a
+                    // single directory (pasting into several dirs at once
+                    // is ambiguous). Background right-click (above) is the
+                    // way to paste into the currently browsed directory.
+                    show = n === 1 && target.targets[0].type === 'directory';
+                    disabled = !clipboard;
+                }
             }
             item.classList.toggle('hidden', !show);
             item.classList.toggle('disabled', disabled);
@@ -578,7 +705,17 @@
     $fbId('fb-file-list').addEventListener('contextmenu', function(e) {
         if (e.target.closest && e.target.closest('.fb-entry')) return;  // handled by row listener
         e.preventDefault();
-        showCtxMenu(e.clientX, e.clientY, { url: currentUrl, so: currentSo, type: 'directory', isBackground: true });
+        showCtxMenu(e.clientX, e.clientY, {
+            targets: [{ url: currentUrl, so: currentSo, type: 'directory' }],
+            isBackground: true,
+        });
+    });
+    // Plain left-click on empty space clears the current multi-selection
+    // (modifier-clicks are reserved for range/toggle-select on rows, so a
+    // background click never carries one that matters here).
+    $fbId('fb-file-list').addEventListener('click', function(e) {
+        if (e.target.closest && e.target.closest('.fb-entry')) return;
+        clearSelection();
     });
 
     function clearCutVisual() {
@@ -589,15 +726,28 @@
         var row = (_fbRoot === document ? document : _fbRoot).querySelector(sel);
         if (row) row.classList.add('fb-cut');
     }
-    function setClipboard(url, so, type, mode) {
+    // targets: [{url, type, so}, ...]
+    function setClipboard(targets, mode) {
         clearCutVisual();
-        clipboard = { url: url, so: so, type: type, mode: mode };
-        if (mode === 'cut') markCutVisual(url);
-        dbg('clipboard: ' + mode + ' ' + url);
+        clipboard = {
+            items: targets.map(function(t) { return { url: t.url, so: t.so, type: t.type }; }),
+            mode: mode,
+        };
+        if (mode === 'cut') {
+            clipboard.items.forEach(function(it) { markCutVisual(it.url); });
+        }
+        dbg('clipboard: ' + mode + ' ' + clipboard.items.length + ' item(s)');
     }
-    function deleteEntryFor(url, isDir, so) {
-        dbg('deleteEntry ' + url);
-        vscode.postMessage({ cmd: 'deleteEntry', url: url, isDir: isDir, storageOptions: so || undefined });
+    // targets: [{url, type, so}, ...]
+    function deleteEntriesFor(targets) {
+        if (!targets.length) return;
+        dbg('deleteEntries ' + targets.length + ' item(s)');
+        vscode.postMessage({
+            cmd: 'deleteEntries',
+            items: targets.map(function(t) {
+                return { url: t.url, isDir: t.type === 'directory', storageOptions: t.so || undefined };
+            }),
+        });
     }
     function openRenameModalFor(url, so) {
         renameTarget = { url: url, so: so };
@@ -605,23 +755,23 @@
         renOverlay.classList.remove('hidden');
         setTimeout(function() { renInput.focus(); }, 0);
     }
-    function sendPaste(src, srcSo, dst, dstSo, mode, confirmed) {
-        dbg('paste ' + mode + ' ' + src + ' -> ' + dst);
+    // items: [{url, so}, ...]
+    function sendPaste(items, dstDir, dstSo, mode, confirmed) {
+        dbg('paste ' + mode + ' ' + items.length + ' item(s) -> ' + dstDir);
         vscode.postMessage({
             cmd: 'paste',
-            src: src,
-            srcStorageOptions: srcSo || undefined,
-            dst: dst,
+            items: items.map(function(it) { return { src: it.url, srcStorageOptions: it.so || undefined }; }),
+            dstDir: dstDir,
             dstStorageOptions: dstSo || undefined,
             mode: mode,
             confirmed: !!confirmed,
         });
     }
     function doPaste(target) {
-        if (!clipboard) return;
-        var dstDir = target.isBackground ? currentUrl : target.url;
-        var dst = dstDir.replace(/\/$/, '') + '/' + basename(clipboard.url);
-        sendPaste(clipboard.url, clipboard.so, dst, target.so, clipboard.mode, false);
+        if (!clipboard || !clipboard.items.length) return;
+        var dstDir = target.isBackground ? currentUrl : target.targets[0].url;
+        var dstSo  = target.isBackground ? currentSo  : target.targets[0].so;
+        sendPaste(clipboard.items, dstDir, dstSo, clipboard.mode, false);
     }
 
     // Context-menu action dispatch.
@@ -633,19 +783,22 @@
         hideCtxMenu();
         if (!target) return;
         if (action === 'copy') {
-            setClipboard(target.url, target.so, target.type, 'copy');
+            setClipboard(target.targets, 'copy');
         } else if (action === 'cut') {
-            setClipboard(target.url, target.so, target.type, 'cut');
+            setClipboard(target.targets, 'cut');
         } else if (action === 'paste') {
             doPaste(target);
         } else if (action === 'rename') {
-            openRenameModalFor(target.url, target.so);
+            if (target.targets.length === 1) openRenameModalFor(target.targets[0].url, target.targets[0].so);
         } else if (action === 'delete') {
-            deleteEntryFor(target.url, target.type === 'directory', target.so);
+            deleteEntriesFor(target.targets);
         }
     });
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && !ctxMenu.classList.contains('hidden')) hideCtxMenu();
+        if (e.key === 'Escape') {
+            if (!ctxMenu.classList.contains('hidden')) { hideCtxMenu(); return; }
+            if (selectedSet.size > 0) { clearSelection(); }
+        }
     });
 
     // Paste size-confirmation modal
@@ -656,7 +809,7 @@
     $fbId('paste-confirm-ok').addEventListener('click', function() {
         pasteConfirmOverlay.classList.add('hidden');
         if (!pendingPaste) return;
-        sendPaste(pendingPaste.src, pendingPaste.srcSo, pendingPaste.dst, pendingPaste.dstSo, pendingPaste.mode, true);
+        sendPaste(pendingPaste.items, pendingPaste.dstDir, pendingPaste.dstSo, pendingPaste.mode, true);
         pendingPaste = null;
     });
     pasteConfirmOverlay.addEventListener('click', function(e) {
@@ -885,8 +1038,8 @@
         vscode.postMessage({ cmd: 'addBookmark', url: url, storageOptions: currentSo || undefined });
     });
     $fbId('btn-delete-sel').addEventListener('click', function() {
-        if (!selected) return;
-        deleteEntryFor(selected.url, selected.type === 'directory', selected.so);
+        if (selectedSet.size === 0) return;
+        deleteEntriesFor(ctxTargetsFromSelection());
     });
     $fbId('btn-rename-sel').addEventListener('click', function() {
         if (!selected) return;
@@ -1210,22 +1363,43 @@
                     errorEl.classList.remove('hidden');
                     dbg('paste error: ' + msg.error);
                 } else {
+                    var pResults = msg.results || [];
+                    var pFailed = pResults.filter(function(r) { return r.error; });
+                    if (pFailed.length) {
+                        errorEl.textContent = 'Paste: ' + (pResults.length - pFailed.length) + ' of ' +
+                            pResults.length + ' item(s) succeeded. Failed: ' +
+                            pFailed.map(function(f) { return basename(f.src) + ' (' + f.error + ')'; }).join(', ');
+                        errorEl.classList.remove('hidden');
+                    }
                     if (msg.mode === 'cut') { clipboard = null; clearCutVisual(); }
-                    dbg('paste ok: ' + msg.src + ' -> ' + msg.dst);
+                    dbg('paste ok: ' + pResults.length + ' item(s)');
                     navigateTo(currentUrl, currentSo, false);
                 }
                 break;
 
             case 'pasteNeedsConfirm':
                 pendingPaste = {
-                    src: msg.src, srcSo: msg.srcStorageOptions,
-                    dst: msg.dst, dstSo: msg.dstStorageOptions,
+                    items: msg.items, dstDir: msg.dstDir, dstSo: msg.dstStorageOptions,
                     mode: msg.mode,
                 };
                 pasteConfirmMsg.textContent = 'This will copy ' + fmtSize(msg.totalSize) +
-                    ' from "' + msg.src + '" to "' + msg.dst + '". Continue?';
+                    ' (' + msg.items.length + ' item' + (msg.items.length === 1 ? '' : 's') +
+                    ') into "' + msg.dstDir + '". Continue?';
                 pasteConfirmOverlay.classList.remove('hidden');
                 break;
+
+            case 'deleteEntriesResult': {
+                var dResults = msg.results || [];
+                var dFailed = dResults.filter(function(r) { return r.error; });
+                if (dFailed.length) {
+                    errorEl.textContent = 'Delete: ' + (dResults.length - dFailed.length) + ' of ' +
+                        dResults.length + ' item(s) succeeded. Failed: ' +
+                        dFailed.map(function(f) { return basename(f.url) + ' (' + f.error + ')'; }).join(', ');
+                    errorEl.classList.remove('hidden');
+                }
+                navigateTo(currentUrl, currentSo, false);
+                break;
+            }
 
             case 'error':
                 errorEl.textContent = 'Error: ' + (msg.message || 'unknown');

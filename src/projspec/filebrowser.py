@@ -918,6 +918,62 @@ def copy(
         }
 
 
+def total_size(
+    urls: list[str],
+    storage_options: dict | None = None,
+) -> dict:
+    """Compute the combined size (bytes) of *urls* (files and/or directories).
+
+    Used by multi-select copy/paste to decide, in a single upfront check,
+    whether the whole batch exceeds ``filebrowser_copy_confirm_bytes`` —
+    rather than checking (and possibly prompting) once per item.  A URL
+    that can't be sized (e.g. permission error) is skipped rather than
+    aborting the whole computation; if *every* URL fails, ``total_size``
+    is ``None``.
+
+    ``needs_confirm`` mirrors the same threshold check that ``copy()``
+    performs for a single item, applied here to the *combined* size of the
+    whole batch — callers should use this (not re-derive the threshold
+    themselves) to decide whether to prompt before pasting/copying several
+    items at once, then invoke each item's ``copy(confirmed=True)``.
+
+    Returns::
+
+        {
+            "total_size": <bytes> or null,
+            "error": null or <error message>,
+            "needs_confirm": bool,
+        }
+    """
+    from projspec.config import get_conf
+
+    total = 0
+    any_ok = False
+    try:
+        for url in urls:
+            try:
+                fs, path = _get_fs(url, storage_options)
+                is_dir = fs.isdir(path)
+                size = fs.du(path, total=True) if is_dir else fs.size(path)
+                if size is not None:
+                    total += size
+                    any_ok = True
+            except Exception:
+                continue
+        final_total = total if any_ok else None
+        threshold = get_conf("filebrowser_copy_confirm_bytes")
+        needs_confirm = bool(
+            final_total is not None and threshold and final_total > threshold
+        )
+        return {
+            "total_size": final_total,
+            "error": None,
+            "needs_confirm": needs_confirm,
+        }
+    except Exception as exc:
+        return {"total_size": None, "error": str(exc), "needs_confirm": False}
+
+
 def mkdir(
     url: str,
     storage_options: dict | None = None,

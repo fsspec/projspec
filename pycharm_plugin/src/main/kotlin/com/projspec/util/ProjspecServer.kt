@@ -367,6 +367,11 @@ class ProjspecServer {
             "src" to src, "dst" to dst, "storage_options" to so, "confirmed" to confirmed,
         )) as? Map<String, Any?>
 
+    fun totalSize(urls: List<String>, so: Map<String, Any?>? = null): Map<String, Any?>? =
+        post("/filebrowser/total_size", mapOf(
+            "urls" to urls, "storage_options" to so,
+        )) as? Map<String, Any?>
+
     fun mkdir(url: String, so: Map<String, Any?>? = null): Map<String, Any?>? =
         post("/filebrowser/mkdir", mapOf("url" to url, "storage_options" to so)) as? Map<String, Any?>
 

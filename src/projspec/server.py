@@ -34,6 +34,7 @@ POST /filebrowser/write_file     → {"url": str, "content": str, "storage_optio
 POST /filebrowser/delete         → {"url": str, "storage_options": obj|null, "recursive": bool}
 POST /filebrowser/move           → {"src": str, "dst": str, "storage_options": obj|null}
 POST /filebrowser/copy           → {"src": str, "dst": str, "storage_options": obj|null, "confirmed": bool}
+POST /filebrowser/total_size     → {"urls": [str, ...], "storage_options": obj|null}
 POST /filebrowser/mkdir          → {"url": str, "storage_options": obj|null}
 POST /filebrowser/add_to_library → {"url": str, "storage_options": obj|null}
 GET  /filebrowser/protocols      → [str, ...]
@@ -349,6 +350,11 @@ class CopyRequest(BaseModel):
     confirmed: bool = False
 
 
+class TotalSizeRequest(BaseModel):
+    urls: list[str]
+    storage_options: dict | None = None
+
+
 class BookmarkAddRequest(BaseModel):
     url: str
     label: str = ""
@@ -437,6 +443,13 @@ def fb_copy(req: CopyRequest):
             confirmed=req.confirmed,
         )
     )
+
+
+@app.post("/filebrowser/total_size")
+def fb_total_size(req: TotalSizeRequest):
+    from projspec.filebrowser import total_size
+
+    return _json(total_size(req.urls, storage_options=req.storage_options))
 
 
 @app.post("/filebrowser/mkdir")
