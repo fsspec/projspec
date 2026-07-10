@@ -866,11 +866,7 @@ const FB_HTML_BODY = `
     <div id="fb-info-header">
       <div id="fb-info-title">No file selected</div>
       <div id="fb-info-actions" class="hidden">
-        <button id="btn-open-editor" class="primary" title="Open in editor">Open</button>
         <button id="btn-add-to-lib"  title="Add to projspec library">+ Library</button>
-        <button id="btn-bookmark"    title="Bookmark this location">Bookmark</button>
-        <button id="btn-delete-sel"  class="danger"  title="Delete">Delete</button>
-        <button id="btn-rename-sel"  title="Rename">Rename</button>
       </div>
     </div>
     <div id="fb-info-top">
@@ -1999,12 +1995,18 @@ export function getFileBrowserJs(): string {
         dbg('selected ' + type + ': ' + url);
 
         infoTitle.textContent = basename(url);
-        infoActions.classList.remove('hidden');
 
         const isFile = type !== 'directory';
         selectedIsFile = isFile;
-        document.getElementById('btn-open-editor').style.display = isFile ? '' : 'none';
-        document.getElementById('btn-add-to-lib').style.display = type === 'directory' ? '' : 'none';
+        // "+ Library" is the only remaining info-pane action; it only
+        // applies to directories, so hide the whole actions row for a
+        // file selection rather than show an empty box.
+        if (isFile) {
+            infoActions.classList.add('hidden');
+        } else {
+            infoActions.classList.remove('hidden');
+            document.getElementById('btn-add-to-lib').style.display = '';
+        }
 
         infoMeta.innerHTML = '';
         infoPreview.innerHTML = '';
@@ -2309,36 +2311,10 @@ export function getFileBrowserJs(): string {
     });
 
     // Info panel actions
-    document.getElementById('btn-open-editor').addEventListener('click', function() {
-        if (!selected || selected.type === 'directory') return;
-        dbg('openFile ' + selected.url);
-        vscode.postMessage({ cmd: 'openFile', url: selected.url, storageOptions: selected.so || undefined });
-    });
     document.getElementById('btn-add-to-lib').addEventListener('click', function() {
         if (!selected) return;
         dbg('addToLibrary ' + selected.url);
         vscode.postMessage({ cmd: 'addToLibrary', url: selected.url, storageOptions: selected.so || undefined });
-    });
-    document.getElementById('btn-bookmark').addEventListener('click', function() {
-        const url = selected ? selected.url : currentUrl;
-        dbg('addBookmark ' + url);
-        vscode.postMessage({ cmd: 'addBookmark', url: url, storageOptions: currentSo || undefined });
-    });
-    document.getElementById('btn-delete-sel').addEventListener('click', function() {
-        if (!selected) return;
-        dbg('deleteEntry ' + selected.url);
-        vscode.postMessage({
-            cmd: 'deleteEntry',
-            url: selected.url,
-            isDir: selected.type === 'directory',
-            storageOptions: selected.so || undefined,
-        });
-    });
-    document.getElementById('btn-rename-sel').addEventListener('click', function() {
-        if (!selected) return;
-        renInput.value = basename(selected.url);
-        renOverlay.classList.remove('hidden');
-        setTimeout(function() { renInput.focus(); }, 0);
     });
 
     // Rename modal

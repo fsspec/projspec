@@ -55,6 +55,7 @@
     let histIdx    = -1;
     let selected   = null;
     let newentryMode = 'file';
+    let showHidden = false;       // off by default — hides dotfile-style entries
 
     // Multi-select state: url -> {type, so}. `selected` (above) is kept in
     // sync as a convenience derived value: non-null only when exactly one
@@ -117,6 +118,17 @@
         const s = (url || '').replace(/\/+$/, '');
         const i = s.lastIndexOf('/');
         return i >= 0 ? s.slice(i + 1) : s;
+    }
+    // "Hidden" follows the standard dotfile convention (name starts with
+    // '.'); fsspec/browse() doesn't expose a platform hidden-attribute, so
+    // this is the same simple, universal rule every Unix-like file manager
+    // uses.
+    function isHiddenEntry(entry) {
+        var name = entry.basename || basename(entry.name || '');
+        return name.charAt(0) === '.';
+    }
+    function visibleEntries(entries) {
+        return showHidden ? entries : entries.filter(function(e) { return !isHiddenEntry(e); });
     }
     function parentUrl(url) {
         const s = (url || '').replace(/\/+$/, '');
@@ -204,6 +216,33 @@
         });
     }
 
+    // Re-renders the root-level (#fb-entries) listing from the cached raw
+    // `lastBrowseEntries` — applying the current sort and show-hidden
+    // filter without a network round-trip. Used after a sort-column
+    // change, after toggling "Show hidden", and by renderBrowse() itself.
+    // Any expanded subdirectories collapse (treeNodes is reset); the
+    // filter applies to their contents too the next time they're expanded.
+    function renderRootEntries() {
+        treeNodes = {};
+        entriesEl.innerHTML = '';
+        emptyEl.classList.add('hidden');
+        var visible = visibleEntries(lastBrowseEntries);
+        if (lastBrowseEntries.length === 0) {
+            emptyEl.textContent = 'Directory is empty.';
+            emptyEl.classList.remove('hidden');
+            return;
+        }
+        if (visible.length === 0) {
+            emptyEl.textContent = 'All items are hidden.';
+            emptyEl.classList.remove('hidden');
+            return;
+        }
+        var sorted = sortEntries(visible);
+        for (var i = 0; i < sorted.length; i++) {
+            entriesEl.appendChild(makeEntryRow(sorted[i], 0));
+        }
+    }
+
     // Wire up column header clicks
     (_fbRoot === document ? document : _fbRoot).querySelectorAll('.fb-col-hdr').forEach(function(el) {
         el.addEventListener('click', function() {
@@ -216,14 +255,7 @@
             }
             updateSortHeaders();
             // Re-render root entries with new sort (no network call)
-            if (lastBrowseEntries.length > 0) {
-                treeNodes = {};
-                entriesEl.innerHTML = '';
-                var sorted = sortEntries(lastBrowseEntries);
-                for (var i = 0; i < sorted.length; i++) {
-                    entriesEl.appendChild(makeEntryRow(sorted[i], 0));
-                }
-            }
+            renderRootEntries();
         });
     });
     updateSortHeaders();
@@ -394,11 +426,12 @@
             return;
         }
 
-        var entries = data.entries || [];
-        if (entries.length === 0) {
+        var rawEntries = data.entries || [];
+        var entries = visibleEntries(rawEntries);
+        if (rawEntries.length === 0 || entries.length === 0) {
             var emptyMsg = document.createElement('div');
             emptyMsg.className = 'fb-child-loading';
-            emptyMsg.textContent = 'Empty';
+            emptyMsg.textContent = rawEntries.length === 0 ? 'Empty' : 'All items are hidden';
             childrenEl.appendChild(emptyMsg);
             return;
         }
@@ -441,19 +474,9 @@
             return;
         }
 
-        var entries = data.entries || [];
-        if (entries.length === 0) {
-            emptyEl.classList.remove('hidden');
-            updateSelectionUI();
-            return;
-        }
-
-        lastBrowseEntries = entries;
-        var sorted = sortEntries(entries);
-        for (var i = 0; i < sorted.length; i++) {
-            entriesEl.appendChild(makeEntryRow(sorted[i], 0));
-        }
-        dbg('rendered ' + sorted.length + ' entries');
+        lastBrowseEntries = data.entries || [];
+        renderRootEntries();
+        dbg('rendered ' + lastBrowseEntries.length + ' raw entries (showHidden=' + showHidden + ')');
         updateSelectionUI();
     }
 
@@ -502,15 +525,14 @@
 
     // Re-renders the .active class on all rows and the info panel to match
     // `selectedSet`. Single selection reuses the existing inspect/scan info
-    // view; multi-selection shows a lightweight "N items selected" summary
-    // and hides the single-item-only actions (Open, +Library, Bookmark,
-    // Rename) — only Delete applies to a multi-selection.
+    // view; multi-selection shows a lightweight "N items selected" summary.
+    // Copy/cut/paste/rename/delete are all done via the right-click context
+    // menu, so the info-pane actions row is only ever used for "+ Library",
+    // which only applies to a single selected directory.
     function updateSelectionUI() {
         allRows().forEach(function(row) {
             row.classList.toggle('active', selectedSet.has(row.dataset.url));
         });
-
-        var singleOnlyBtns = ['btn-open-editor', 'btn-add-to-lib', 'btn-bookmark', 'btn-rename-sel'];
 
         if (selectedSet.size === 0) {
             selected = null;
@@ -525,15 +547,13 @@
         if (selectedSet.size === 1) {
             var entry = selectedSet.entries().next().value;
             selected = { url: entry[0], type: entry[1].type, so: entry[1].so };
-            singleOnlyBtns.forEach(function(id) { $fbId(id).style.display = ''; });
             showSingleSelectionInfo(selected.url, selected.type);
             return;
         }
 
-        // Multi-select summary
+        // Multi-select summary — no info-pane actions apply.
         selected = null;
-        singleOnlyBtns.forEach(function(id) { $fbId(id).style.display = 'none'; });
-        infoActions.classList.remove('hidden');
+        infoActions.classList.add('hidden');
         infoTitle.textContent = selectedSet.size + ' items selected';
         infoMeta.innerHTML = '';
         infoPreview.innerHTML = '';
@@ -549,12 +569,18 @@
         dbg('selected ' + type + ': ' + url);
 
         infoTitle.textContent = basename(url);
-        infoActions.classList.remove('hidden');
 
         const isFile = type !== 'directory';
         selectedIsFile = isFile;
-        $fbId('btn-open-editor').style.display = isFile ? '' : 'none';
-        $fbId('btn-add-to-lib').style.display = type === 'directory' ? '' : 'none';
+        // "+ Library" is the only remaining info-pane action (Open, Rename,
+        // and Delete are all available via the right-click context menu
+        // instead). It only applies to a directory that (a) isn't already
+        // in the library and (b) actually matched a recognised project
+        // type when scanned — hide the row for now; for a directory,
+        // updateAddToLibButtonVisibility() decides once the scan result
+        // (projectScanned) arrives, avoiding a flash of a button that's
+        // about to disappear.
+        infoActions.classList.add('hidden');
 
         infoMeta.innerHTML = '';
         infoPreview.innerHTML = '';
@@ -1000,6 +1026,15 @@
         if (e.target === soOverlay) soOverlay.classList.add('hidden');
     });
 
+    // Show hidden files/directories — off by default. Re-renders the
+    // current listing from cache (no network round-trip); any expanded
+    // subdirectories collapse and re-apply the filter when re-expanded.
+    $fbId('fb-show-hidden').addEventListener('change', function(e) {
+        showHidden = !!e.target.checked;
+        dbg('showHidden = ' + showHidden);
+        renderRootEntries();
+    });
+
     // Go / URL bar
     $fbId('btn-go').addEventListener('click', function() {
         const url = urlInput.value.trim();
@@ -1051,28 +1086,10 @@
     });
 
     // Info panel actions
-    $fbId('btn-open-editor').addEventListener('click', function() {
-        if (!selected || selected.type === 'directory') return;
-        dbg('openFile ' + selected.url);
-        vscode.postMessage({ cmd: 'openFile', url: selected.url, storageOptions: selected.so || undefined });
-    });
     $fbId('btn-add-to-lib').addEventListener('click', function() {
         if (!selected) return;
         dbg('addToLibrary ' + selected.url);
         vscode.postMessage({ cmd: 'addToLibrary', url: selected.url, storageOptions: selected.so || undefined });
-    });
-    $fbId('btn-bookmark').addEventListener('click', function() {
-        const url = selected ? selected.url : currentUrl;
-        dbg('addBookmark ' + url);
-        vscode.postMessage({ cmd: 'addBookmark', url: url, storageOptions: currentSo || undefined });
-    });
-    $fbId('btn-delete-sel').addEventListener('click', function() {
-        if (selectedSet.size === 0) return;
-        deleteEntriesFor(ctxTargetsFromSelection());
-    });
-    $fbId('btn-rename-sel').addEventListener('click', function() {
-        if (!selected) return;
-        openRenameModalFor(selected.url, selected.so);
     });
 
     // Rename modal
@@ -1322,6 +1339,19 @@
         }
     }
 
+    // Show "+ Library" only for a directory that (a) isn't already in the
+    // library and (b) matched at least one recognised project type when
+    // scanned (i.e. `project.specs` is non-empty). Guards against a stale
+    // scan result arriving after the user has since selected something
+    // else.
+    function updateAddToLibButtonVisibility(url, project) {
+        if (!selected || selected.url !== url || selectedIsFile) return;
+        var hasSpecs = !!(project && project.specs && Object.keys(project.specs).length > 0);
+        var show = hasSpecs && !libraryUrls.has(url);
+        infoActions.classList.toggle('hidden', !show);
+        if (show) { $fbId('btn-add-to-lib').style.display = ''; }
+    }
+
     // ── message bus ────────────────────────────────────────────────────────
     // Inbound messages are delivered via transport.onReady(dispatch).
     function _fbDispatch(msg) {
@@ -1371,6 +1401,7 @@
                 } else {
                     // Directory: full embedded library panel
                     showProjectInPanel(msg);
+                    updateAddToLibButtonVisibility(msg.url, msg.project);
                 }
                 break;
 
@@ -1384,6 +1415,13 @@
                 libraryUrls = new Set(msg.libraryUrls || []);
                 dbg('library URLs updated: ' + libraryUrls.size);
                 refreshLibraryBadges();
+                // If the currently selected directory just became a
+                // library member (e.g. the user clicked +Library), hide
+                // the now-irrelevant action row immediately rather than
+                // waiting for a re-selection/re-scan.
+                if (selected && !selectedIsFile && libraryUrls.has(selected.url)) {
+                    infoActions.classList.add('hidden');
+                }
                 break;
 
             case 'pasteResult':

@@ -1333,6 +1333,9 @@ function getFbHtmlBody(panelBodyHtml: string): string {
       <button id="btn-refresh" class="fb-icon-btn" title="Refresh">&#8635;</button>
       <button id="btn-bm-dropdown" class="fb-icon-btn" title="Bookmarks">&#9733;</button>
       <button id="btn-so"      class="fb-icon-btn" title="Storage options">&#128273;</button>
+      <label id="fb-show-hidden-label" class="fb-checkbox-label" title="Show hidden files and directories">
+        <input type="checkbox" id="fb-show-hidden" /> Show hidden
+      </label>
       <div class="fb-spacer"></div>
       <button id="btn-new-file" class="fb-icon-btn" title="New file">+F</button>
       <button id="btn-new-dir"  class="fb-icon-btn" title="New folder">+D</button>
@@ -1360,11 +1363,7 @@ function getFbHtmlBody(panelBodyHtml: string): string {
     <div id="fb-info-header">
       <div id="fb-info-title">No file selected</div>
       <div id="fb-info-actions" class="hidden">
-        <button id="btn-open-editor" class="primary" title="Open in editor">Open</button>
         <button id="btn-add-to-lib"  title="Add to projspec library">+ Library</button>
-        <button id="btn-bookmark"    title="Bookmark this location">Bookmark</button>
-        <button id="btn-delete-sel"  class="danger"  title="Delete">Delete</button>
-        <button id="btn-rename-sel"  title="Rename">Rename</button>
       </div>
     </div>
     <div id="fb-info-top">
