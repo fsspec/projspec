@@ -70,6 +70,17 @@ class ParseFailed(ValueError):
     """Exception raised when parsing fails: a directory does not meet the given spec."""
 
 
+def _child_walk(walk: bool | int | None) -> bool | int:
+    """The ``walk`` value to pass to a child of a project scanned with ``walk``
+
+    ``True`` recurses without limit, an integer is a remaining depth budget
+    and ``None`` (walk only if the root matched nothing) stops after one level.
+    """
+    if walk is None or isinstance(walk, bool):
+        return bool(walk)
+    return walk - 1
+
+
 class Project:
     """Top level representation of a project directory
 
@@ -82,8 +93,7 @@ class Project:
         path: str,
         storage_options: dict | None = None,
         fs: fsspec.AbstractFileSystem | None = None,
-        # TODO: allow int for walk, for set number of levels; combine with preloading files
-        walk: bool | None = None,
+        walk: bool | int | None = None,
         types: set[str] | None = None,
         xtypes: set[str] | None = None,
         excludes: set[str] | None = None,
@@ -94,8 +104,10 @@ class Project:
         :param storage_options: any arguments to pass to fsspec to access the files
         :param fs: if given, use this fsspec-compatible filesystem
         :param walk: if True, unconditionally descend into child directories and attempt
-            to parse them. If False, never descend. If None (default), descend only in
-            the case that the root did not many any project type.
+            to parse them. If False (or 0), never descend. If a positive integer,
+            descend at most that many directory levels below the root. If None
+            (default), descend only in the case that the root did not match any
+            project type.
         :param types: only allow specs whose names are included.
         :param xtypes: disallow specs whose names are in this set
         :param excludes: directory names to ignore. If None, uses `excludes` config value
@@ -365,7 +377,7 @@ class Project:
 
     def resolve(
         self,
-        walk: bool | None = None,
+        walk: bool | int | None = None,
         types: set[str] | None = None,
         xtypes: set[str] | None = None,
     ) -> None:
@@ -373,10 +385,19 @@ class Project:
 
         :param walk: if None (default) only try subdirectories if root has
             no specs, and don't descend further. If True, recurse all directories;
-            if False, don't descend at all.
+            if False (or 0), don't descend at all. If a positive integer, recurse
+            at most that many levels of subdirectories.
         :param types: names of types to allow while parsing. If empty or None, allow all
         :param xtypes: names of types to disallow while parsing.
         """
+        if (
+            walk is not None
+            and not isinstance(walk, bool)
+            and (not isinstance(walk, int) or walk < 0)
+        ):
+            raise ValueError(
+                f"walk must be None, a bool or a non-negative int, got {walk!r}"
+            )
         types = set(camel_to_snake(_) for _ in types or ())
         if types and types - set(registry):
             raise ValueError(f"Unknown types: {set(types) - set(registry)}")
@@ -419,15 +440,13 @@ class Project:
                     # TODO: some types (like python packages) are recursive; so we should
                     #  separate out the parse and children steps, and only descend to
                     #  children if no recursive types match
-                    # Alternatively: allow walk to be an integer, indicating the depth
-                    #  of search.
                     basename = fileinfo["name"].rsplit("/", 1)[-1]
                     if basename in self.excludes or basename.startswith((".", "_")):
                         continue
                     proj2 = Project(
                         fileinfo["name"],
                         fs=self.fs,
-                        walk=walk or False,
+                        walk=_child_walk(walk),
                         types=types,
                         xtypes=xtypes,
                         excludes=self.excludes,

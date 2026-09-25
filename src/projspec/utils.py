@@ -470,7 +470,7 @@ def scan_glob(
     *,
     types=None,
     xtypes=None,
-    walk: bool = False,
+    walk: bool | int = False,
     storage_options: str | dict = "",
     add_to_library: bool = False,
 ):
@@ -490,7 +490,8 @@ def scan_glob(
         Spec type names to exclude (list of str, or ``None`` for none).
     walk:
         If ``True``, each matched directory is also walked for child
-        projects (passed through to :class:`projspec.Project`).
+        projects; a positive integer limits the walk to that many directory
+        levels (passed through to :class:`projspec.Project`).
     storage_options:
         Storage options for remote filesystems.  May be a JSON string or
         a plain ``dict``; an empty string means no options.
