@@ -265,9 +265,3 @@ def test_walk_depth_counts_directories_without_specs(tmp_path):
     assert not proj.children
     proj = projspec.Project(str(tmp_path), walk=2)
     assert list(proj.children) == ["empty/a"]
-
-
-@pytest.mark.parametrize("walk", [-1, 1.5, "2"])
-def test_walk_invalid(tmp_path, walk):
-    with pytest.raises(ValueError):
-        projspec.Project(str(tmp_path), walk=walk)

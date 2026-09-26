@@ -70,17 +70,6 @@ class ParseFailed(ValueError):
     """Exception raised when parsing fails: a directory does not meet the given spec."""
 
 
-def _child_walk(walk: bool | int | None) -> bool | int:
-    """The ``walk`` value to pass to a child of a project scanned with ``walk``
-
-    ``True`` recurses without limit, an integer is a remaining depth budget
-    and ``None`` (walk only if the root matched nothing) stops after one level.
-    """
-    if walk is None or isinstance(walk, bool):
-        return bool(walk)
-    return walk - 1
-
-
 class Project:
     """Top level representation of a project directory
 
@@ -390,14 +379,6 @@ class Project:
         :param types: names of types to allow while parsing. If empty or None, allow all
         :param xtypes: names of types to disallow while parsing.
         """
-        if (
-            walk is not None
-            and not isinstance(walk, bool)
-            and (not isinstance(walk, int) or walk < 0)
-        ):
-            raise ValueError(
-                f"walk must be None, a bool or a non-negative int, got {walk!r}"
-            )
         types = set(camel_to_snake(_) for _ in types or ())
         if types and types - set(registry):
             raise ValueError(f"Unknown types: {set(types) - set(registry)}")
@@ -446,7 +427,10 @@ class Project:
                     proj2 = Project(
                         fileinfo["name"],
                         fs=self.fs,
-                        walk=_child_walk(walk),
+                        # True keeps walking, None/False stop, an int counts down
+                        walk=bool(walk)
+                        if walk is None or isinstance(walk, bool)
+                        else walk - 1,
                         types=types,
                         xtypes=xtypes,
                         excludes=self.excludes,
