@@ -36,6 +36,8 @@ It is a common pattern for a project to contain potentially several subprojects
 in nodes of the directory tree (e.g., "monorepos").
 By default, ``projspec`` will only walk the tree
 if the top-level directory found no project spec hits, unless you pass ``walk=True``.
+To limit how deep the tree is walked, pass an integer instead, e.g., ``walk=2`` to look
+at most two directory levels below the top.
 
 Content
 ~~~~~~~

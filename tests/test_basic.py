@@ -229,3 +229,39 @@ def test_tree_stats_with_list_yielding_walk(tmp_path):
     finally:
         # remove the instance override so the shared (cached) fs is clean
         del proj2.fs.walk
+
+
+def _nested_projects(root, names=("a", "b", "c")):
+    """Create root/a/b/c, each level holding a minimal python project."""
+    path = root
+    for name in names:
+        path = path / name
+        path.mkdir()
+        (path / "pyproject.toml").write_text(
+            f'[project]\nname = "{name}"\nversion = "0.1"\n'
+        )
+
+
+def _depth(proj):
+    """Number of levels of child projects below *proj*."""
+    return 1 + max((_depth(c) for c in proj.children.values()), default=-1)
+
+
+@pytest.mark.parametrize(
+    "walk, depth",
+    [(None, 1), (False, 0), (0, 0), (1, 1), (2, 2), (3, 3), (10, 3), (True, 3)],
+)
+def test_walk_depth(tmp_path, walk, depth):
+    _nested_projects(tmp_path)
+    proj = projspec.Project(str(tmp_path), walk=walk)
+    assert _depth(proj) == depth
+
+
+def test_walk_depth_counts_directories_without_specs(tmp_path):
+    # an intermediate directory with no project still uses up one level
+    (tmp_path / "empty").mkdir()
+    _nested_projects(tmp_path / "empty", names=("a",))
+    proj = projspec.Project(str(tmp_path), walk=1)
+    assert not proj.children
+    proj = projspec.Project(str(tmp_path), walk=2)
+    assert list(proj.children) == ["empty/a"]
